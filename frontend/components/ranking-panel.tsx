@@ -200,9 +200,9 @@ export function RankingPanel() {
   const totalDiscarded = rankedHotspots.discarded.length;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border bg-muted/30">
+      <div className="px-4 py-3 border-b border-border bg-muted/30 shrink-0">
         <h2 className="text-sm font-medium mb-1">Priority Ranking</h2>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{totalFinalized} confirmed</span>
@@ -212,9 +212,9 @@ export function RankingPanel() {
           <span>{totalDiscarded} discarded</span>
         </div>
       </div>
-      
+
       {/* List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-2">
           {/* Finalized hotspots */}
           {rankedHotspots.finalized.map((hotspot, index) => (

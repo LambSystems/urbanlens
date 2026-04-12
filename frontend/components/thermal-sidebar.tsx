@@ -1,18 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Flame, 
-  BarChart2, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  BarChart2,
   Activity,
   MousePointer2,
   Scan,
   X,
   MapPin,
-  Thermometer
+  Thermometer,
+  GripVertical
 } from 'lucide-react';
 import { useThermal } from '@/lib/thermal-context';
 import { RankingPanel } from './ranking-panel';
@@ -22,6 +23,10 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+
+const SIDEBAR_MIN_WIDTH = 280;
+const SIDEBAR_MAX_WIDTH = 640;
+const SIDEBAR_DEFAULT_WIDTH = 380;
 
 function RegionSelector() {
   const { 
@@ -206,7 +211,40 @@ function RegionSelector() {
 export function ThermalSidebar() {
   const { sidebarOpen, setSidebarOpen, activeHotspot, selectionMode } = useThermal();
   const [activeTab, setActiveTab] = useState('ranking');
-  
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(0);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    isResizing.current = true;
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = sidebarWidth;
+    e.preventDefault();
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      // Sidebar is on the right, dragging left increases width
+      const delta = resizeStartX.current - ev.clientX;
+      const next = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, resizeStartWidth.current + delta));
+      setSidebarWidth(next);
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [sidebarWidth]);
+
   const showTabs = selectionMode === 'complete';
 
   return (
@@ -235,9 +273,9 @@ export function ThermalSidebar() {
       {/* Sidebar panel */}
       <motion.aside
         initial={false}
-        animate={{ 
-          width: sidebarOpen ? 380 : 0,
-          opacity: sidebarOpen ? 1 : 0
+        animate={{
+          width: sidebarOpen ? sidebarWidth : 0,
+          opacity: sidebarOpen ? 1 : 0,
         }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className={cn(
@@ -245,18 +283,28 @@ export function ThermalSidebar() {
           "flex flex-col"
         )}
       >
+        {/* Resize handle — left edge drag strip */}
+        {sidebarOpen && (
+          <div
+            className="absolute left-0 top-0 bottom-0 w-3 z-30 flex items-center justify-center cursor-col-resize group"
+            onMouseDown={handleResizeStart}
+          >
+            <div className="w-0.5 h-12 rounded-full bg-border group-hover:bg-primary/60 transition-colors duration-150" />
+          </div>
+        )}
+
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-md bg-primary/10">
               <Flame className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold text-sidebar-foreground">ThermalGen</h1>
+              <h1 className="text-sm font-semibold text-sidebar-foreground">UrbanLens</h1>
               <p className="text-[10px] text-muted-foreground">Urban Heat Triage</p>
             </div>
           </div>
-          
+
           <Button
             variant="ghost"
             size="icon"
@@ -268,28 +316,35 @@ export function ThermalSidebar() {
         </div>
 
         {/* Region Selector (shown when not complete) */}
-        {!showTabs && <RegionSelector />}
+        {!showTabs && (
+          <div className="shrink-0 overflow-y-auto">
+            <RegionSelector />
+          </div>
+        )}
 
         {/* Tabs (shown after analysis complete) */}
         {showTabs && (
-          <>
-            <RegionSelector />
-            
-            <Tabs 
-              value={activeTab} 
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* "Analysis Complete" banner — fixed height */}
+            <div className="shrink-0">
+              <RegionSelector />
+            </div>
+
+            <Tabs
+              value={activeTab}
               onValueChange={setActiveTab}
               className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="w-full justify-start rounded-none border-b border-sidebar-border bg-transparent px-4 h-10">
-                <TabsTrigger 
-                  value="ranking" 
+              <TabsList className="w-full justify-start rounded-none border-b border-sidebar-border bg-transparent px-4 h-10 shrink-0">
+                <TabsTrigger
+                  value="ranking"
                   className="gap-1.5 data-[state=active]:bg-sidebar-accent"
                 >
                   <BarChart2 className="h-3.5 w-3.5" />
                   <span className="text-xs">Ranking</span>
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="trace" 
+                <TabsTrigger
+                  value="trace"
                   className="gap-1.5 data-[state=active]:bg-sidebar-accent"
                 >
                   <Activity className="h-3.5 w-3.5" />
@@ -300,30 +355,31 @@ export function ThermalSidebar() {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent 
-                value="ranking" 
-                className="flex-1 m-0 overflow-hidden"
+              {/* Ranking tab — full height scroll */}
+              <TabsContent
+                value="ranking"
+                className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden"
               >
                 <RankingPanel />
               </TabsContent>
 
-              <TabsContent 
-                value="trace" 
-                className="flex-1 m-0 overflow-hidden flex flex-col"
+              {/* Trace tab — timeline scrolls, recommendation pinned below */}
+              <TabsContent
+                value="trace"
+                className="flex-1 min-h-0 m-0 flex flex-col data-[state=inactive]:hidden"
               >
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <TraceTimeline />
                 </div>
-                
-                {/* Recommendation card at bottom of trace */}
+
                 {activeHotspot && (
-                  <div className="p-3 border-t border-sidebar-border">
+                  <div className="shrink-0 border-t border-sidebar-border overflow-y-auto max-h-64 p-3">
                     <RecommendationCard />
                   </div>
                 )}
               </TabsContent>
             </Tabs>
-          </>
+          </div>
         )}
       </motion.aside>
     </>

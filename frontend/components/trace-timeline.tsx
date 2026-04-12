@@ -245,9 +245,9 @@ export function TraceTimeline() {
   const allVisible = playback.currentStepIndex >= trace.length - 1;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header with controls */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Agent Trace</span>
           <span className="text-xs text-muted-foreground">
@@ -300,7 +300,7 @@ export function TraceTimeline() {
       </div>
       
       {/* Timeline content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div ref={scrollRef} className="p-4">
           <AnimatePresence mode="sync">
             {trace.map((step, index) => {

@@ -32,11 +32,8 @@ Stack:
 
 Known assets:
 
-<<<<<<< Updated upstream
 - satellite-to-thermal conversion model already exists
-=======
 - `hybrid_thermal` RGB-to-thermal model already exists as the thermal evidence generator
->>>>>>> Stashed changes
 - datasets already exist, though Saint Louis-specific data is still under research
 - real evidence is expected to come from scattered drone imagery, not a perfectly tiled map source
 

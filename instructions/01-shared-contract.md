@@ -1,12 +1,10 @@
 # Shared Contract
 
-<<<<<<< Updated upstream
 Source of truth is [contracts.md](../docs/contracts.md).
 
 Everyone should follow these exact decisions.
 
 ## Core Flow
-=======
 Source of truth is [`docs/contracts.md`](../docs/contracts.md).
 
 Everyone should follow these exact decisions.
@@ -19,7 +17,6 @@ Everyone should follow these exact decisions.
 - Do not keep a root-level `HybridThermal/` project folder inside UrbanLens.
 
 ## Analysis Model
->>>>>>> Stashed changes
 
 - map click defines an `analysis region`
 - system loads data context: satellite imagery, thermal overlay, source records, metadata

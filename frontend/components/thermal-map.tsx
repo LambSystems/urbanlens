@@ -13,76 +13,11 @@ const mapContainerStyle = {
   height: '100%',
 };
 
-const darkMapStyles = [
-  { elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0f172a' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
-  {
-    featureType: 'administrative',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'administrative.land_parcel',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#475569' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'geometry',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#475569' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#134e4a' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#0f172a' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#64748b' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#334155' }],
-  },
-  {
-    featureType: 'transit',
-    elementType: 'geometry',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#0c4a6e' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#38bdf8' }],
-  },
-];
 
 function getMarkerColor(hotspot: Hotspot): string {
   if (hotspot.status === 'discarded') return '#6b7280';
   if (hotspot.status === 'investigating') return '#f59e0b';
-  
+
   const score = hotspot.scoring?.finalScore ?? 0;
   if (score >= 0.8) return '#ef4444';
   if (score >= 0.6) return '#f97316';
@@ -105,16 +40,16 @@ function calculateArea(bounds: BoundingBox): number {
 }
 
 export function ThermalMap() {
-  const { 
-    hotspots, 
-    activeHotspot, 
+  const {
+    hotspots,
+    activeHotspot,
     setActiveHotspot,
     selectionMode,
     setSelectionMode,
     selectedRegion,
     setSelectedRegion,
   } = useThermal();
-  
+
   const [drawingManager, setDrawingManager] = useState<google.maps.drawing.DrawingManager | null>(null);
   const rectangleRef = useRef<google.maps.Rectangle | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -127,7 +62,7 @@ export function ThermalMap() {
   const center = useMemo(() => DEMO_REGION.center, []);
 
   const mapOptions: google.maps.MapOptions = useMemo(() => ({
-    styles: darkMapStyles,
+    mapTypeId: 'hybrid',
     disableDefaultUI: true,
     zoomControl: true,
     mapTypeControl: false,
@@ -135,6 +70,10 @@ export function ThermalMap() {
     fullscreenControl: false,
     clickableIcons: false,
     draggableCursor: selectionMode === 'drawing' ? 'crosshair' : undefined,
+    styles: [
+      { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+    ],
   }), [selectionMode]);
 
   const handleMarkerClick = useCallback(
@@ -169,14 +108,14 @@ export function ThermalMap() {
     if (bounds) {
       const ne = bounds.getNorthEast();
       const sw = bounds.getSouthWest();
-      
+
       const selectedBounds: BoundingBox = {
         north: ne.lat(),
         south: sw.lat(),
         east: ne.lng(),
         west: sw.lng(),
       };
-      
+
       const region: SelectedRegion = {
         bounds: selectedBounds,
         center: {
@@ -185,10 +124,62 @@ export function ThermalMap() {
         },
         areaKm2: calculateArea(selectedBounds),
       };
-      
+
       setSelectedRegion(region);
       setSelectionMode('selected');
-      
+
+      const map = mapRef.current;
+      const viewport = map?.getBounds();
+      const vne = viewport?.getNorthEast();
+      const vsw = viewport?.getSouthWest();
+      const zoom = map?.getZoom() ?? 17;
+
+      const snapshot = {
+        region: {
+          bounds: selectedBounds,
+          center: region.center,
+          areaKm2: region.areaKm2,
+        },
+        map: {
+          zoom,
+          mapTypeId: map?.getMapTypeId() ?? null,
+          tilt: map?.getTilt() ?? null,
+          heading: map?.getHeading() ?? null,
+        },
+        viewport: vne && vsw ? {
+          north: vne.lat(),
+          south: vsw.lat(),
+          east: vne.lng(),
+          west: vsw.lng(),
+        } : null,
+        imageBase64: null as string | null,
+      };
+
+      console.log(JSON.stringify(snapshot, null, 2));
+
+      // Fetch satellite image from Static Maps API and log with base64
+      const staticUrl =
+        `https://maps.googleapis.com/maps/api/staticmap` +
+        `?center=${region.center.lat},${region.center.lng}` +
+        `&zoom=${zoom}` +
+        `&size=640x640` +
+        `&maptype=satellite` +
+        `&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''}`;
+
+      fetch(staticUrl)
+        .then(r => r.blob())
+        .then(blob => new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }))
+        .then(dataUrl => {
+          const imageBase64 = dataUrl.split(',')[1];
+          console.log(JSON.stringify({ ...snapshot, imageBase64 }, null, 2));
+        })
+        .catch(err => console.warn('Static Maps image fetch failed:', err));
+
       // Style the rectangle
       rect.setOptions({
         fillColor: '#f97316',
@@ -199,7 +190,7 @@ export function ThermalMap() {
         draggable: false,
       });
     }
-    
+
     // Turn off drawing mode
     if (drawingManager) {
       drawingManager.setDrawingMode(null);
@@ -306,7 +297,7 @@ export function ThermalMap() {
       {hotspots.map((hotspot) => {
         const isActive = activeHotspot?.id === hotspot.id;
         const color = getMarkerColor(hotspot);
-        
+
         return (
           <div key={hotspot.id}>
             <Circle
@@ -320,7 +311,7 @@ export function ThermalMap() {
                 strokeWeight: isActive ? 3 : 1.5,
               }}
             />
-            
+
             <Marker
               position={hotspot.location}
               onClick={() => handleMarkerClick(hotspot)}
