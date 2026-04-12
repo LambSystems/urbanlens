@@ -1,2 +1,4 @@
 # Urban Legend — Agent Orchestrator
-# Agentic decision loop that drives hotspot investigation.
+from .loop import investigate
+
+__all__ = ["investigate"]
