@@ -1,13 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from .routes import router
+from .session_routes import session_router
 
 
 app = FastAPI(
-    title="ThermalGen API",
-    version="0.1.0",
-    description="Hackathon MVP backend for agentic urban heat triage.",
+    title="Urban Legend API",
+    version="0.2.0",
+    description="Agentic urban sustainability advisor with thermal vision.",
 )
 
 app.add_middleware(
@@ -19,8 +22,9 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(session_router)
 
-
-@app.get("/health")
-def healthcheck() -> dict[str, str]:
-    return {"status": "ok"}
+# Serve demo images and data files
+data_dir = Path(__file__).parent / "data"
+if data_dir.exists():
+    app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
