@@ -1,7 +1,7 @@
 /**
  * Backend API client for ThermalGen / Urban Legend.
  *
- * Typed against backend/app/schemas.py. All field names match the Python schema.
+ * Typed against backend/app/schemas.py - all field names match the Python schema.
  * Use `mapHotspot()` to convert a BackendHotspot into the frontend Hotspot type.
  */
 import type { Hotspot, HotspotType, Recommendation, TraceAction, TraceStep } from './types';
@@ -226,6 +226,12 @@ export function mapHotspot(b: BackendHotspot): Hotspot {
   };
 }
 
+<<<<<<< HEAD
+=======
+// Derive a Recommendation from a finalized backend hotspot.
+// The backend doesn't have full recommendation objects yet, so we synthesize
+// from recommended_action + why bullets.
+>>>>>>> b0fb1a2d18d182eeeded94421e8c8c544da90d0c
 const COST_ESTIMATES: Record<string, string> = {
   roof: '$3,500 - $12,000',
   parking_lot: '$18,000 - $52,000',

@@ -1,17 +1,25 @@
 """
-Urban Legend — Agent Tool Registry
+Urban Legend - Agent Tool Registry
 
-Defines the tools the agent can invoke during prompt-driven investigation.
-Each tool maps to a backend module and is called when the agent (Gemini)
-decides it needs that evidence to answer the user's question.
-
-The tool set is intentionally constrained so the chain of thought stays
-legible in the UI.
+Defines the internal tools the orchestrator can invoke during investigation.
+The tool set is intentionally constrained so the UI trace stays legible.
 """
 from __future__ import annotations
 
 
 TOOL_REGISTRY: dict[str, dict] = {
+    # Capture and thermal tools
+    "generate_thermal_overlay": {
+        "description": "Generate a thermal overlay and thermal statistics from a frontend satellite capture",
+        "module": "capture_pipeline",
+        "function": "generate_thermal_overlay_from_capture",
+    },
+    "propose_hotspots_from_capture": {
+        "description": "Propose hotspot candidates from satellite capture and thermal output",
+        "module": "capture_pipeline",
+        "function": "propose_hotspots_from_capture",
+    },
+
     # Perception tools
     "inspect_object": {
         "description": "Identify the object type at this hotspot (roof, road, hvac, etc.)",
@@ -43,7 +51,7 @@ TOOL_REGISTRY: dict[str, dict] = {
         "function": "compare_neighbors",
     },
     "check_consistency": {
-        "description": "Check if the signal is consistent across nearby crops/tiles",
+        "description": "Check if the signal is consistent across nearby crops or tiles",
         "module": "scoring.context",
         "function": "check_consistency",
     },
@@ -55,7 +63,7 @@ TOOL_REGISTRY: dict[str, dict] = {
 
     # Terminal actions
     "discard_hotspot": {
-        "description": "Discard this hotspot — evidence does not justify escalation",
+        "description": "Discard this hotspot when the evidence does not justify escalation",
         "module": None,
         "function": None,
     },
@@ -64,42 +72,11 @@ TOOL_REGISTRY: dict[str, dict] = {
         "module": None,
         "function": None,
     },
-
-    # Region-level tools
-    "get_region_summary": {
-        "description": "Get an overview of the region: source count, coverage, thermal stats",
-        "module": "sources.retrieval",
-        "function": "compute_coverage_score",
-    },
-    "lookup_location": {
-        "description": "Look up location metadata for a coordinate (reverse geocoding)",
-        "module": "sources.enrichment",
-        "function": "enrich_source_metadata",
-    },
 }
 
 
 def get_tool_descriptions_for_prompt() -> str:
-    """Format tool registry as text for inclusion in Gemini system prompt."""
     lines = []
     for name, meta in TOOL_REGISTRY.items():
         lines.append(f"- {name}: {meta['description']}")
     return "\n".join(lines)
-
-
-def get_gemini_function_declarations() -> list[dict]:
-    """Format tool registry as Gemini function declarations.
-
-    TODO: Build proper Gemini function calling schema for each tool.
-    """
-    declarations = []
-    for name, meta in TOOL_REGISTRY.items():
-        declarations.append({
-            "name": name,
-            "description": meta["description"],
-            "parameters": {
-                "type": "object",
-                "properties": {},
-            },
-        })
-    return declarations

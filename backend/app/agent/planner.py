@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from . import __doc__  # noqa: F401
+from ..llm import get_llm_provider
 from ..schemas import AnalysisResponse, PlannerQuestionResponse
 
 
@@ -65,9 +66,21 @@ def answer_region_question(analysis: AnalysisResponse, question: str) -> Planner
                 "once analysis results are available."
             )
 
+    provider = get_llm_provider()
+    provider_result = provider.generate_text(
+        system_prompt="You are a concise urban heat triage assistant.",
+        user_prompt=(
+            f"Question: {q}\n"
+            f"Draft answer: {answer}\n"
+            "Rewrite the draft answer briefly and clearly without changing the facts."
+        ),
+    )
+
+    final_answer = provider_result.text.strip() or answer
+
     return PlannerQuestionResponse(
         region_id=analysis.region.region_id,
         question=q,
-        answer=answer,
+        answer=final_answer,
         referenced_hotspot_ids=referenced,
     )

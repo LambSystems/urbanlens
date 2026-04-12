@@ -186,6 +186,113 @@ Important:
 - The first response may still be `running`
 - The frontend should poll after receiving `region_id`
 
+## 4b. Create Analysis From Frontend Capture
+
+Use this when the frontend sends a Google Maps selection plus a processed screenshot.
+
+```http
+POST /analysis/from-capture
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "region": {
+    "bounds": {
+      "north": 42.28145703795954,
+      "south": 42.28057862649839,
+      "east": -83.74731891703615,
+      "west": -83.74839984726916
+    },
+    "center": {
+      "lat": 42.28101783222897,
+      "lng": -83.74785938215265
+    },
+    "areaKm2": 0.008655410213870432
+  },
+  "map": {
+    "zoom": 19,
+    "mapTypeId": "hybrid",
+    "tilt": 45,
+    "heading": null
+  },
+  "viewport": {
+    "north": 42.282105314602525,
+    "south": 42.28025027146603,
+    "east": -83.74623262238511,
+    "west": -83.75036322426804
+  },
+  "capture": {
+    "mimeType": "image/png",
+    "imageBase64": "ZmFrZQ=="
+  }
+}
+```
+
+Important:
+
+- This route converges to the same `AnalysisResponse` shape as `POST /analysis`
+- It is the preferred path for the new satellite-capture workflow
+
+## 4c. Create Analysis From Frontend Capture Upload
+
+Preferred for demo and real frontend usage.
+
+```http
+POST /analysis/from-capture-upload
+Content-Type: multipart/form-data
+```
+
+Form fields:
+
+- `metadata`: JSON string with `region`, `map`, and `viewport`
+- `image`: screenshot file (`png` or `jpg`)
+
+Example metadata string:
+
+```json
+{
+  "region": {
+    "bounds": {
+      "north": 42.28238190039619,
+      "south": 42.281495082613915,
+      "east": -83.74734466385841,
+      "west": -83.74833976340294
+    },
+    "center": {
+      "lat": 42.28193849150505,
+      "lng": -83.74784221363068
+    },
+    "areaKm2": 0.00804426877037446
+  },
+  "map": {
+    "zoom": 19,
+    "mapTypeId": "hybrid",
+    "tilt": 45,
+    "heading": null
+  },
+  "viewport": {
+    "north": 42.28357178819045,
+    "south": 42.2805324782991,
+    "east": -83.74550735068321,
+    "west": -83.74963795256615
+  }
+}
+```
+
+This route saves files under:
+
+```text
+backend/data/captures/{region_id}/
+```
+
+Files written:
+
+- `source.png` or `source.jpg`
+- `metadata.json`
+
 ## 5. Poll Analysis State
 
 ```http
