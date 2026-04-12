@@ -45,6 +45,7 @@ Use the exact field names from [contracts.md](C:/Users/akuma/repos/thermalgen/do
 - 3-5 hotspot markers
 - selected hotspot detail
 - evidence-used badges
+- source coverage indicator when available
 - trace playback states:
   - `pending`
   - `running`

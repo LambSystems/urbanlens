@@ -14,6 +14,7 @@ It is not a generic roadmap. It is a decision document for one outcome:
 Build a system that clearly demonstrates:
 
 - agent behavior over multimodal geospatial inputs
+- evidence retrieval and reasoning over scattered drone imagery
 - visible decision-making under uncertainty
 - ranked, actionable outputs instead of passive analysis
 
@@ -36,6 +37,7 @@ The system must visibly:
 - choose what to inspect
 - decide what evidence is missing
 - gather evidence in steps through tool calls
+- reason over imperfect source coverage
 - reject weak candidates
 - prioritize the strongest ones
 
@@ -126,6 +128,7 @@ These are non-negotiable for a winning attempt.
 - evidence panel
 - ranking panel
 - recommendation card
+- source-aware confidence messaging where coverage is partial
 
 ### Reliability
 
@@ -201,6 +204,8 @@ Not:
 > a system that generates thermal imagery
 
 In the best demo path, thermal should appear as evidence the agent chooses to consult, not just a static layer shown from the beginning.
+
+The same is true for source coverage: the system should acknowledge when it is reasoning over strong region evidence versus partial scattered drone evidence.
 
 ### 5.4 Explainability Over Bravado
 

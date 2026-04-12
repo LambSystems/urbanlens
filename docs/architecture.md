@@ -54,6 +54,9 @@ Map-first frontend
 API/session layer
         |
         v
+Source retrieval + evidence normalization
+        |
+        v
 Thermal evidence + metadata ingestion
         |
         v
@@ -103,11 +106,27 @@ Responsibilities:
 
 - accept region analysis request
 - define an analysis region around a map click
+- retrieve available drone sources intersecting that region
 - load cached or live evidence
 - coordinate orchestrator lifecycle
 - return structured data for the UI
 
 This layer should not contain complex reasoning logic.
+
+### 4.2.1 Source Retrieval and Evidence Normalization
+
+Google Maps is the interface layer, not the ground-truth data layer.
+
+The selected region must first be resolved against available drone imagery and metadata, which may be scattered, partial, or inconsistent in coverage.
+
+Responsibilities:
+
+- find drone images intersecting the selected region
+- attach source metadata
+- normalize crops or region evidence into a shared internal format
+- expose coverage quality to downstream confidence logic
+- tolerate incomplete metadata
+- optionally enrich weak metadata using Google Maps context
 
 ### 4.3 Thermal Evidence Layer
 
@@ -159,6 +178,7 @@ This layer answers:
 - is this hotspot unusually hot relative to nearby structures
 - is it expected in local context
 - is this signal consistent across nearby crops or tiles
+- is source coverage sufficient to trust the finding strongly
 
 This is where the project gains credibility as a triage system rather than a detector.
 
@@ -177,6 +197,10 @@ Scoring hierarchy:
 - `anomaly` is the structural gate
 - `severity` orders surviving hotspots
 - `confidence` modulates whether the result should be trusted and how strongly it should be presented
+
+Confidence should incorporate both reasoning quality and evidence coverage quality.
+
+Confidence should also reflect metadata quality and geolocation certainty.
 
 ### 4.8 Agent Orchestrator
 
@@ -286,6 +310,8 @@ Recommended cache layers:
   thermal, object, surface, and neighbor-comparison outputs for known hotspots
 - `trace playback layer`
   reveals cached or precomputed evidence step by step over 5 to 15 seconds so the user still experiences investigation
+
+For the hackathon, source retrieval can be simplified to a curated region-to-drone-evidence mapping as long as the backend contract already models scattered source inputs.
 
 Winning the demo matters more than maximizing live compute.
 

@@ -52,6 +52,35 @@ class LatLng(BaseModel):
     lng: float
 
 
+class SourceBounds(BaseModel):
+    north: float
+    south: float
+    east: float
+    west: float
+
+
+class SourceType(str, Enum):
+    drone = "drone"
+    satellite = "satellite"
+    derived = "derived"
+
+
+class SourceRecord(BaseModel):
+    source_id: str
+    source_type: SourceType
+    image_path: str | None = None
+    image_url: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    bounds: SourceBounds | None = None
+    timestamp: datetime | None = None
+    altitude: float | None = None
+    heading: float | None = None
+    resolution: float | None = None
+    metadata_quality_score: float = 0.0
+    geolocation_confidence: float = 0.0
+
+
 class BoundingBox(BaseModel):
     x: int
     y: int
@@ -69,13 +98,20 @@ class AnalysisRegion(BaseModel):
     region_id: str
     center: LatLng
     radius_m: int = Field(default=120, ge=1)
+    available_source_count: int = 0
+    coverage_score: float | None = None
+    source_records: list[SourceRecord] = Field(default_factory=list)
     status: AnalysisStatus
     summary: AnalysisSummary
 
 
 class TraceEvidence(BaseModel):
     object_confidence: float | None = None
+    object_label: str | None = None
+    material_type: str | None = None
     material_confidence: float | None = None
+    source_count: int | None = None
+    coverage_score: float | None = None
     neighbor_count: int | None = None
     relative_percentile: float | None = None
     consistency_score: float | None = None
@@ -102,6 +138,8 @@ class HotspotCandidate(BaseModel):
     centroid: LatLng
     hotspot_type: HotspotType
     status: HotspotStatus
+    source_count: int = 0
+    coverage_score: float | None = None
     anomaly_score: float | None = None
     severity_score: float | None = None
     confidence_score: float | None = None
@@ -110,6 +148,29 @@ class HotspotCandidate(BaseModel):
     recommended_action: str | None = None
     why: list[str] = Field(default_factory=list)
     trace: list[TraceStep] = Field(default_factory=list)
+
+
+class PerceptionEvidence(BaseModel):
+    hotspot_id: str
+    hotspot_type: HotspotType
+    object_label: str
+    object_confidence: float
+    source_count: int = 0
+    coverage_score: float | None = None
+    material_type: str | None = None
+    material_confidence: float | None = None
+
+
+class ScoringResult(BaseModel):
+    hotspot_id: str
+    anomaly_score: float
+    severity_score: float
+    confidence_score: float
+    coverage_score: float | None = None
+    metadata_quality_score: float | None = None
+    final_rank_score: float | None = None
+    discard_reason: str | None = None
+    why: list[str] = Field(default_factory=list)
 
 
 class RankedHotspot(BaseModel):
@@ -149,3 +210,21 @@ class AnalysisEvent(BaseModel):
     status: TraceStepStatus
     summary: str
     scheduled_offset_ms: int
+
+
+class DebugHotspotView(BaseModel):
+    hotspot_id: str
+    hotspot_type: HotspotType
+    status: HotspotStatus
+    perception: PerceptionEvidence
+    scoring: ScoringResult
+    trace_kinds: list[TraceKind]
+
+
+class DebugAnalysisView(BaseModel):
+    region_id: str
+    status: AnalysisStatus
+    hotspot_count: int
+    ranking_formula: str
+    anomaly_threshold: float
+    hotspots: list[DebugHotspotView]

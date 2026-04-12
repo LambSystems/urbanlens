@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 
 from .schemas import (
     AnalysisEvent,
+    DebugAnalysisView,
+    DebugHotspotView,
     AnalysisResponse,
     AnalysisResult,
     AnalysisStatus,
@@ -13,7 +15,11 @@ from .schemas import (
     HotspotStatus,
     HotspotType,
     LatLng,
+    PerceptionEvidence,
     RankedHotspot,
+    ScoringResult,
+    SourceRecord,
+    SourceType,
     TraceEvidence,
     TraceKind,
     TraceStep,
@@ -26,6 +32,12 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_01",
         "hotspot_type": HotspotType.roof,
+        "source_count": 3,
+        "coverage_score": 0.79,
+        "object_label": "roof",
+        "object_confidence": 0.88,
+        "material_type": "dark_roof",
+        "material_confidence": 0.74,
         "bbox": BoundingBox(x=112, y=78, w=64, h=48),
         "centroid_offset": (0.0007, 0.0005),
         "trace": [
@@ -51,6 +63,12 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_02",
         "hotspot_type": HotspotType.road_pavement,
+        "source_count": 2,
+        "coverage_score": 0.64,
+        "object_label": "road",
+        "object_confidence": 0.91,
+        "material_type": "asphalt",
+        "material_confidence": 0.86,
         "bbox": BoundingBox(x=214, y=166, w=86, h=30),
         "centroid_offset": (-0.0003, 0.0008),
         "trace": [
@@ -73,6 +91,12 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_03",
         "hotspot_type": HotspotType.hvac_mechanical,
+        "source_count": 2,
+        "coverage_score": 0.72,
+        "object_label": "rooftop_hvac",
+        "object_confidence": 0.83,
+        "material_type": "metal_equipment",
+        "material_confidence": 0.71,
         "bbox": BoundingBox(x=298, y=104, w=38, h=40),
         "centroid_offset": (0.0004, -0.0004),
         "trace": [
@@ -95,6 +119,12 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_04",
         "hotspot_type": HotspotType.parking_lot,
+        "source_count": 4,
+        "coverage_score": 0.83,
+        "object_label": "parking_lot",
+        "object_confidence": 0.9,
+        "material_type": "asphalt",
+        "material_confidence": 0.82,
         "bbox": BoundingBox(x=354, y=208, w=92, h=58),
         "centroid_offset": (-0.0006, -0.0007),
         "trace": [
@@ -118,24 +148,107 @@ HOTSPOT_LIBRARY: list[dict] = [
 
 ANOMALY_THRESHOLD = 0.25
 STEP_INTERVAL_MS = 1200
+RANKING_FORMULA = "final_rank_score = severity_score * confidence_score after anomaly gate"
+
+DEMO_REGION_PRESETS: list[dict] = [
+    {"label": "downtown_core", "lat": 38.6270, "lng": -90.1994, "radius_m": 120},
+    {"label": "industrial_corridor", "lat": 38.6155, "lng": -90.2152, "radius_m": 140},
+    {"label": "campus_zone", "lat": 38.6483, "lng": -90.3108, "radius_m": 110},
+]
+
+
+def build_source_records(center: LatLng) -> list[SourceRecord]:
+    return [
+        SourceRecord(
+            source_id="drone_img_001",
+            source_type=SourceType.drone,
+            image_path="data/demo/drone_img_001.png",
+            lat=round(center.lat + 0.0004, 6),
+            lng=round(center.lng + 0.0003, 6),
+            altitude=110.0,
+            resolution=0.12,
+            metadata_quality_score=0.82,
+            geolocation_confidence=0.78,
+        ),
+        SourceRecord(
+            source_id="drone_img_002",
+            source_type=SourceType.drone,
+            image_path="data/demo/drone_img_002.png",
+            lat=None,
+            lng=None,
+            altitude=95.0,
+            resolution=0.18,
+            metadata_quality_score=0.48,
+            geolocation_confidence=0.35,
+        ),
+        SourceRecord(
+            source_id="derived_thermal_001",
+            source_type=SourceType.derived,
+            image_path="data/demo/thermal_overlay_001.png",
+            lat=round(center.lat + 0.0002, 6),
+            lng=round(center.lng - 0.0002, 6),
+            metadata_quality_score=0.75,
+            geolocation_confidence=0.72,
+        ),
+    ]
 
 
 def _trace_evidence(seed: dict, kind: TraceKind) -> TraceEvidence:
     evidence = TraceEvidence()
     if kind == TraceKind.inspect_object:
         evidence.object_confidence = max(seed["confidence_score"] - 0.05, 0.5)
+        evidence.object_label = seed["object_label"]
+        evidence.source_count = seed["source_count"]
+        evidence.coverage_score = seed["coverage_score"]
     elif kind == TraceKind.infer_surface:
+        evidence.material_type = seed["material_type"]
         evidence.material_confidence = max(seed["confidence_score"] - 0.08, 0.45)
+        evidence.source_count = seed["source_count"]
+        evidence.coverage_score = seed["coverage_score"]
     elif kind == TraceKind.compare_neighbors:
         evidence.neighbor_count = 12
         evidence.relative_percentile = seed["anomaly_score"]
+        evidence.coverage_score = seed["coverage_score"]
     elif kind == TraceKind.check_consistency:
         evidence.consistency_score = min(seed["confidence_score"] + 0.08, 0.99)
+        evidence.coverage_score = seed["coverage_score"]
     elif kind == TraceKind.score_hotspot:
         evidence.anomaly_score = seed["anomaly_score"]
         evidence.severity_score = seed["severity_score"]
         evidence.confidence_score = seed["confidence_score"]
+        evidence.coverage_score = seed["coverage_score"]
     return evidence
+
+
+def build_perception_evidence(seed: dict) -> PerceptionEvidence:
+    return PerceptionEvidence(
+        hotspot_id=seed["hotspot_id"],
+        hotspot_type=seed["hotspot_type"],
+        object_label=seed["object_label"],
+        object_confidence=seed["object_confidence"],
+        source_count=seed["source_count"],
+        coverage_score=seed["coverage_score"],
+        material_type=seed["material_type"],
+        material_confidence=seed["material_confidence"],
+    )
+
+
+def build_scoring_result(seed: dict) -> ScoringResult:
+    final_rank_score = None
+    discard_reason = seed.get("discard_reason")
+    if seed["anomaly_score"] >= ANOMALY_THRESHOLD and "recommended_action" in seed:
+        final_rank_score = round(seed["severity_score"] * seed["confidence_score"], 4)
+    return ScoringResult(
+        hotspot_id=seed["hotspot_id"],
+        anomaly_score=seed["anomaly_score"],
+        severity_score=seed["severity_score"],
+        confidence_score=seed["confidence_score"],
+        coverage_score=seed["coverage_score"],
+        metadata_quality_score=round((seed["coverage_score"] + 0.15), 2),
+        final_rank_score=final_rank_score,
+        discard_reason=discard_reason,
+        why=seed["why"],
+    )
 
 
 def _build_trace(seed: dict) -> tuple[list[TraceStep], list[AnalysisEvent]]:
@@ -202,6 +315,8 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             ),
             hotspot_type=seed["hotspot_type"],
             status=status,
+            source_count=seed["source_count"],
+            coverage_score=seed["coverage_score"],
             anomaly_score=seed["anomaly_score"],
             severity_score=seed["severity_score"],
             confidence_score=seed["confidence_score"],
@@ -244,6 +359,12 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             region_id=region_id,
             center=center,
             radius_m=radius_m,
+            available_source_count=sum(seed["source_count"] for seed in HOTSPOT_LIBRARY),
+            coverage_score=round(
+                sum(seed["coverage_score"] for seed in HOTSPOT_LIBRARY) / len(HOTSPOT_LIBRARY),
+                2,
+            ),
+            source_records=build_source_records(center),
             status=AnalysisStatus.running,
             summary=summary,
         ),
@@ -255,3 +376,30 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
         ),
     )
     return response, all_events
+
+
+def build_debug_view(analysis: AnalysisResponse) -> DebugAnalysisView:
+    hotspots: list[DebugHotspotView] = []
+    hotspot_lookup = {seed["hotspot_id"]: seed for seed in HOTSPOT_LIBRARY}
+
+    for hotspot in analysis.result.hotspots:
+        seed = hotspot_lookup[hotspot.hotspot_id]
+        hotspots.append(
+            DebugHotspotView(
+                hotspot_id=hotspot.hotspot_id,
+                hotspot_type=hotspot.hotspot_type,
+                status=hotspot.status,
+                perception=build_perception_evidence(seed),
+                scoring=build_scoring_result(seed),
+                trace_kinds=[step.kind for step in hotspot.trace],
+            )
+        )
+
+    return DebugAnalysisView(
+        region_id=analysis.region.region_id,
+        status=analysis.result.status,
+        hotspot_count=len(hotspots),
+        ranking_formula=RANKING_FORMULA,
+        anomaly_threshold=ANOMALY_THRESHOLD,
+        hotspots=hotspots,
+    )

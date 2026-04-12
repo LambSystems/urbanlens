@@ -12,6 +12,7 @@ from .schemas import (
     AnalysisResponse,
     AnalysisStatus,
     CreateAnalysisRequest,
+    DebugAnalysisView,
     HotspotCandidate,
     HotspotStatus,
     TraceStepStatus,
@@ -62,6 +63,12 @@ class InMemoryAnalysisStore:
         for event in events:
             event.status = self._status_for_offset(elapsed_ms, event.scheduled_offset_ms)
         return events
+
+    def get_debug_view(self, region_id: str) -> DebugAnalysisView:
+        from .orchestrator import build_debug_view
+
+        analysis = self.get_analysis(region_id)
+        return build_debug_view(analysis)
 
     @staticmethod
     def _status_for_offset(elapsed_ms: int, scheduled_offset_ms: int) -> TraceStepStatus:
