@@ -7,6 +7,8 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+# ── Enums ────────────────────────────────────────────────────────────────────
+
 class AnalysisStatus(str, Enum):
     pending = "pending"
     running = "running"
@@ -48,6 +50,14 @@ class TraceKind(str, Enum):
     finalize_hotspot = "finalize_hotspot"
 
 
+class SourceType(str, Enum):
+    drone = "drone"
+    satellite = "satellite"
+    derived = "derived"
+
+
+# ── Core geo models ───────────────────────────────────────────────────────────
+
 class LatLng(BaseModel):
     lat: float
     lng: float
@@ -58,12 +68,6 @@ class SourceBounds(BaseModel):
     south: float
     east: float
     west: float
-
-
-class SourceType(str, Enum):
-    drone = "drone"
-    satellite = "satellite"
-    derived = "derived"
 
 
 class SourceRecord(BaseModel):
@@ -78,8 +82,6 @@ class SourceRecord(BaseModel):
     altitude: float | None = None
     heading: float | None = None
     resolution: float | None = None
-    metadata_quality_score: float = 0.0
-    geolocation_confidence: float = 0.0
 
 
 class BoundingBox(BaseModel):
@@ -88,6 +90,8 @@ class BoundingBox(BaseModel):
     w: int
     h: int
 
+
+# ── Analysis region ───────────────────────────────────────────────────────────
 
 class AnalysisSummary(BaseModel):
     candidate_count: int
@@ -114,6 +118,8 @@ class AnalysisRegion(BaseModel):
     status: AnalysisStatus
     summary: AnalysisSummary
 
+
+# ── Trace ─────────────────────────────────────────────────────────────────────
 
 class TraceEvidence(BaseModel):
     object_confidence: float | None = None
@@ -143,6 +149,20 @@ class TraceStep(BaseModel):
     evidence: TraceEvidence = Field(default_factory=TraceEvidence)
 
 
+class AnalysisEvent(BaseModel):
+    region_id: str
+    hotspot_id: str
+    step_id: str
+    kind: TraceKind
+    status: TraceStepStatus
+    timestamp_ms: int | None = None
+    summary: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    scheduled_offset_ms: int
+
+
+# ── Hotspot ───────────────────────────────────────────────────────────────────
+
 class HotspotCandidate(BaseModel):
     hotspot_id: str
     region_id: str
@@ -170,15 +190,17 @@ class HotspotCandidate(BaseModel):
     trace: list[TraceStep] = Field(default_factory=list)
 
 
+# ── Scoring / debug ───────────────────────────────────────────────────────────
+
 class PerceptionEvidence(BaseModel):
     hotspot_id: str
     hotspot_type: HotspotType
     object_label: str
     object_confidence: float
-    source_count: int = 0
-    coverage_score: float | None = None
-    material_type: str | None = None
-    material_confidence: float | None = None
+    source_count: int
+    coverage_score: float
+    material_type: str
+    material_confidence: float
 
 
 class ScoringResult(BaseModel):
@@ -186,12 +208,32 @@ class ScoringResult(BaseModel):
     anomaly_score: float
     severity_score: float
     confidence_score: float
-    coverage_score: float | None = None
-    metadata_quality_score: float | None = None
+    coverage_score: float
+    metadata_quality_score: float
     final_rank_score: float | None = None
     discard_reason: str | None = None
     why: list[str] = Field(default_factory=list)
 
+
+class DebugHotspotView(BaseModel):
+    hotspot_id: str
+    hotspot_type: HotspotType
+    status: HotspotStatus
+    perception: PerceptionEvidence
+    scoring: ScoringResult
+    trace_kinds: list[TraceKind]
+
+
+class DebugAnalysisView(BaseModel):
+    region_id: str
+    status: AnalysisStatus
+    hotspot_count: int
+    ranking_formula: str
+    anomaly_threshold: float
+    hotspots: list[DebugHotspotView]
+
+
+# ── Ranked hotspot / analysis result ─────────────────────────────────────────
 
 class RankedHotspot(BaseModel):
     hotspot_id: str
@@ -219,10 +261,7 @@ class AnalysisResponse(BaseModel):
     result: AnalysisResult
 
 
-class CreateAnalysisRequest(BaseModel):
-    center: LatLng
-    radius_m: int = Field(default=120, ge=1, le=1000)
-
+# ── Capture models ────────────────────────────────────────────────────────────
 
 class CaptureRegion(BaseModel):
     bounds: SourceBounds
@@ -248,6 +287,13 @@ class CaptureImagePayload(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+# ── Request / response models ─────────────────────────────────────────────────
+
+class CreateAnalysisRequest(BaseModel):
+    center: LatLng
+    radius_m: int = Field(default=120, ge=1, le=1000)
+
+
 class CreateAnalysisFromCaptureRequest(BaseModel):
     region: CaptureRegion
     map: CaptureMapState
@@ -261,38 +307,8 @@ class CreateAnalysisFromCaptureMetadataRequest(BaseModel):
     viewport: SourceBounds
 
 
-class AnalysisEvent(BaseModel):
-    region_id: str
-    hotspot_id: str
-    step_id: str
-    kind: TraceKind
-    status: TraceStepStatus
-    timestamp_ms: int | None = None
-    summary: str
-    details: dict[str, Any] = Field(default_factory=dict)
-    scheduled_offset_ms: int
-
-
-class DebugHotspotView(BaseModel):
-    hotspot_id: str
-    hotspot_type: HotspotType
-    status: HotspotStatus
-    perception: PerceptionEvidence
-    scoring: ScoringResult
-    trace_kinds: list[TraceKind]
-
-
-class DebugAnalysisView(BaseModel):
-    region_id: str
-    status: AnalysisStatus
-    hotspot_count: int
-    ranking_formula: str
-    anomaly_threshold: float
-    hotspots: list[DebugHotspotView]
-
-
 class PlannerQuestionRequest(BaseModel):
-    question: str = Field(min_length=1, max_length=500)
+    question: str = Field(min_length=1, max_length=2000)
 
 
 class PlannerQuestionResponse(BaseModel):

@@ -19,9 +19,9 @@ from .routes import router
 
 
 app = FastAPI(
-    title="ThermalGen API",
-    version="0.1.0",
-    description="Hackathon MVP backend for agentic urban heat triage.",
+    title="UrbanLens API",
+    version="0.2.0",
+    description="Capture-based locality investigation agent with ThermalGen.",
 )
 
 app.add_middleware(

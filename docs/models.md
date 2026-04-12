@@ -36,53 +36,7 @@ The agent decides what to do with that evidence.
 
 ## 2.1 ThermalGen
 
-<<<<<<< HEAD
-1. thermal evidence (satellite-to-thermal conversion model)
-2. perception (object and surface classification)
-3. context comparison (neighbor analysis)
-4. orchestrator reasoning (Gemini — interprets prompt, picks tools, produces chain of thought)
-5. answer generation (structured response with recommendations)
-
----
-
-## 3. Thermal Evidence
-
-### Role
-
-<<<<<<< Updated upstream
-The satellite-to-thermal conversion model is already built and should be treated as stable infrastructure.
-=======
-The thermal generator is already built and should be treated as stable infrastructure.
-In this repo, that generator is the `hybrid_thermal` model integrated under `backend/app/thermal/hybrid_thermal`.
->>>>>>> Stashed changes
-
-### Use in the Hackathon
-
-- convert satellite imagery to thermal representation
-- provide the thermal image for UI overlay display
-- extract thermal data for the analysis pipeline
-- expose hotspot-level thermal evidence when the agent requests it
-
-### Strategic Rule
-
-Do not treat thermal generation as the headline.
-
-It is a strong upstream component, but the product is the prompt-driven investigation built on top of it.
-
-In the chain of thought, thermal should look like a tool the agent decided to consult because it needed heat evidence to answer the user's question.
-
-See `docs/hybrid_thermal.md` for the canonical folder layout and local artifact rules.
-
----
-
-## 4. Perception Models
-
-Perception turns a hotspot crop into structured evidence.
-
-### 4.1 Object Detection or Classification
-=======
 This is the signature tool.
->>>>>>> a25c52a6f3479edeb22cccb341715cbb54858db3
 
 Purpose:
 

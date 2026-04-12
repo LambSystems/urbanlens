@@ -21,6 +21,7 @@ from .schemas import (
 )
 from .store import store
 
+from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -101,3 +102,6 @@ def ask_region_question(region_id: str, payload: PlannerQuestionRequest) -> Plan
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Analysis region not found.") from exc
     return answer_region_question(analysis, payload.question)
+@router.get("/health")
+def healthcheck() -> dict[str, str]:
+    return {"status": "ok"}
