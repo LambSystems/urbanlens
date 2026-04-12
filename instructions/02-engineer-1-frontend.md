@@ -37,7 +37,7 @@ Do not wait for real ML or real scoring.
 - `TraceStep`
 - `AnalysisResult`
 
-Use the exact field names from [contracts.md](C:/Users/akuma/repos/thermalgen/docs/contracts.md).
+Use the exact field names from [contracts.md](/docs/contracts.md).
 
 ## Must Show
 
