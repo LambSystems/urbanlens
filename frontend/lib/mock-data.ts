@@ -1,4 +1,4 @@
-import type { Hotspot, InvestigationSession, Recommendation, TraceStep } from './types';
+import type { Hotspot, InvestigationSession, Recommendation, TraceStep, BoundingBox } from './types';
 
 // Demo region: Downtown Phoenix, AZ (known for urban heat)
 export const DEMO_REGION = {
@@ -276,3 +276,52 @@ export const getHotspotTypeIcon = (type: Hotspot['type']): string => {
   };
   return icons[type];
 };
+
+// Generate hotspots dynamically for a selected region
+export function generateHotspotsForRegion(bounds: BoundingBox): Hotspot[] {
+  const types: Hotspot['type'][] = ['roof', 'parking_lot', 'road_pavement', 'hvac_mechanical', 'vegetation_loss'];
+  const count = 4 + Math.floor(Math.random() * 3); // 4-6 hotspots
+  
+  const hotspots: Hotspot[] = [];
+  
+  for (let i = 0; i < count; i++) {
+    const type = types[Math.floor(Math.random() * types.length)];
+    const isDiscarded = type === 'hvac_mechanical' && Math.random() > 0.5;
+    const isInvestigating = !isDiscarded && Math.random() > 0.7;
+    
+    // Random position within bounds
+    const lat = bounds.south + Math.random() * (bounds.north - bounds.south);
+    const lng = bounds.west + Math.random() * (bounds.east - bounds.west);
+    
+    const surfaceTemp = 45 + Math.random() * 20;
+    const ambientDelta = 8 + Math.random() * 18;
+    
+    const anomalyScore = 0.5 + Math.random() * 0.45;
+    const severityScore = 0.5 + Math.random() * 0.45;
+    const confidenceScore = 0.7 + Math.random() * 0.25;
+    const finalScore = (anomalyScore * 0.3 + severityScore * 0.5 + confidenceScore * 0.2);
+    
+    hotspots.push({
+      id: `hs-${Date.now()}-${i}`,
+      location: { lat, lng },
+      type,
+      status: isDiscarded ? 'discarded' : isInvestigating ? 'investigating' : 'finalized',
+      surfaceTemperature: Math.round(surfaceTemp),
+      ambientDelta: Math.round(ambientDelta),
+      trace: createTrace(type, isDiscarded),
+      scoring: isDiscarded ? undefined : {
+        anomalyScore,
+        severityScore,
+        confidenceScore,
+        finalScore,
+        reasoning: `${getHotspotTypeLabel(type)} with significant thermal anomaly detected. Delta ${Math.round(ambientDelta)}°C above ambient.`,
+      },
+      evidenceUrls: [`/evidence/${type}-thermal-${i}.jpg`],
+      createdAt: Date.now() - (count - i) * 5000,
+      updatedAt: Date.now(),
+    });
+  }
+  
+  // Sort by score descending
+  return hotspots.sort((a, b) => (b.scoring?.finalScore ?? 0) - (a.scoring?.finalScore ?? 0));
+}

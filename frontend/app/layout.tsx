@@ -29,9 +29,6 @@ export const metadata: Metadata = {
   },
 }
 
-console.log('[ENV] NODE_ENV:', process.env.NODE_ENV)
-console.log('[ENV] GOOGLE_MAPS_KEY:', process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? `set (${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY.slice(0, 8)}...)` : 'MISSING')
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="font-sans anti aliased bg-background text-foreground">
+      <body className="font-sans antialiased bg-background text-foreground">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

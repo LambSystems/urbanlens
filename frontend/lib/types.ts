@@ -1,5 +1,13 @@
 // ThermalGen V2 - Core Types
 
+export type SelectionMode = 'idle' | 'drawing' | 'selected' | 'analyzing' | 'complete';
+
+export interface SelectedRegion {
+  bounds: BoundingBox;
+  center: LatLng;
+  areaKm2: number;
+}
+
 export type HotspotType = 
   | 'roof' 
   | 'road_pavement' 
@@ -95,4 +103,10 @@ export interface TracePlaybackState {
   isPlaying: boolean;
   currentStepIndex: number;
   speed: number; // ms per step
+}
+
+export interface AnalysisProgress {
+  phase: 'satellite' | 'thermal' | 'classification' | 'scoring';
+  progress: number; // 0-100
+  message: string;
 }
