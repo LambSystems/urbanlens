@@ -316,8 +316,8 @@ Example response:
 {
   "region_id": "region_ab12cd34",
   "question": "What should we fix first here?",
-  "answer": "You should prioritize hs_03 first. It is a hvac_mechanical hotspot with anomaly 0.67, severity 0.81, confidence 0.79, and the recommended action is hvac inspection.",
-  "referenced_hotspot_ids": ["hs_03"],
+  "answer": "You should prioritize hs_01 first. It is a roof hotspot with anomaly 0.83, severity 0.78, confidence 0.90, and the recommended action is cool-roof retrofit.",
+  "referenced_hotspot_ids": ["hs_01"],
   "planner_mode": "analysis_qa"
 }
 ```
