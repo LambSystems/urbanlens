@@ -1,38 +1,44 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import type { 
-  Hotspot, 
-  InvestigationSession, 
-  TracePlaybackState, 
-  SelectionMode, 
+import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
+import type {
+  Hotspot,
+  InvestigationSession,
+  TracePlaybackState,
+  SelectionMode,
   SelectedRegion,
   AnalysisProgress,
-  BoundingBox 
+  Recommendation,
 } from './types';
-import { MOCK_SESSION, MOCK_HOTSPOTS, generateHotspotsForRegion } from './mock-data';
+import { MOCK_SESSION } from './mock-data';
+import { createAnalysis, getAnalysis, askQuestion, mapHotspot, mapRecommendation } from './api';
+import type { BackendPlannerResponse } from './api';
+
+const POLL_INTERVAL_MS = 1200; // matches backend STEP_INTERVAL_MS
 
 interface ThermalContextValue {
   // Session state
   session: InvestigationSession;
   hotspots: Hotspot[];
-  
-  // Region selection (TeraWatt-style)
+  recommendations: Record<string, Recommendation>;
+
+  // Region selection
   selectionMode: SelectionMode;
   setSelectionMode: (mode: SelectionMode) => void;
   selectedRegion: SelectedRegion | null;
   setSelectedRegion: (region: SelectedRegion | null) => void;
   startDrawing: () => void;
   cancelSelection: () => void;
-  
+
   // Analysis state
   analysisProgress: AnalysisProgress | null;
+  regionId: string | null;
   startAnalysis: () => void;
-  
+
   // Hotspot inspection
   activeHotspot: Hotspot | null;
   setActiveHotspot: (hotspot: Hotspot | null) => void;
-  
+
   // Trace playback
   playback: TracePlaybackState;
   setPlayback: (state: TracePlaybackState) => void;
@@ -40,7 +46,12 @@ interface ThermalContextValue {
   pausePlayback: () => void;
   resetPlayback: () => void;
   advanceStep: () => void;
-  
+
+  // Planner Q&A
+  plannerAnswer: BackendPlannerResponse | null;
+  askPlannerQuestion: (question: string) => Promise<void>;
+  isPlannerLoading: boolean;
+
   // UI state
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
@@ -48,100 +59,179 @@ interface ThermalContextValue {
 
 const ThermalContext = createContext<ThermalContextValue | null>(null);
 
+// Derive radius_m from a selected region's bounds (half-diagonal in metres)
+function boundsToRadius(region: SelectedRegion): number {
+  const latHalfDeg = (region.bounds.north - region.bounds.south) / 2;
+  const lngHalfDeg = (region.bounds.east - region.bounds.west) / 2;
+  const latM = latHalfDeg * 111_000;
+  const lngM = lngHalfDeg * 111_000 * Math.cos((region.center.lat * Math.PI) / 180);
+  return Math.max(Math.round(Math.sqrt(latM ** 2 + lngM ** 2)), 80);
+}
+
+// Given a list of hotspots, derive the current playback index from step statuses.
+// Used to auto-sync the trace timeline when the backend progresses steps.
+function derivedStepIndex(hotspot: Hotspot): number {
+  let last = -1;
+  hotspot.trace.forEach((step, idx) => {
+    if (step.status === 'completed' || step.status === 'running') last = idx;
+  });
+  return last;
+}
+
 export function ThermalProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<InvestigationSession>(MOCK_SESSION);
+  const [session] = useState<InvestigationSession>(MOCK_SESSION);
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
+  const [recommendations, setRecommendations] = useState<Record<string, Recommendation>>({});
   const [activeHotspot, setActiveHotspotState] = useState<Hotspot | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
-  // Region selection state
+
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('idle');
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
-  
+  const [regionId, setRegionId] = useState<string | null>(null);
+
   const [playback, setPlayback] = useState<TracePlaybackState>({
     isPlaying: false,
     currentStepIndex: -1,
     speed: 800,
   });
 
+  const [plannerAnswer, setPlannerAnswer] = useState<BackendPlannerResponse | null>(null);
+  const [isPlannerLoading, setIsPlannerLoading] = useState(false);
+
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const activeHotspotIdRef = useRef<string | null>(null);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const applyBackendResponse = useCallback(
+    (data: Awaited<ReturnType<typeof getAnalysis>>) => {
+      const mapped = data.result.hotspots.map(mapHotspot);
+      setHotspots(mapped);
+
+      // Build recommendations for finalized hotspots
+      const recs: Record<string, Recommendation> = {};
+      for (const bh of data.result.hotspots) {
+        const rec = mapRecommendation(bh);
+        if (rec) recs[bh.hotspot_id] = rec;
+      }
+      setRecommendations(recs);
+
+      // Keep activeHotspot in sync so trace timeline updates live
+      if (activeHotspotIdRef.current) {
+        const updated = mapped.find(h => h.id === activeHotspotIdRef.current);
+        if (updated) {
+          setActiveHotspotState(updated);
+          // Auto-advance playback index to latest completed/running step
+          const stepIdx = derivedStepIndex(updated);
+          setPlayback(prev => ({ ...prev, currentStepIndex: stepIdx }));
+        }
+      }
+
+      // Derive progress from backend summary
+      const { candidate_count, discarded_count, finalized_count } = data.region.summary;
+      const done = discarded_count + finalized_count;
+      const progress = candidate_count > 0 ? Math.round((done / candidate_count) * 100) : 0;
+      setAnalysisProgress({
+        phase: 'scoring',
+        progress,
+        message: `Investigating ${candidate_count} candidates — ${done} resolved`,
+      });
+
+      if (data.result.status === 'completed') {
+        stopPolling();
+        setSelectionMode('complete');
+        setAnalysisProgress(null);
+      }
+    },
+    [stopPolling],
+  );
+
+  // ── Region selection ──────────────────────────────────────────────────────
+
   const startDrawing = useCallback(() => {
+    stopPolling();
     setSelectionMode('drawing');
     setSelectedRegion(null);
     setHotspots([]);
+    setRecommendations({});
     setActiveHotspotState(null);
     setAnalysisProgress(null);
-  }, []);
+    setRegionId(null);
+    setPlannerAnswer(null);
+    activeHotspotIdRef.current = null;
+  }, [stopPolling]);
 
   const cancelSelection = useCallback(() => {
+    stopPolling();
     setSelectionMode('idle');
     setSelectedRegion(null);
     setHotspots([]);
+    setRecommendations({});
     setActiveHotspotState(null);
     setAnalysisProgress(null);
-  }, []);
+    setRegionId(null);
+    setPlannerAnswer(null);
+    activeHotspotIdRef.current = null;
+  }, [stopPolling]);
+
+  // ── Analysis ──────────────────────────────────────────────────────────────
 
   const startAnalysis = useCallback(() => {
     if (!selectedRegion) return;
-    
+    stopPolling();
     setSelectionMode('analyzing');
-    
-    // Simulate analysis phases
-    const phases: Array<{ phase: AnalysisProgress['phase']; message: string; duration: number }> = [
-      { phase: 'satellite', message: 'Acquiring satellite imagery...', duration: 800 },
-      { phase: 'thermal', message: 'Processing thermal bands...', duration: 1200 },
-      { phase: 'classification', message: 'Classifying heat sources...', duration: 1000 },
-      { phase: 'scoring', message: 'Computing anomaly scores...', duration: 800 },
-    ];
+    setHotspots([]);
+    setRecommendations({});
+    setAnalysisProgress({ phase: 'satellite', progress: 0, message: 'Contacting analysis service…' });
 
-    let currentPhase = 0;
-    
-    const runPhase = () => {
-      if (currentPhase >= phases.length) {
-        // Analysis complete - generate hotspots
-        const newHotspots = generateHotspotsForRegion(selectedRegion.bounds);
-        setHotspots(newHotspots);
-        setSelectionMode('complete');
+    const center = { lat: selectedRegion.center.lat, lng: selectedRegion.center.lng };
+    const radius_m = boundsToRadius(selectedRegion);
+
+    createAnalysis(center, radius_m)
+      .then((data) => {
+        const rid = data.region.region_id;
+        setRegionId(rid);
+        applyBackendResponse(data);
+
+        // Start polling until completed
+        pollRef.current = setInterval(async () => {
+          try {
+            const updated = await getAnalysis(rid);
+            applyBackendResponse(updated);
+          } catch {
+            // network hiccup — keep polling
+          }
+        }, POLL_INTERVAL_MS);
+      })
+      .catch(() => {
+        // Backend unavailable — fall back to idle
+        setSelectionMode('idle');
         setAnalysisProgress(null);
-        return;
-      }
-
-      const phase = phases[currentPhase];
-      let progress = 0;
-      
-      setAnalysisProgress({
-        phase: phase.phase,
-        progress: 0,
-        message: phase.message,
       });
+  }, [selectedRegion, stopPolling, applyBackendResponse]);
 
-      const progressInterval = setInterval(() => {
-        progress += 10;
-        if (progress >= 100) {
-          clearInterval(progressInterval);
-          currentPhase++;
-          setTimeout(runPhase, 100);
-        } else {
-          setAnalysisProgress({
-            phase: phase.phase,
-            progress,
-            message: phase.message,
-          });
-        }
-      }, phase.duration / 10);
-    };
-
-    runPhase();
-  }, [selectedRegion]);
+  // ── Active hotspot ────────────────────────────────────────────────────────
 
   const setActiveHotspot = useCallback((hotspot: Hotspot | null) => {
     setActiveHotspotState(hotspot);
-    setPlayback({
-      isPlaying: false,
-      currentStepIndex: -1,
-      speed: 800,
-    });
+    activeHotspotIdRef.current = hotspot?.id ?? null;
+    if (hotspot) {
+      const stepIdx = derivedStepIndex(hotspot);
+      setPlayback({ isPlaying: false, currentStepIndex: stepIdx, speed: 800 });
+    } else {
+      setPlayback({ isPlaying: false, currentStepIndex: -1, speed: 800 });
+    }
   }, []);
+
+  // ── Trace playback ────────────────────────────────────────────────────────
 
   const startPlayback = useCallback(() => {
     setPlayback(prev => ({
@@ -156,33 +246,41 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetPlayback = useCallback(() => {
-    setPlayback({
-      isPlaying: false,
-      currentStepIndex: -1,
-      speed: 800,
-    });
+    setPlayback({ isPlaying: false, currentStepIndex: -1, speed: 800 });
   }, []);
 
   const advanceStep = useCallback(() => {
     if (!activeHotspot) return;
-    
     setPlayback(prev => {
       const nextIndex = prev.currentStepIndex + 1;
       const maxIndex = activeHotspot.trace.length - 1;
-      
-      if (nextIndex > maxIndex) {
-        return { ...prev, isPlaying: false };
-      }
-      
+      if (nextIndex > maxIndex) return { ...prev, isPlaying: false };
       return { ...prev, currentStepIndex: nextIndex };
     });
   }, [activeHotspot]);
+
+  // ── Planner Q&A ───────────────────────────────────────────────────────────
+
+  const askPlannerQuestion = useCallback(
+    async (question: string) => {
+      if (!regionId) return;
+      setIsPlannerLoading(true);
+      try {
+        const answer = await askQuestion(regionId, question);
+        setPlannerAnswer(answer);
+      } finally {
+        setIsPlannerLoading(false);
+      }
+    },
+    [regionId],
+  );
 
   return (
     <ThermalContext.Provider
       value={{
         session,
         hotspots,
+        recommendations,
         selectionMode,
         setSelectionMode,
         selectedRegion,
@@ -190,6 +288,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         startDrawing,
         cancelSelection,
         analysisProgress,
+        regionId,
         startAnalysis,
         activeHotspot,
         setActiveHotspot,
@@ -199,6 +298,9 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         pausePlayback,
         resetPlayback,
         advanceStep,
+        plannerAnswer,
+        askPlannerQuestion,
+        isPlannerLoading,
         sidebarOpen,
         setSidebarOpen,
       }}

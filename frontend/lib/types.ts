@@ -41,6 +41,8 @@ export interface BoundingBox {
   west: number;
 }
 
+export type TraceStepStatus = 'pending' | 'running' | 'completed';
+
 export interface TraceStep {
   id: string;
   action: TraceAction;
@@ -48,6 +50,7 @@ export interface TraceStep {
   message: string;
   details?: Record<string, unknown>;
   evidenceUrl?: string;
+  status?: TraceStepStatus;
 }
 
 export interface ScoringResult {

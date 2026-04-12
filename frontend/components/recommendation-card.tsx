@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useThermal } from '@/lib/thermal-context';
-import { MOCK_RECOMMENDATIONS, getHotspotTypeLabel } from '@/lib/mock-data';
+import { getHotspotTypeLabel } from '@/lib/mock-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,14 +25,14 @@ const PRIORITY_CONFIG = {
 };
 
 export function RecommendationCard() {
-  const { activeHotspot } = useThermal();
+  const { activeHotspot, recommendations } = useThermal();
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
-  
+
   if (!activeHotspot) {
     return null;
   }
-  
-  const recommendation = MOCK_RECOMMENDATIONS[activeHotspot.id];
+
+  const recommendation = recommendations[activeHotspot.id];
   
   if (!recommendation || activeHotspot.status === 'discarded') {
     if (activeHotspot.status === 'investigating') {

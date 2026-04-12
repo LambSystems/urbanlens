@@ -1,0 +1,257 @@
+/**
+ * Backend API client for ThermalGen / Urban Legend.
+ *
+ * Typed against backend/app/schemas.py — all field names match the Python schema.
+ * Use `mapHotspot()` to convert a BackendHotspot into the frontend Hotspot type.
+ */
+import type { Hotspot, HotspotType, Recommendation, TraceAction, TraceStep } from './types';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+// ─── Backend schema types ────────────────────────────────────────────────────
+
+export interface BackendLatLng {
+  lat: number;
+  lng: number;
+}
+
+export interface BackendTraceEvidence {
+  object_confidence?: number;
+  object_label?: string;
+  material_type?: string;
+  material_confidence?: number;
+  source_count?: number;
+  coverage_score?: number;
+  neighbor_count?: number;
+  relative_percentile?: number;
+  consistency_score?: number;
+  anomaly_score?: number;
+  severity_score?: number;
+  confidence_score?: number;
+}
+
+export interface BackendTraceStep {
+  step_id: string;
+  hotspot_id: string;
+  kind: string;
+  status: 'pending' | 'running' | 'completed';
+  timestamp_ms?: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  summary: string;
+  details: Record<string, unknown>;
+  evidence: BackendTraceEvidence;
+}
+
+export interface BackendHotspot {
+  hotspot_id: string;
+  region_id: string;
+  bbox: { x: number; y: number; w: number; h: number };
+  centroid: BackendLatLng;
+  hotspot_type: string;
+  display_name?: string | null;
+  status: string;
+  surface_temperature_c?: number | null;
+  ambient_delta_c?: number | null;
+  source_count: number;
+  coverage_score?: number | null;
+  anomaly_score?: number | null;
+  severity_score?: number | null;
+  confidence_score?: number | null;
+  final_rank_score?: number | null;
+  discard_reason?: string | null;
+  recommended_action?: string | null;
+  evidence_urls: string[];
+  priority_rank?: number | null;
+  is_top_ranked: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  why: string[];
+  trace: BackendTraceStep[];
+}
+
+export interface BackendRankedHotspot {
+  hotspot_id: string;
+  priority_rank: number;
+  hotspot_type: string;
+  recommended_action: string;
+  anomaly_score: number;
+  severity_score: number;
+  confidence_score: number;
+  final_rank_score: number;
+  why: string[];
+}
+
+export interface BackendAnalysisSummary {
+  candidate_count: number;
+  discarded_count: number;
+  finalized_count: number;
+}
+
+export interface BackendAnalysisRegion {
+  region_id: string;
+  center: BackendLatLng;
+  radius_m: number;
+  status: string;
+  available_source_count: number;
+  coverage_score?: number | null;
+  summary: BackendAnalysisSummary;
+}
+
+export interface BackendAnalysisResult {
+  region_id: string;
+  status: string;
+  hotspots: BackendHotspot[];
+  top_hotspots: BackendRankedHotspot[];
+  top_hotspot_id?: string | null;
+  discarded_hotspot_ids: string[];
+}
+
+export interface BackendAnalysisResponse {
+  region: BackendAnalysisRegion;
+  result: BackendAnalysisResult;
+}
+
+export interface BackendPlannerResponse {
+  region_id: string;
+  question: string;
+  answer: string;
+  referenced_hotspot_ids: string[];
+  planner_mode: string;
+}
+
+// ─── API functions ───────────────────────────────────────────────────────────
+
+export async function createAnalysis(
+  center: BackendLatLng,
+  radius_m: number,
+): Promise<BackendAnalysisResponse> {
+  const res = await fetch(`${API_BASE}/analysis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ center, radius_m }),
+  });
+  if (!res.ok) throw new Error(`POST /analysis failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getAnalysis(regionId: string): Promise<BackendAnalysisResponse> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}`);
+  if (!res.ok) throw new Error(`GET /analysis/${regionId} failed: ${res.status}`);
+  return res.json();
+}
+
+export async function askQuestion(
+  regionId: string,
+  question: string,
+): Promise<BackendPlannerResponse> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  });
+  if (!res.ok) throw new Error(`POST /analysis/${regionId}/questions failed: ${res.status}`);
+  return res.json();
+}
+
+// ─── Mappers ─────────────────────────────────────────────────────────────────
+
+function mapBackendStatus(s: string): Hotspot['status'] {
+  if (s === 'discarded') return 'discarded';
+  if (s === 'finalized') return 'finalized';
+  if (s === 'candidate') return 'candidate';
+  return 'investigating'; // covers 'investigating' and 'evidence_gathered'
+}
+
+function flattenEvidence(ev: BackendTraceEvidence): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(ev)) {
+    if (v !== null && v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+export function mapHotspot(b: BackendHotspot): Hotspot {
+  const trace: TraceStep[] = b.trace.map((step) => ({
+    id: step.step_id,
+    action: step.kind as TraceAction,
+    timestamp: step.timestamp_ms ?? 0,
+    message: step.summary,
+    details: { ...step.details, ...flattenEvidence(step.evidence) },
+    status: step.status,
+  }));
+
+  const hasScoring =
+    b.anomaly_score !== null &&
+    b.anomaly_score !== undefined &&
+    b.severity_score !== null &&
+    b.severity_score !== undefined &&
+    b.confidence_score !== null &&
+    b.confidence_score !== undefined;
+
+  return {
+    id: b.hotspot_id,
+    location: { lat: b.centroid.lat, lng: b.centroid.lng },
+    type: b.hotspot_type as HotspotType,
+    status: mapBackendStatus(b.status),
+    surfaceTemperature: b.surface_temperature_c ?? 0,
+    ambientDelta: b.ambient_delta_c ?? 0,
+    trace,
+    scoring: hasScoring
+      ? {
+          anomalyScore: b.anomaly_score!,
+          severityScore: b.severity_score!,
+          confidenceScore: b.confidence_score!,
+          finalScore: b.final_rank_score ?? b.severity_score! * b.confidence_score!,
+          reasoning: b.why.join('. '),
+        }
+      : undefined,
+    evidenceUrls: b.evidence_urls,
+    createdAt: b.created_at ? new Date(b.created_at).getTime() : Date.now(),
+    updatedAt: b.updated_at ? new Date(b.updated_at).getTime() : Date.now(),
+  };
+}
+
+// Derive a Recommendation from a finalized backend hotspot.
+// The backend doesn't have full recommendation objects yet, so we synthesise
+// from recommended_action + why bullets.
+const COST_ESTIMATES: Record<string, string> = {
+  roof: '$3,500 – $12,000',
+  parking_lot: '$18,000 – $52,000',
+  road_pavement: '$9,000 – $22,000',
+  hvac_mechanical: '$2,000 – $8,000',
+  vegetation_loss: '$5,000 – $20,000',
+  other: '$5,000 – $25,000',
+};
+
+const TEMP_REDUCTIONS: Record<string, string> = {
+  roof: '18 – 28°C',
+  parking_lot: '24 – 32°C',
+  road_pavement: '10 – 15°C',
+  hvac_mechanical: '5 – 12°C',
+  vegetation_loss: '8 – 18°C',
+  other: '5 – 15°C',
+};
+
+export function mapRecommendation(b: BackendHotspot): Recommendation | null {
+  if (!b.recommended_action || b.status === 'discarded') return null;
+
+  const action = b.recommended_action;
+  const type = b.hotspot_type;
+
+  return {
+    hotspotId: b.hotspot_id,
+    summary: `${b.display_name ?? type} — ${action} recommended based on agent investigation.`,
+    actions: [
+      {
+        id: 'action-1',
+        title: action.charAt(0).toUpperCase() + action.slice(1),
+        description: b.why.join('. ') || 'Agent identified this as the highest-priority intervention.',
+        priority: (b.final_rank_score ?? 0) >= 0.6 ? 'high' : 'medium',
+        estimatedImpact: `Addresses thermal anomaly — reduce surface temp by ${TEMP_REDUCTIONS[type] ?? '5–20°C'}`,
+      },
+    ],
+    estimatedCostRange: COST_ESTIMATES[type] ?? '$5,000 – $25,000',
+    estimatedTemperatureReduction: TEMP_REDUCTIONS[type] ?? '5 – 20°C',
+  };
+}
