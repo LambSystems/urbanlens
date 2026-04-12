@@ -32,9 +32,31 @@ Stack:
 
 Known assets:
 
+<<<<<<< Updated upstream
 - satellite-to-thermal conversion model already exists
+=======
+- `hybrid_thermal` RGB-to-thermal model already exists as the thermal evidence generator
+>>>>>>> Stashed changes
 - datasets already exist, though Saint Louis-specific data is still under research
 - real evidence is expected to come from scattered drone imagery, not a perfectly tiled map source
+
+## ThermalGen Owner Scope
+
+If you are working on ThermalGen, your scope is the product integration layer around the model:
+
+- keep `ThermalGen` framed as the agentic triage system
+- expose `hybrid_thermal` as a thermal evidence tool, not as the whole product
+- make sure RGB inputs can produce thermal predictions reliably for the demo
+- return thermal outputs in the shared backend schema
+- support candidate discovery, thermal evidence requests, and hotspot scoring with usable thermal cues
+- keep datasets, checkpoints, and generated predictions local/ignored unless explicitly approved for sharing
+
+Out of scope for the ThermalGen owner during the hackathon:
+
+- retraining the model unless inference is blocked
+- broad model research or architecture redesign
+- redistributing the private dataset/checkpoints
+- expanding beyond the one-region demo loop before the core trace/ranking flow is stable
 
 Non-negotiables:
 

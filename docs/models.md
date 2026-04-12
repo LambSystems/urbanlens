@@ -43,7 +43,12 @@ Urban Legend only needs five model or reasoning categories for the winning slice
 
 ### Role
 
+<<<<<<< Updated upstream
 The satellite-to-thermal conversion model is already built and should be treated as stable infrastructure.
+=======
+The thermal generator is already built and should be treated as stable infrastructure.
+In this repo, that generator is the `hybrid_thermal` model integrated under `backend/app/thermal/hybrid_thermal`.
+>>>>>>> Stashed changes
 
 ### Use in the Hackathon
 
@@ -59,6 +64,8 @@ Do not treat thermal generation as the headline.
 It is a strong upstream component, but the product is the prompt-driven investigation built on top of it.
 
 In the chain of thought, thermal should look like a tool the agent decided to consult because it needed heat evidence to answer the user's question.
+
+See `docs/hybrid_thermal.md` for the canonical folder layout and local artifact rules.
 
 ---
 

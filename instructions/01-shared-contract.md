@@ -1,10 +1,25 @@
 # Shared Contract
 
+<<<<<<< Updated upstream
 Source of truth is [contracts.md](../docs/contracts.md).
 
 Everyone should follow these exact decisions.
 
 ## Core Flow
+=======
+Source of truth is [`docs/contracts.md`](../docs/contracts.md).
+
+Everyone should follow these exact decisions.
+
+## Naming Rule
+
+- `ThermalGen` is the product: the agentic urban heat triage system.
+- `hybrid_thermal` is the RGB-to-thermal model package used by the thermal evidence layer.
+- Do not create or reference a separate `hybrid-thermal` package.
+- Do not keep a root-level `HybridThermal/` project folder inside UrbanLens.
+
+## Analysis Model
+>>>>>>> Stashed changes
 
 - map click defines an `analysis region`
 - system loads data context: satellite imagery, thermal overlay, source records, metadata

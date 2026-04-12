@@ -1,2 +1,4 @@
-# Urban Legend — Thermal Evidence Layer
-# Satellite-to-thermal conversion and per-hotspot thermal cue extraction.
+"""ThermalGen thermal evidence layer.
+
+The hybrid_thermal package contains the RGB-to-thermal model implementation.
+"""

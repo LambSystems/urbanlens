@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments and local notebooks
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Local imported project scratch/caches
+*.arrow
+*.zip
+.hf_cache/
+.tmp/
+.tmp copy/
+
+# hybrid_thermal local data, model artifacts, and generated outputs
+backend/data/hybrid_thermal/RGB_to_thermal_dataset/
+backend/data/hybrid_thermal/Predict_Thermal/
+backend/data/hybrid_thermal/Test_RGB_centercrop_640x512/
+backend/data/hybrid_thermal/Test_Thermal_640x512/
+backend/data/hybrid_thermal/RGB_centercrop_640x512/
+backend/data/hybrid_thermal/Thermal_640x512/
+backend/data/hybrid_thermal/predictions/
+backend/data/hybrid_thermal/metrics/
+backend/data/hybrid_thermal/logs/
+backend/data/hybrid_thermal/*.jsonl
+backend/models/.ipynb_checkpoints/
+backend/models/hybrid_thermal/checkpoints/*
+!backend/models/hybrid_thermal/checkpoints/.gitkeep
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
