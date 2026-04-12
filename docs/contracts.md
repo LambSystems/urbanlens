@@ -114,7 +114,7 @@ This is enough for:
 
 - replay
 - debugging
-- demo fallback
+- review and debugging
 
 ---
 

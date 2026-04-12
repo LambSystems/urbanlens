@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from ..schemas import BoundingBox, HotspotType, LatLng
 
@@ -12,19 +12,19 @@ def _type_from_region(region: dict, rank: int) -> HotspotType:
     intensity = region.get("intensity", 0.5)
     area_px = region.get("area_px", 0)
 
-    # Tight, very hot cluster → mechanical equipment
+    # Tight, very hot cluster -> mechanical equipment
     if intensity >= 0.80 and area_px < 2_000:
         return HotspotType.hvac_mechanical
-    # Hot but moderate area → roof surface
+    # Hot but moderate area -> roof surface
     if intensity >= 0.72:
         return HotspotType.roof
-    # Large impervious surface → parking lot
+    # Large impervious surface -> parking lot
     if area_px >= 4_000:
         return HotspotType.parking_lot
-    # Broad low-medium signal → road / pavement
+    # Broad low-medium signal -> road / pavement
     if area_px >= 1_500:
         return HotspotType.road_pavement
-    # Diffuse low signal → vegetation loss
+    # Diffuse low signal -> vegetation loss
     return HotspotType.vegetation_loss
 
 
@@ -53,45 +53,34 @@ def _centroid_from_region(region: dict, region_center: LatLng) -> LatLng:
     centroid = region.get("centroid")
     if centroid and "lat" in centroid and "lng" in centroid:
         return LatLng(lat=centroid["lat"], lng=centroid["lng"])
-    # Approximate from normalised pixel position if geo centroid missing
-    cx = region.get("centroid_px", {}).get("x", _MODEL_W / 2)
-    cy = region.get("centroid_px", {}).get("y", _MODEL_H / 2)
+    # Approximate from model-space pixel position if geo centroid missing.
+    point = region.get("peak_px") or region.get("centroid_px", {})
+    cx = point.get("x", _MODEL_W / 2)
+    cy = point.get("y", _MODEL_H / 2)
     lat = region_center.lat + (0.5 - cy / _MODEL_H) * 0.0014
     lng = region_center.lng + (cx / _MODEL_W - 0.5) * 0.0014
     return LatLng(lat=round(lat, 6), lng=round(lng, 6))
 
 
-_STATIC_FALLBACK = [
-    {"dlat": +0.0007, "dlng": +0.0005, "bbox": BoundingBox(x=112, y=78,  w=64, h=48), "hotspot_type": HotspotType.roof,           "intensity": 0.87},
-    {"dlat": -0.0003, "dlng": +0.0008, "bbox": BoundingBox(x=214, y=166, w=86, h=30), "hotspot_type": HotspotType.road_pavement,  "intensity": 0.52},
-    {"dlat": +0.0004, "dlng": -0.0004, "bbox": BoundingBox(x=298, y=104, w=38, h=40), "hotspot_type": HotspotType.hvac_mechanical, "intensity": 0.74},
-    {"dlat": -0.0006, "dlng": -0.0007, "bbox": BoundingBox(x=354, y=208, w=92, h=58), "hotspot_type": HotspotType.parking_lot,    "intensity": 0.61},
-]
-
-
 def propose_candidates(thermal_data: dict, region_center: LatLng, radius_m: int) -> list[dict]:
+    del radius_m
     regions = thermal_data.get("hotspot_regions", [])
 
     if regions:
-        # Sort highest intensity first so the type heuristic gets rank context
-        ranked = sorted(regions, key=lambda r: r.get("intensity", 0), reverse=True)
+        # Sort brightest thermal regions first so markers land on visible heat peaks.
+        ranked = sorted(regions, key=lambda r: r.get("brightness_score", r.get("intensity", 0)), reverse=True)
         return [
             {
                 "centroid": _centroid_from_region(r, region_center),
                 "bbox": _bbox_from_region(r),
                 "hotspot_type": _type_from_region(r, rank),
                 "intensity": r.get("intensity", 0.5),
+                "brightness_score": r.get("brightness_score", r.get("intensity", 0.5)),
+                "peak_intensity": r.get("peak_intensity", r.get("intensity", 0.5)),
+                "mean_intensity": r.get("mean_intensity", r.get("intensity", 0.5)),
+                "area_px": r.get("area_px", 0),
             }
             for rank, r in enumerate(ranked)
         ]
 
-    # No model regions — use static offsets so the pipeline never stalls
-    return [
-        {
-            "centroid": LatLng(lat=region_center.lat + f["dlat"], lng=region_center.lng + f["dlng"]),
-            "bbox": f["bbox"],
-            "hotspot_type": f["hotspot_type"],
-            "intensity": f["intensity"],
-        }
-        for f in _STATIC_FALLBACK
-    ]
+    return []

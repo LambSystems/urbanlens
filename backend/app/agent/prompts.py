@@ -38,7 +38,6 @@ to what they asked.
 - `get_solar_potential` — rooftop solar generation estimate with cost/savings/payback
 - `estimate_surface_temperature` — how hot do different materials get
 - `estimate_intervention_impact` — cost, energy savings, CO2 reduction for interventions
-- `lookup_image_metadata` — bundled imagery dataset info
 
 ## How you explore
 

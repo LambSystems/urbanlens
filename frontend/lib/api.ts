@@ -117,9 +117,21 @@ export interface BackendAnalysisRegion {
   coverage_score?: number | null;
   thermal_image_path?: string | null;
   thermal_image_url?: string | null;
+  thermal_image_width?: number | null;
+  thermal_image_height?: number | null;
   thermal_preview_path?: string | null;
   thermal_preview_url?: string | null;
+  thermal_preview_width?: number | null;
+  thermal_preview_height?: number | null;
   thermal_source?: string | null;
+  source_image_path?: string | null;
+  source_image_url?: string | null;
+  source_image_width?: number | null;
+  source_image_height?: number | null;
+  source_image_file_size_bytes?: number | null;
+  aligned_rgb_path?: string | null;
+  aligned_rgb_width?: number | null;
+  aligned_rgb_height?: number | null;
   summary: BackendAnalysisSummary;
 }
 
@@ -169,11 +181,20 @@ export interface BackendEvent {
 export interface ThermalInferenceResponse {
   source: string;
   source_image_path?: string | null;
+  source_image_width?: number | null;
+  source_image_height?: number | null;
+  source_image_file_size_bytes?: number | null;
   aligned_rgb_path?: string | null;
+  aligned_rgb_width?: number | null;
+  aligned_rgb_height?: number | null;
   thermal_image_path?: string | null;
   thermal_image_url?: string | null;
+  thermal_image_width?: number | null;
+  thermal_image_height?: number | null;
   thermal_preview_path?: string | null;
   thermal_preview_url?: string | null;
+  thermal_preview_width?: number | null;
+  thermal_preview_height?: number | null;
   checkpoint_path?: string | null;
   metadata: Record<string, unknown>;
   model_input: Record<string, unknown>;
@@ -190,13 +211,6 @@ export interface ThermalInferenceResponse {
     }>;
     fallback_reason?: string;
   };
-}
-
-export interface BackendDemoRegion {
-  label: string;
-  lat: number;
-  lng: number;
-  radius_m: number;
 }
 
 // Session / investigate API (mirrors session_routes.py + schemas.py)
@@ -236,20 +250,22 @@ export async function getAnalysis(regionId: string): Promise<BackendAnalysisResp
   return res.json();
 }
 
-/** POST /analysis/from-capture-upload — multipart: metadata JSON string + image file */
+/** POST /analysis/from-capture-upload - multipart: metadata JSON string + image file */
 export async function createAnalysisFromCaptureUpload(
   region: CaptureRegionPayload,
   mapState: CaptureMapStatePayload,
   viewport: { north: number; south: number; east: number; west: number } | null,
+  imageBounds: { north: number; south: number; east: number; west: number } | null,
   imageBase64: string,
 ): Promise<BackendAnalysisResponse> {
   const metadataObj = {
     region: { bounds: region.bounds, center: region.center, areaKm2: region.areaKm2 },
     map: { zoom: mapState.zoom, mapTypeId: mapState.mapTypeId, tilt: mapState.tilt, heading: mapState.heading },
     viewport: viewport ?? { north: 0, south: 0, east: 0, west: 0 },
+    imageBounds,
   };
 
-  // base64 → Blob
+  // base64 -> Blob
   const byteChars = atob(imageBase64);
   const byteArr = new Uint8Array(byteChars.length);
   for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
@@ -291,13 +307,6 @@ export async function getHotspotDetail(regionId: string, hotspotId: string): Pro
   const res = await fetch(`${API_BASE}/analysis/${regionId}/hotspots/${hotspotId}`);
   if (!res.ok) throw new Error(`GET /analysis/${regionId}/hotspots/${hotspotId} failed: ${res.status}`);
   return res.json();
-}
-
-export async function getDemoRegions(): Promise<BackendDemoRegion[]> {
-  const res = await fetch(`${API_BASE}/demo/regions`);
-  if (!res.ok) throw new Error(`GET /demo/regions failed: ${res.status}`);
-  const data = await res.json();
-  return data.regions ?? [];
 }
 
 export async function askQuestion(
@@ -495,12 +504,12 @@ export function mapHotspot(b: BackendHotspot): Hotspot {
     trace,
     scoring: hasScoring
       ? {
-          anomalyScore: b.anomaly_score!,
-          severityScore: b.severity_score!,
-          confidenceScore: b.confidence_score!,
-          finalScore: b.final_rank_score ?? b.severity_score! * b.confidence_score!,
-          reasoning: b.why.join('. '),
-        }
+        anomalyScore: b.anomaly_score!,
+        severityScore: b.severity_score!,
+        confidenceScore: b.confidence_score!,
+        finalScore: b.final_rank_score ?? b.severity_score! * b.confidence_score!,
+        reasoning: b.why.join('. '),
+      }
       : undefined,
     evidenceUrls,
     createdAt: b.created_at ? new Date(b.created_at).getTime() : Date.now(),

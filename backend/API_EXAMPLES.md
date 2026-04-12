@@ -22,60 +22,11 @@ Example response:
 }
 ```
 
-## 2. Get Demo Regions
+## 2. Create Coordinate-Only Analysis
 
-Use this to populate initial clickable demo choices before real map exploration is ready.
-
-```http
-GET /demo/regions
-```
-
-Example response:
-
-```json
-{
-  "regions": [
-    {
-      "label": "downtown_core",
-      "lat": 38.627,
-      "lng": -90.1994,
-      "radius_m": 120
-    },
-    {
-      "label": "industrial_corridor",
-      "lat": 38.6155,
-      "lng": -90.2152,
-      "radius_m": 140
-    },
-    {
-      "label": "campus_zone",
-      "lat": 38.6483,
-      "lng": -90.3108,
-      "radius_m": 110
-    }
-  ]
-}
-```
-
-## 3. Get Example Analysis Request
-
-```http
-GET /demo/example-analysis-request
-```
-
-Example response:
-
-```json
-{
-  "center": {
-    "lat": 38.627,
-    "lng": -90.1994
-  },
-  "radius_m": 120
-}
-```
-
-## 4. Create Analysis
+Use this only when you do not have a captured map image yet. This route creates an
+analysis shell from coordinates, but it does not run HybridThermalGen because there
+is no RGB input image.
 
 ```http
 POST /analysis
@@ -113,62 +64,16 @@ Example response shape:
       "west": -90.200784
     },
     "area_km2": 0.058,
-    "available_source_count": 3,
-    "coverage_score": 0.65,
-    "maps_fallback_count": 1,
-    "enrichment_confidence_avg": 0.77,
-    "source_records": [
-      {
-        "source_id": "drone_img_001",
-        "source_type": "drone",
-        "image_path": "data/demo/drone_img_001.png",
-        "image_url": null,
-        "lat": 38.6274,
-        "lng": -90.1991,
-        "bounds": null,
-        "timestamp": null,
-        "altitude": 110.0,
-        "heading": null,
-        "resolution": 0.12,
-        "metadata_quality_score": 0.82,
-        "geolocation_confidence": 0.78
-      },
-      {
-        "source_id": "drone_img_002",
-        "source_type": "drone",
-        "image_path": "data/demo/drone_img_002.png",
-        "image_url": null,
-        "lat": null,
-        "lng": null,
-        "bounds": null,
-        "timestamp": null,
-        "altitude": 95.0,
-        "heading": null,
-        "resolution": 0.18,
-        "metadata_quality_score": 0.48,
-        "geolocation_confidence": 0.35
-      },
-      {
-        "source_id": "derived_thermal_001",
-        "source_type": "derived",
-        "image_path": "data/demo/thermal_overlay_001.png",
-        "image_url": null,
-        "lat": 38.6272,
-        "lng": -90.1996,
-        "bounds": null,
-        "timestamp": null,
-        "altitude": null,
-        "heading": null,
-        "resolution": null,
-        "metadata_quality_score": 0.75,
-        "geolocation_confidence": 0.72
-      }
-    ],
+    "available_source_count": 0,
+    "coverage_score": 0,
+    "maps_fallback_count": 0,
+    "enrichment_confidence_avg": 0,
+    "source_records": [],
     "status": "running",
     "summary": {
-      "candidate_count": 4,
-      "discarded_count": 1,
-      "finalized_count": 3
+      "candidate_count": 0,
+      "discarded_count": 0,
+      "finalized_count": 0
     }
   },
   "result": {
@@ -187,7 +92,7 @@ Important:
 - The first response may still be `running`
 - The frontend should poll after receiving `region_id`
 
-## 4b. Create Analysis From Frontend Capture
+## 3. Create Analysis From Frontend Capture
 
 Use this when the frontend sends a Google Maps selection plus a processed screenshot.
 
@@ -239,7 +144,7 @@ Important:
 
 ## 4c. Create Analysis From Frontend Capture Upload
 
-Preferred for demo and real frontend usage.
+Preferred for real frontend usage.
 
 ```http
 POST /analysis/from-capture-upload
@@ -532,10 +437,10 @@ ELEVENLABS_MODEL_ID=eleven_flash_v2_5
 
 ## 12. Suggested Frontend Flow
 
-1. Load `GET /demo/regions` or let the user click on the map.
-2. Optionally use `GET /demo/example-analysis-request` for a ready-made request body.
-3. Call `POST /analysis`.
-4. Store `region_id`.
+1. Let the user choose a 640 x 512 map capture on the frontend.
+2. Send the image and map metadata to `POST /analysis/from-capture-upload`.
+3. Store `region_id` from the response.
+4. Display `region.thermal_preview_url` as the overlay using `region.bounds`.
 5. Poll `GET /analysis/{region_id}` every 800 to 1200 ms.
 6. Poll `GET /analysis/{region_id}/events` if a separate trace feed is useful.
 7. Fetch `GET /analysis/{region_id}/hotspots/{hotspot_id}` when the user clicks a hotspot.

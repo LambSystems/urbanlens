@@ -136,10 +136,11 @@ def _thermal_asset_url(path: Path) -> str | None:
 
 
 def _hotspot_regions(pred_uint8: np.ndarray, max_regions: int = 5) -> list[dict[str, Any]]:
-    """Extract connected hot regions from the MODEL-space uint8 array (MODEL_H × MODEL_W).
+    """Extract connected bright thermal regions from the model-space uint8 array.
 
-    Centroids are reported in model pixel space so that _attach_geo_centroids can
-    map them to lat/lng using the model's fixed (MODEL_W, MODEL_H) normalisation.
+    Markers use the brightest pixel inside each connected hot region. Mean
+    intensity and area are retained so a tiny bright speck does not dominate
+    the hotspot list by itself.
     """
     threshold = max(float(np.percentile(pred_uint8, 85)), 1.0)
     mask = pred_uint8 >= threshold
@@ -169,21 +170,31 @@ def _hotspot_regions(pred_uint8: np.ndarray, max_regions: int = 5) -> list[dict[
             xs = np.array([p[0] for p in pixels])
             ys = np.array([p[1] for p in pixels])
             intensities = pred_uint8[ys, xs] / 255.0
+            peak_index = int(np.argmax(intensities))
+            peak_x = int(xs[peak_index])
+            peak_y = int(ys[peak_index])
+            peak_intensity = float(intensities[peak_index])
+            mean_intensity = float(intensities.mean())
+            brightness_score = (peak_intensity * 0.7) + (mean_intensity * 0.3)
             regions.append(
                 {
-                    "centroid_px": {"x": float(xs.mean()), "y": float(ys.mean())},
+                    "centroid_px": {"x": float(peak_x), "y": float(peak_y)},
+                    "peak_px": {"x": float(peak_x), "y": float(peak_y)},
                     "bbox_px": {
                         "x": int(xs.min()),
                         "y": int(ys.min()),
                         "w": int(xs.max() - xs.min() + 1),
                         "h": int(ys.max() - ys.min() + 1),
                     },
-                    "intensity": round(float(intensities.mean()), 4),
+                    "intensity": round(brightness_score, 4),
+                    "brightness_score": round(brightness_score, 4),
+                    "peak_intensity": round(peak_intensity, 4),
+                    "mean_intensity": round(mean_intensity, 4),
                     "area_px": int(len(pixels)),
                 }
             )
 
-    regions.sort(key=lambda item: (item["intensity"], item["area_px"]), reverse=True)
+    regions.sort(key=lambda item: (item["brightness_score"], item["area_px"]), reverse=True)
     return regions[:max_regions]
 
 
@@ -227,6 +238,10 @@ def predict_one(
         output_path,
         output_dir / f"{stem}_thermal_preview.png",
     )
+    with Image.open(output_path) as thermal_image:
+        thermal_w, thermal_h = thermal_image.size
+    with Image.open(preview_path) as preview_image:
+        preview_w, preview_h = preview_image.size
 
     pred_norm = pred_uint8.astype(np.float32) / 255.0
 
@@ -239,12 +254,29 @@ def predict_one(
     print(f"[ThermalGen] ───────────────────────────────────────────────\n")
 
     return {
+        "source_image_path": str(rgb_image_path),
+        "source_image_width": orig_size[0],
+        "source_image_height": orig_size[1],
+        "source_image_file_size_bytes": rgb_image_path.stat().st_size,
         "aligned_rgb_path": str(aligned_path),
+        "aligned_rgb_width": MODEL_W,
+        "aligned_rgb_height": MODEL_H,
         "thermal_image_path": str(output_path),
         "thermal_image_url": _thermal_asset_url(output_path),
+        "thermal_image_width": thermal_w,
+        "thermal_image_height": thermal_h,
         "thermal_preview_path": str(preview_path),
         "thermal_preview_url": _thermal_asset_url(preview_path),
+        "thermal_preview_width": preview_w,
+        "thermal_preview_height": preview_h,
         "checkpoint_path": str(checkpoint_path),
+        "model_input": {
+            "uses_rgb": True,
+            "uses_alphaearth": False,
+            "uses_metadata": False,
+            "width": MODEL_W,
+            "height": MODEL_H,
+        },
         "thermal_data": {
             "min_temp_c": round(28.0 + float(pred_norm.min()) * 20.0, 1),
             "max_temp_c": round(28.0 + float(pred_norm.max()) * 20.0, 1),

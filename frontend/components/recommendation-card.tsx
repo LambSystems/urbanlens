@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useThermal } from '@/lib/thermal-context';
-import { getHotspotTypeLabel } from '@/lib/mock-data';
+import { getHotspotTypeLabel } from '@/lib/hotspot-labels';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,8 +66,17 @@ export function RecommendationCard() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">No Action Required</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  This hotspot was identified as an expected heat source and has been discarded.
+                  {activeHotspot.discardReason ?? activeHotspot.sidebarSummary ?? 'This hotspot was identified as an expected heat source and has been discarded.'}
                 </p>
+                {activeHotspot.toolSignals && activeHotspot.toolSignals.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {activeHotspot.toolSignals.map((signal) => (
+                      <Badge key={signal} variant="outline" className="text-[10px]">
+                        {signal}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -95,13 +104,38 @@ export function RecommendationCard() {
                 Recommendation for {getHotspotTypeLabel(activeHotspot.type)}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                {recommendation.summary}
+                {activeHotspot.sidebarSummary ?? recommendation.summary}
               </p>
             </div>
           </div>
         </CardHeader>
         
         <CardContent className="pt-0 space-y-3">
+          {activeHotspot.toolSignals && activeHotspot.toolSignals.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {activeHotspot.toolSignals.map((signal) => (
+                <Badge key={signal} variant="outline" className="text-[10px]">
+                  {signal}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {activeHotspot.evidenceHighlights && activeHotspot.evidenceHighlights.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2">
+                Why this hotspot matters
+              </p>
+              <ul className="space-y-1.5">
+                {activeHotspot.evidenceHighlights.slice(0, 3).map((highlight) => (
+                  <li key={highlight} className="text-xs text-muted-foreground leading-relaxed">
+                    {highlight}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Impact metrics */}
           <div className="flex items-center gap-4 p-2 rounded-lg bg-muted/50">
             <div className="flex items-center gap-2">
