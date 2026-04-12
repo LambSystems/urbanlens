@@ -13,6 +13,10 @@ const mapContainerStyle = {
   height: '100%',
 };
 
+const MODEL_IMAGE_WIDTH = 640;
+const MODEL_IMAGE_HEIGHT = 512;
+const MODEL_ASPECT_RATIO = MODEL_IMAGE_WIDTH / MODEL_IMAGE_HEIGHT;
+
 
 function getMarkerColor(hotspot: Hotspot): string {
   if (hotspot.status === 'discarded') return '#6b7280';
@@ -25,6 +29,44 @@ function getMarkerColor(hotspot: Hotspot): string {
   return '#22c55e';
 }
 
+function normalizeBoundsToModelAspect(bounds: BoundingBox): BoundingBox {
+  const centerLat = (bounds.north + bounds.south) / 2;
+  const centerLng = (bounds.east + bounds.west) / 2;
+  const cosLat = Math.cos((centerLat * Math.PI) / 180);
+
+  const halfHeightM = ((bounds.north - bounds.south) * 111_000) / 2;
+  const halfWidthM = ((bounds.east - bounds.west) * 111_000 * Math.max(cosLat, 1e-6)) / 2;
+  const currentAspectRatio = halfWidthM / Math.max(halfHeightM, 1e-6);
+
+  let nextHalfWidthM = halfWidthM;
+  let nextHalfHeightM = halfHeightM;
+
+  if (currentAspectRatio > MODEL_ASPECT_RATIO) {
+    nextHalfHeightM = halfWidthM / MODEL_ASPECT_RATIO;
+  } else {
+    nextHalfWidthM = halfHeightM * MODEL_ASPECT_RATIO;
+  }
+
+  const halfLatDeg = nextHalfHeightM / 111_000;
+  const halfLngDeg = nextHalfWidthM / (111_000 * Math.max(cosLat, 1e-6));
+
+  return {
+    north: centerLat + halfLatDeg,
+    south: centerLat - halfLatDeg,
+    east: centerLng + halfLngDeg,
+    west: centerLng - halfLngDeg,
+  };
+}
+
+function fitStaticMapZoom(bounds: BoundingBox, center: { lat: number; lng: number }): number {
+  const cosLat = Math.cos((center.lat * Math.PI) / 180);
+  const widthM = (bounds.east - bounds.west) * 111_000 * Math.max(cosLat, 1e-6);
+  const heightM = (bounds.north - bounds.south) * 111_000;
+  const targetMetersPerPixel = Math.max(widthM / MODEL_IMAGE_WIDTH, heightM / MODEL_IMAGE_HEIGHT, 0.01);
+  const zoom = Math.log2((156_543.03392 * Math.max(cosLat, 1e-6)) / targetMetersPerPixel);
+  return Math.max(15, Math.min(21, Math.floor(zoom)));
+}
+
 /**
  * Returns the geographic bounds of a Static Maps image.
  * size=640x640 centered on `center` at `zoom`.
@@ -34,11 +76,13 @@ function getMarkerColor(hotspot: Hotspot): string {
 function staticMapImageBounds(
   center: { lat: number; lng: number },
   zoom: number,
+  imageWidth = MODEL_IMAGE_WIDTH,
+  imageHeight = MODEL_IMAGE_HEIGHT,
 ): { north: number; south: number; east: number; west: number } {
   const cosLat = Math.cos((center.lat * Math.PI) / 180);
   const mPerPx = (156_543.03392 * cosLat) / Math.pow(2, zoom);
-  const halfHM = 320 * mPerPx; // 640/2 pixels
-  const halfWM = 320 * mPerPx;
+  const halfHM = (imageHeight / 2) * mPerPx;
+  const halfWM = (imageWidth / 2) * mPerPx;
   const halfLatDeg = halfHM / 111_000;
   const halfLngDeg = halfWM / (111_000 * Math.max(cosLat, 1e-6));
   return {
@@ -117,6 +161,8 @@ export function ThermalMap() {
     streetViewControl: false,
     fullscreenControl: false,
     clickableIcons: false,
+    tilt: 0,
+    heading: 0,
     draggableCursor: selectionMode === 'drawing' ? 'crosshair' : undefined,
     styles: [
       { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
@@ -138,6 +184,8 @@ export function ThermalMap() {
   }, [selectionMode, setActiveHotspot]);
 
   const onMapLoad = useCallback((map: google.maps.Map) => {
+    map.setTilt(0);
+    map.setHeading(0);
     mapRef.current = map;
   }, []);
 
@@ -157,36 +205,44 @@ export function ThermalMap() {
       const ne = bounds.getNorthEast();
       const sw = bounds.getSouthWest();
 
-      const selectedBounds: BoundingBox = {
+      const drawnBounds: BoundingBox = {
         north: ne.lat(),
         south: sw.lat(),
         east: ne.lng(),
         west: sw.lng(),
       };
-
-      const region: SelectedRegion = {
-        bounds: selectedBounds,
-        center: {
-          lat: (ne.lat() + sw.lat()) / 2,
-          lng: (ne.lng() + sw.lng()) / 2,
-        },
-        areaKm2: calculateArea(selectedBounds),
+      const normalizedBounds = normalizeBoundsToModelAspect(drawnBounds);
+      const regionCenter = {
+        lat: (normalizedBounds.north + normalizedBounds.south) / 2,
+        lng: (normalizedBounds.east + normalizedBounds.west) / 2,
       };
-
-      setSelectedRegion(region);
-      setSelectionMode('selected');
 
       const map = mapRef.current;
       const viewport = map?.getBounds();
       const vne = viewport?.getNorthEast();
       const vsw = viewport?.getSouthWest();
-      const zoom = map?.getZoom() ?? 17;
+      const analysisZoom = fitStaticMapZoom(normalizedBounds, regionCenter);
+      const captureBounds = staticMapImageBounds(
+        regionCenter,
+        analysisZoom,
+        MODEL_IMAGE_WIDTH,
+        MODEL_IMAGE_HEIGHT,
+      );
+
+      const region: SelectedRegion = {
+        bounds: captureBounds,
+        center: regionCenter,
+        areaKm2: calculateArea(captureBounds),
+      };
+
+      setSelectedRegion(region);
+      setSelectionMode('selected');
 
       const mapState = {
-        zoom,
-        mapTypeId: map?.getMapTypeId() ?? null,
-        tilt: map?.getTilt() ?? null,
-        heading: map?.getHeading() ?? null,
+        zoom: analysisZoom,
+        mapTypeId: 'satellite',
+        tilt: 0,
+        heading: 0,
       };
       const viewportBounds = vne && vsw ? {
         north: vne.lat(),
@@ -198,9 +254,9 @@ export function ThermalMap() {
       // Fetch satellite image from Static Maps API, store as capture payload
       const staticUrl =
         `https://maps.googleapis.com/maps/api/staticmap` +
-        `?center=${region.center.lat},${region.center.lng}` +
-        `&zoom=${zoom}` +
-        `&size=640x640` +
+        `?center=${regionCenter.lat},${regionCenter.lng}` +
+        `&zoom=${analysisZoom}` +
+        `&size=${MODEL_IMAGE_WIDTH}x${MODEL_IMAGE_HEIGHT}` +
         `&maptype=satellite` +
         `&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''}`;
 
@@ -214,8 +270,7 @@ export function ThermalMap() {
         }))
         .then(dataUrl => {
           const imageBase64 = dataUrl.split(',')[1];
-          const imageBounds = staticMapImageBounds(region.center, zoom);
-          setCapture({ imageBase64, mapState, viewport: viewportBounds, imageBounds });
+          setCapture({ imageBase64, mapState, viewport: viewportBounds, imageBounds: captureBounds });
         })
         .catch(err => {
           console.warn('Static Maps image fetch failed, analysis will use coordinate fallback:', err);
@@ -230,6 +285,7 @@ export function ThermalMap() {
         strokeWeight: 2,
         editable: false,
         draggable: false,
+        bounds: captureBounds,
       });
     }
 

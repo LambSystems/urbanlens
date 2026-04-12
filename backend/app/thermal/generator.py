@@ -75,8 +75,26 @@ def _static_map_deg_per_half_pixel(center_lat: float, zoom: int, img_w: int = 64
 
 
 def _attach_geo_centroids(result: dict, center_lat: float, center_lng: float) -> dict:
-    zoom = int(result.get("metadata", {}).get("zoom") or 17)
-    half_lat, half_lng = _static_map_deg_per_half_pixel(center_lat, zoom)
+    metadata = result.get("metadata", {})
+    north = metadata.get("north")
+    south = metadata.get("south")
+    east = metadata.get("east")
+    west = metadata.get("west")
+
+    if all(value is not None for value in (north, south, east, west)):
+        north = float(north)
+        south = float(south)
+        east = float(east)
+        west = float(west)
+    else:
+        zoom = int(metadata.get("zoom") or 17)
+        img_w = int(metadata.get("image_width") or 640)
+        img_h = int(metadata.get("image_height") or 640)
+        half_lat, half_lng = _static_map_deg_per_half_pixel(center_lat, zoom, img_w=img_w, img_h=img_h)
+        north = center_lat + half_lat
+        south = center_lat - half_lat
+        east = center_lng + half_lng
+        west = center_lng - half_lng
 
     for region in result.get("thermal_data", {}).get("hotspot_regions", []):
         centroid_px = region.get("centroid_px")
@@ -86,8 +104,8 @@ def _attach_geo_centroids(result: dict, center_lat: float, center_lng: float) ->
         x_norm = float(centroid_px["x"]) / 640.0
         y_norm = float(centroid_px["y"]) / 512.0
         region["centroid"] = {
-            "lat": round(center_lat + (0.5 - y_norm) * 2 * half_lat, 6),
-            "lng": round(center_lng + (x_norm - 0.5) * 2 * half_lng, 6),
+            "lat": round(north - y_norm * (north - south), 6),
+            "lng": round(west + x_norm * (east - west), 6),
         }
     return result
 
