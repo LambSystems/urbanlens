@@ -1,0 +1,51 @@
+{
+  "description": "Stub source imagery manifest. Replace paths with real drone/satellite images.",
+  "sources": [
+    {
+      "source_id": "drone_img_001",
+      "source_type": "drone",
+      "image_path": "data/demo/drone_img_001.png",
+      "lat": 38.6274,
+      "lng": -90.1991,
+      "altitude": 110.0,
+      "resolution": 0.12,
+      "metadata_quality_score": 0.82,
+      "geolocation_confidence": 0.78,
+      "status": "placeholder"
+    },
+    {
+      "source_id": "drone_img_002",
+      "source_type": "drone",
+      "image_path": "data/demo/drone_img_002.png",
+      "lat": null,
+      "lng": null,
+      "altitude": 95.0,
+      "resolution": 0.18,
+      "metadata_quality_score": 0.48,
+      "geolocation_confidence": 0.35,
+      "status": "placeholder — intentionally missing geolocation to test partial metadata"
+    },
+    {
+      "source_id": "drone_img_003",
+      "source_type": "drone",
+      "image_path": "data/demo/drone_img_003.png",
+      "lat": 38.6265,
+      "lng": -90.1988,
+      "altitude": 105.0,
+      "resolution": 0.14,
+      "metadata_quality_score": 0.76,
+      "geolocation_confidence": 0.71,
+      "status": "placeholder"
+    },
+    {
+      "source_id": "derived_thermal_001",
+      "source_type": "derived",
+      "image_path": "data/demo/thermal_overlay_001.png",
+      "lat": 38.6272,
+      "lng": -90.1996,
+      "metadata_quality_score": 0.75,
+      "geolocation_confidence": 0.72,
+      "status": "placeholder — will be output of thermal generator model"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "demo_regions": [
+    {
+      "region_id": "stl_downtown",
+      "label": "St. Louis Downtown Core",
+      "center": {"lat": 38.6270, "lng": -90.1994},
+      "radius_m": 120,
+      "satellite_image": "stl_downtown_rgb.png",
+      "thermal_image": "stl_downtown_thermal.png",
+      "source_count": 6,
+      "notes": "Primary demo region. Replace placeholder images with real satellite + thermal data."
+    },
+    {
+      "region_id": "stl_industrial",
+      "label": "St. Louis Industrial Corridor",
+      "center": {"lat": 38.6155, "lng": -90.2152},
+      "radius_m": 140,
+      "satellite_image": "stl_industrial_rgb.png",
+      "thermal_image": "stl_industrial_thermal.png",
+      "source_count": 4,
+      "notes": "Secondary demo region."
+    },
+    {
+      "region_id": "stl_campus",
+      "label": "St. Louis Campus Zone",
+      "center": {"lat": 38.6483, "lng": -90.3108},
+      "radius_m": 110,
+      "satellite_image": "stl_campus_rgb.png",
+      "thermal_image": "stl_campus_thermal.png",
+      "source_count": 5,
+      "notes": "Tertiary demo region."
+    }
+  ]
+}
