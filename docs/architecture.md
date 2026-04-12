@@ -1,22 +1,23 @@
-# ThermalGen V2 Architecture
-## Winning-Slice Architecture for Best in Agentic AI
+# Urban Legend Architecture
+## Prompt-Driven Agentic Investigation for Best in Agentic AI
 
 This architecture is optimized for a hackathon-winning vertical slice, not a fully generalized platform.
 
 The objective is to support one clear end-to-end behavior:
 
-`select region -> detect hotspots -> investigate -> discard -> prioritize -> recommend`
+`select region -> load data -> user prompt -> agent investigates with visible chain of thought -> actionable answer`
 
 ---
 
 ## 1. Architecture Principle
 
-ThermalGen should be built as a layered decision system.
+Urban Legend should be built as a prompt-driven investigation system.
 
-- deterministic components handle ingestion, normalization, routing, and scoring
-- narrow models produce partial evidence
-- an orchestrator decides how to investigate each hotspot
-- a planner turns validated evidence into ranked actions
+- deterministic components handle ingestion, normalization, and source retrieval
+- narrow models produce partial evidence (thermal, perception, context)
+- an agent orchestrator interprets the user's prompt and decides how to investigate
+- every reasoning step and tool call is visible in the UI as chain of thought
+- the user can ask follow-up questions in the same session
 
 This keeps the system:
 
@@ -24,6 +25,7 @@ This keeps the system:
 - demoable
 - stable under time pressure
 - legible to judges
+- genuinely agentic — the user drives the investigation
 
 ---
 
@@ -31,14 +33,15 @@ This keeps the system:
 
 We are not trying to prove the maximum technical surface area.
 
-We are trying to prove the clearest agentic loop.
+We are trying to prove the clearest agentic loop driven by user intent.
 
 That means:
 
 - one strong demo region over many weak regions
-- a constrained tool set over a broad action space
-- visible orchestration over hidden complexity
-- evidence-seeking behavior over static pipelines
+- prompt-driven investigation over a fixed pipeline
+- visible chain of thought over hidden complexity
+- conversational depth over breadth of features
+- evidence-seeking behavior motivated by what the user asked
 
 ---
 
@@ -48,35 +51,45 @@ That means:
 User selects demo region
         |
         v
-Map-first frontend
+Map-first frontend loads data context
+(satellite, thermal overlay, source metadata)
         |
         v
-API/session layer
+User types a prompt
         |
         v
-Source retrieval + evidence normalization
+API/session layer (passes prompt + region context)
         |
         v
-Thermal evidence + metadata ingestion
+Agent orchestrator (Gemini)
+   |-- interprets user intent
+   |-- examines available data
+   |-- decides what tools to call
+   |
+   |   Tool calls (visible chain of thought):
+   |        |        |        |
+   |        v        v        v
+   |   Perception  Thermal  Context/Scoring
+   |        \        |       /
+   |         \       |      /
+   |          v      v     v
+   |      Evidence gathered
+   |        |
+   |        v
+   |   Agent reasons over evidence
+   |   (loop: need more evidence? call another tool)
+   |        |
+   |        v
+   |   Agent produces answer
         |
         v
-Candidate discovery
+Structured response with chain of thought
         |
         v
-Agent orchestrator
-   |        |        |
-   v        v        v
-Perception  Context  Scoring
-   \        |       /
-    \       |      /
-     v      v     v
-   Evidence aggregation
+Frontend renders: chain of thought + answer + recommendations
         |
         v
-Intervention planner
-        |
-        v
-Ranking + recommendation UI
+User asks follow-up question (same session)
 ```
 
 ---
@@ -85,33 +98,33 @@ Ranking + recommendation UI
 
 ### 4.1 Frontend
 
-The frontend is primarily a legibility layer.
+The frontend is the investigation interface.
 
 It must show:
 
-- RGB plus thermal context
-- hotspot candidates
-- one selected hotspot investigation trace
-- discarded hotspot state
-- Top 3 ranking
-- final recommendation
+- map with RGB plus thermal overlay
+- prompt input for the user to ask questions
+- chain of thought panel showing every agent reasoning step and tool call in real time
+- evidence gathered at each step
+- final answer with structured recommendations
+- conversation history for follow-ups on the same region
 
-The frontend should optimize for fast judge comprehension, not feature breadth.
+The frontend should optimize for fast judge comprehension of the agent's reasoning process.
 
 ### 4.2 API and Session Layer
 
-This layer should stay thin.
+This layer manages the conversation between user and agent.
 
 Responsibilities:
 
-- accept region analysis request
-- define an analysis region around a map click
-- retrieve available drone sources intersecting that region
-- load cached or live evidence
-- coordinate orchestrator lifecycle
-- return structured data for the UI
+- accept region selection and load data context
+- accept user prompt
+- maintain session state so follow-up questions have context
+- route prompt + data context to the agent orchestrator
+- stream chain of thought steps back to the frontend
+- return structured response with answer and evidence
 
-This layer should not contain complex reasoning logic.
+This layer should not contain reasoning logic — that belongs to the agent.
 
 ### 4.2.1 Source Retrieval and Evidence Normalization
 
@@ -130,37 +143,25 @@ Responsibilities:
 
 ### 4.3 Thermal Evidence Layer
 
-This is a prebuilt advantage and should be treated as stable infrastructure plus an evidence tool.
+The satellite-to-thermal conversion model is prebuilt and should be treated as stable infrastructure plus an evidence tool.
 
 Responsibilities:
 
-- provide aligned thermal evidence for the region
-- expose thermal-derived cues for hotspot proposal
-- return hotspot-specific heat evidence when the orchestrator requests it
+- convert satellite imagery to thermal representation
+- provide the thermal image for UI overlay display
+- expose thermal-derived data for the analysis pipeline
+- return hotspot-specific heat evidence when the agent requests it
 
 The thermal module is not the product. It is evidence the agent can choose to consult.
 
-### 4.4 Candidate Discovery
-
-This layer proposes 3 to 5 initial hotspots inside an analysis region around the user click.
-
-Possible techniques:
-
-- thresholding
-- clustering
-- contour extraction
-- lightweight hotspot scoring
-
-Its job is to generate candidates, not final conclusions.
-
-### 4.5 Perception Layer
+### 4.4 Perception Layer
 
 This layer answers:
 
 - what object is this hotspot attached to
 - what coarse surface or material might it be
 
-Outputs should be structured and simple enough for scoring and explanation.
+These are tools the agent calls when it decides it needs object or material evidence to answer the user's question.
 
 Supported hotspot taxonomy for the MVP:
 
@@ -171,7 +172,7 @@ Supported hotspot taxonomy for the MVP:
 - `vegetation_loss`
 - `other`
 
-### 4.6 Context Layer
+### 4.5 Context Layer
 
 This layer answers:
 
@@ -182,7 +183,7 @@ This layer answers:
 
 This is where the project gains credibility as a triage system rather than a detector.
 
-### 4.7 Scoring Layer
+### 4.6 Scoring Layer
 
 This layer computes:
 
@@ -200,49 +201,47 @@ Scoring hierarchy:
 
 Confidence should incorporate both reasoning quality and evidence coverage quality.
 
-Confidence should also reflect metadata quality and geolocation certainty.
-
-### 4.8 Agent Orchestrator
+### 4.7 Agent Orchestrator
 
 This is the core of the product.
 
-The orchestrator should decide:
+The agent receives:
 
-- which hotspot to inspect next
-- which worker to call
-- whether thermal evidence is needed yet
-- whether context comparison is needed yet
-- whether evidence is sufficient
-- whether to discard or escalate
-- when to finalize
+- the user's prompt (their question or intent)
+- the data context for the selected region (thermal data, source records, metadata)
+- conversation history (for follow-ups)
 
-Recommended tool/action space:
+The agent then:
 
-- `inspect_object`
-- `request_thermal_evidence`
-- `infer_surface`
-- `compare_neighbors`
-- `check_consistency`
-- `score_hotspot`
-- `discard_hotspot`
-- `finalize_hotspot`
+- interprets what the user is asking
+- examines the available data to understand what evidence exists
+- decides what tools to call and in what order based on the question
+- executes tools and gathers evidence
+- reasons over the evidence and decides if more is needed
+- produces an answer with supporting evidence and recommendations
 
-Keep the action space constrained enough that the UI trace stays understandable.
+Every reasoning step and tool call is recorded as chain of thought and streamed to the frontend.
 
-The trace vocabulary is fixed, but the route is not. Different hotspot types can take different valid paths through the same state machine.
+Available tools:
 
-Example routes:
+- `inspect_object` — identify the object type at a hotspot
+- `request_thermal_evidence` — get thermal data for a specific location
+- `infer_surface` — estimate surface material
+- `compare_neighbors` — compare against nearby structures
+- `check_consistency` — verify signal across sources
+- `score_hotspot` — compute anomaly, severity, confidence
+- `discard_hotspot` — reject a weak candidate with reasoning
+- `finalize_hotspot` — promote a candidate for recommendation
 
-- `road_pavement`
-  `candidate_detected -> inspect_object -> request_thermal_evidence -> compare_neighbors -> score_hotspot -> discard_hotspot`
-- `roof`
-  `candidate_detected -> inspect_object -> request_thermal_evidence -> infer_surface -> compare_neighbors -> check_consistency -> score_hotspot -> finalize_hotspot`
-- `hvac_mechanical`
-  `candidate_detected -> inspect_object -> request_thermal_evidence -> infer_surface -> score_hotspot -> finalize_hotspot`
+The agent may also access additional tools depending on what the user asks — location lookups, metadata queries, broader context retrieval.
 
-### 4.9 Planner
+The tool set is kept constrained enough that the chain of thought stays understandable.
 
-The planner turns validated hotspot evidence into:
+Different user prompts lead to different investigation paths through the same tool set. The agent's route is driven by the question, not by a fixed pipeline.
+
+### 4.8 Planner
+
+The planner turns validated evidence into:
 
 - ranked priority
 - recommended action
@@ -258,29 +257,29 @@ Without it, the system only observes. With it, the system recommends.
 
 The architecture must support these behaviors explicitly:
 
-### Candidate Proposal
+### Prompt-Driven Investigation
 
-The system identifies multiple hotspots.
+The user types a question. The agent investigates based on that question, not a fixed pipeline.
 
-### Investigation
+### Visible Chain of Thought
 
-The system gathers evidence in visible steps.
+Every reasoning step and tool call is shown in the UI. Judges can watch the agent think.
 
-It should be clear that some evidence was requested because the agent determined it was necessary.
+### Evidence Gathering
+
+The agent gathers evidence in visible steps. It should be clear that evidence was requested because the agent determined it was necessary to answer the user's question.
 
 ### Rejection
 
-The system discards at least one hotspot.
+The agent discards at least one hotspot or finding. The discard reason should come from gathered evidence and relate to the user's question.
 
-The discard reason should come from gathered evidence, not a UI-only label.
+### Actionable Answer
 
-### Prioritization
+The agent returns an answer the user can act on — not just data, but a recommendation.
 
-The system ranks the strongest candidates.
+### Follow-Up Questions
 
-### Recommendation
-
-The system outputs what to fix first.
+The user can ask follow-up questions that build on the previous investigation.
 
 If the architecture makes any of those hard to show, it is too broad for the hackathon.
 
@@ -296,8 +295,8 @@ The architecture should support both:
 Recommended reliability layers:
 
 - one fully cached demo region
-- persisted hotspot state
-- prebuilt ranking payloads
+- persisted session state
+- prebuilt chain of thought sequences for common prompts
 - screenshot fallback assets
 
 Caching should accelerate the demo without removing visible reasoning.
@@ -305,11 +304,11 @@ Caching should accelerate the demo without removing visible reasoning.
 Recommended cache layers:
 
 - `region cache`
-  reused candidate proposals and region metadata for nearby repeated clicks
-- `hotspot evidence cache`
-  thermal, object, surface, and neighbor-comparison outputs for known hotspots
-- `trace playback layer`
-  reveals cached or precomputed evidence step by step over 5 to 15 seconds so the user still experiences investigation
+  reused data context and source records for nearby repeated clicks
+- `investigation cache`
+  cached chain of thought and answers for known demo prompts
+- `chain of thought playback`
+  reveals cached reasoning step by step so the user still experiences investigation
 
 For the hackathon, source retrieval can be simplified to a curated region-to-drone-evidence mapping as long as the backend contract already models scattered source inputs.
 
@@ -321,15 +320,15 @@ Winning the demo matters more than maximizing live compute.
 
 ### Engineer 1
 
-Frontend, map, investigation trace, ranking, recommendation UI.
+Frontend, map, prompt input, chain of thought display, conversation UI, recommendation panels.
 
 ### Engineer 2
 
-API, orchestrator state machine, structured responses, cache path.
+API, agent orchestrator, session management, chain of thought streaming, cache path.
 
 ### Engineer 3
 
-Hotspot proposal, object evidence, surface evidence.
+Hotspot proposal, object evidence, surface evidence, thermal integration.
 
 ### Engineer 4
 
@@ -339,13 +338,12 @@ Neighbor comparison, scoring, confidence aggregation, ranker.
 
 ## 8. Final Architectural Rule
 
-ThermalGen should feel like a system that chooses what matters.
+Urban Legend should feel like a system that answers your questions about urban heat by investigating the evidence.
 
 If forced to simplify, preserve only this:
 
-- candidate discovery
-- structured investigation
-- explicit rejection
-- ranked intervention output
+- user types a question
+- agent investigates with visible chain of thought
+- agent returns an actionable answer
 
 That is the winning slice.
