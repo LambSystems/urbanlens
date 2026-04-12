@@ -75,6 +75,16 @@ export interface Hotspot {
   evidenceUrls: string[];
   createdAt: number;
   updatedAt: number;
+  // Backend display fields
+  displayName?: string;
+  statusLabel?: string;
+  sidebarSummary?: string;
+  evidenceHighlights?: string[];
+  toolSignals?: string[];
+  discardReason?: string;
+  recommendedAction?: string;
+  priorityRank?: number;
+  isTopRanked?: boolean;
 }
 
 export interface RecommendationAction {

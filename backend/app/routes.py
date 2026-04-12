@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import ValidationError
 
 from .agent.planner import answer_region_question
@@ -18,11 +21,35 @@ from .schemas import (
     HotspotCandidate,
     PlannerQuestionRequest,
     PlannerQuestionResponse,
+    ThermalInferenceRequest,
+    ThermalInferenceResponse,
     VoiceBriefingRequest,
     VoiceBriefingResponse,
 )
 from .store import store
+from .thermal.generator import generate_thermal
 from .voice_briefing import create_voice_briefing
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_ROOT = REPO_ROOT / "backend" / "data" / "hybrid_thermal"
+PREDICT_DIR = DATA_ROOT / "Predict_Thermal"
+UPLOAD_DIR = DATA_ROOT / "uploads"
+
+
+def _safe_stem(value: str | None) -> str:
+    raw = value or uuid4().hex
+    stem = Path(raw).stem
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._-")
+    return cleaned[:80] or uuid4().hex
+
+
+def _extension_from_content_type(content_type: str | None, filename: str | None) -> str:
+    suffix = Path(filename or "").suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png"}:
+        return suffix
+    if content_type == "image/jpeg":
+        return ".jpg"
+    return ".png"
 
 
 router = APIRouter()
@@ -95,6 +122,45 @@ def get_demo_regions() -> dict[str, list[dict]]:
 @router.get("/demo/example-analysis-request")
 def get_example_analysis_request() -> dict:
     return EXAMPLE_ANALYSIS_REQUEST.model_dump()
+
+
+@router.post("/thermal/infer/upload", response_model=ThermalInferenceResponse)
+async def infer_thermal_from_upload(
+    request: Request,
+    lat: float | None = Query(default=None),
+    lng: float | None = Query(default=None),
+    radius_m: int | None = Query(default=None, ge=1, le=5000),
+    filename: str | None = Query(default=None, max_length=120),
+    allow_fallback: bool = Query(default=True),
+) -> ThermalInferenceResponse:
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Upload body is empty.")
+
+    content_type = request.headers.get("content-type")
+    extension = _extension_from_content_type(content_type, filename)
+    upload_stem = f"{_safe_stem(filename or 'map_capture')}_{uuid4().hex[:12]}"
+    upload_path = UPLOAD_DIR / f"{upload_stem}{extension}"
+    output_path = PREDICT_DIR / f"{upload_stem}.png"
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    upload_path.write_bytes(body)
+
+    metadata: dict = {"source": "frontend_map_capture", "content_type": content_type}
+    if lat is not None and lng is not None:
+        metadata["center"] = {"lat": lat, "lng": lng}
+    if radius_m is not None:
+        metadata["radius_m"] = radius_m
+
+    try:
+        result = generate_thermal(
+            image_path=upload_path,
+            metadata=metadata,
+            output_path=output_path,
+            allow_fallback=allow_fallback,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ThermalGen inference failed: {exc}") from exc
+    return ThermalInferenceResponse(**result)
 
 
 @router.post("/analysis/{region_id}/questions", response_model=PlannerQuestionResponse)

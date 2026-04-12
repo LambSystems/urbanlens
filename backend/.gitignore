@@ -1,1 +1,37 @@
-**/__pycache__/ 
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Model checkpoints (large binary weights — download separately) ────────────
+models/hybrid_thermal/checkpoints/
+models/**/checkpoints/
+*.pth
+*.pt
+*.ckpt
+
+# Local config overrides (example is committed; actual config is local)
+models/hybrid_thermal/config.yaml
+
+# ── Generated data (per-session captures and model outputs) ──────────────────
+data/captures/
+data/hybrid_thermal/Predict_Thermal/
+data/hybrid_thermal/Test_RGB_centercrop_640x512/
+data/hybrid_thermal/uploads/
+data/hybrid_thermal/RGB_to_thermal_dataset/
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+.DS_Store
+*.log

@@ -44,17 +44,23 @@ def generate_thermal_overlay_from_capture(
     satellite_image_path: str,
     center: LatLng,
     bounds: SourceBounds,
+    zoom: int = 17,
 ) -> dict:
+    # Store all outputs alongside the source image so every snippet's files
+    # live together under data/captures/<region_id>/
+    capture_dir = Path(satellite_image_path).parent
     return generate_thermal(
-        satellite_image_path=satellite_image_path,
-        region_bounds={
-            "lat": center.lat,
-            "lng": center.lng,
+        image_path=satellite_image_path,
+        metadata={
+            "center": {"lat": center.lat, "lng": center.lng},
+            "zoom": zoom,
             "north": bounds.north,
             "south": bounds.south,
             "east": bounds.east,
             "west": bounds.west,
         },
+        output_dir=capture_dir,
+        allow_fallback=True,
     )
 
 

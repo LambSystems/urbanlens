@@ -8,6 +8,21 @@ import type { Hotspot, HotspotType, Recommendation, TraceAction, TraceStep } fro
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
+// Capture payload types (used by thermal-map and thermal-context)
+
+export interface CaptureMapStatePayload {
+  zoom: number;
+  mapTypeId: string | null;
+  tilt: number | null;
+  heading: number | null;
+}
+
+export interface CaptureRegionPayload {
+  bounds: { north: number; south: number; east: number; west: number };
+  center: BackendLatLng;
+  areaKm2: number;
+}
+
 // Backend schema types
 
 export interface BackendLatLng {
@@ -139,6 +154,51 @@ export interface BackendVoiceBriefingResponse {
   provider: string;
 }
 
+export interface BackendEvent {
+  region_id: string;
+  hotspot_id: string;
+  step_id: string;
+  kind: string;
+  status: 'pending' | 'running' | 'completed';
+  timestamp_ms: number;
+  summary: string;
+  details: Record<string, unknown>;
+  scheduled_offset_ms: number;
+}
+
+export interface ThermalInferenceResponse {
+  source: string;
+  source_image_path?: string | null;
+  aligned_rgb_path?: string | null;
+  thermal_image_path?: string | null;
+  thermal_image_url?: string | null;
+  thermal_preview_path?: string | null;
+  thermal_preview_url?: string | null;
+  checkpoint_path?: string | null;
+  metadata: Record<string, unknown>;
+  model_input: Record<string, unknown>;
+  thermal_data: {
+    min_temp_c?: number;
+    max_temp_c?: number;
+    mean_temp_c?: number;
+    hotspot_regions?: Array<{
+      centroid?: { lat: number; lng: number };
+      centroid_px?: { x: number; y: number };
+      bbox_px?: { x: number; y: number; w: number; h: number };
+      intensity: number;
+      area_px: number;
+    }>;
+    fallback_reason?: string;
+  };
+}
+
+export interface BackendDemoRegion {
+  label: string;
+  lat: number;
+  lng: number;
+  radius_m: number;
+}
+
 // API functions
 
 export async function createAnalysis(
@@ -205,6 +265,25 @@ export async function requestVoiceBriefing(
   return res.json();
 }
 
+export async function getAnalysisEvents(regionId: string): Promise<BackendEvent[]> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/events`);
+  if (!res.ok) throw new Error(`GET /analysis/${regionId}/events failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getHotspotDetail(regionId: string, hotspotId: string): Promise<BackendHotspot> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/hotspots/${hotspotId}`);
+  if (!res.ok) throw new Error(`GET /analysis/${regionId}/hotspots/${hotspotId} failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getDemoRegions(): Promise<BackendDemoRegion[]> {
+  const res = await fetch(`${API_BASE}/demo/regions`);
+  if (!res.ok) throw new Error(`GET /demo/regions failed: ${res.status}`);
+  const data = await res.json();
+  return data.regions ?? [];
+}
+
 export async function askQuestion(
   regionId: string,
   question: string,
@@ -215,6 +294,28 @@ export async function askQuestion(
     body: JSON.stringify({ question }),
   });
   if (!res.ok) throw new Error(`POST /analysis/${regionId}/questions failed: ${res.status}`);
+  return res.json();
+}
+
+/** POST /thermal/infer/upload — send raw image blob, get thermal overlay back */
+export async function inferThermalFromMapBlob(
+  blob: Blob,
+  params: { lat?: number; lng?: number; radius_m?: number; filename?: string } = {},
+): Promise<ThermalInferenceResponse> {
+  const query = new URLSearchParams();
+  if (params.lat !== undefined) query.set('lat', String(params.lat));
+  if (params.lng !== undefined) query.set('lng', String(params.lng));
+  if (params.radius_m !== undefined) query.set('radius_m', String(params.radius_m));
+  if (params.filename) query.set('filename', params.filename);
+  query.set('allow_fallback', 'true');
+
+  const qs = query.toString();
+  const res = await fetch(`${API_BASE}/thermal/infer/upload${qs ? `?${qs}` : ''}`, {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type || 'image/png' },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`POST /thermal/infer/upload failed: ${res.status}`);
   return res.json();
 }
 
@@ -249,7 +350,8 @@ function flattenEvidence(ev: BackendTraceEvidence): Record<string, unknown> {
 }
 
 function normalizeEvidenceUrl(url: string): string {
-  if (url.startsWith('/thermal-assets/')) return `${API_BASE}${url}`;
+  // Any root-relative path is backend-served — prefix with the backend origin.
+  if (url.startsWith('/')) return `${API_BASE}${url}`;
   return url;
 }
 
@@ -295,6 +397,15 @@ export function mapHotspot(b: BackendHotspot): Hotspot {
     evidenceUrls,
     createdAt: b.created_at ? new Date(b.created_at).getTime() : Date.now(),
     updatedAt: b.updated_at ? new Date(b.updated_at).getTime() : Date.now(),
+    displayName: b.display_name ?? undefined,
+    statusLabel: b.status_label ?? undefined,
+    sidebarSummary: b.sidebar_summary ?? undefined,
+    evidenceHighlights: b.evidence_highlights,
+    toolSignals: b.tool_signals,
+    discardReason: b.discard_reason ?? undefined,
+    recommendedAction: b.recommended_action ?? undefined,
+    priorityRank: b.priority_rank ?? undefined,
+    isTopRanked: b.is_top_ranked,
   };
 }
 

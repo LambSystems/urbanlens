@@ -412,3 +412,24 @@ class InvestigationResponse(BaseModel):
     prompt: str
     chain_of_thought: list[ChainOfThoughtStep]
     answer: str
+
+
+class ThermalInferenceRequest(BaseModel):
+    image_path: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    output_name: str | None = None
+    allow_fallback: bool = False
+
+
+class ThermalInferenceResponse(BaseModel):
+    source: str
+    source_image_path: str | None = None
+    aligned_rgb_path: str | None = None
+    thermal_image_path: str | None = None
+    thermal_image_url: str | None = None
+    thermal_preview_path: str | None = None
+    thermal_preview_url: str | None = None
+    checkpoint_path: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    model_input: dict[str, Any] = Field(default_factory=dict)
+    thermal_data: dict[str, Any] = Field(default_factory=dict)

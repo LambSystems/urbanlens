@@ -16,7 +16,7 @@ from .capture_pipeline import (
     propose_hotspots_from_capture,
     radius_m_from_bounds,
 )
-from .orchestrator import STEP_INTERVAL_MS, build_analysis
+from .orchestrator import STEP_INTERVAL_MS, build_analysis, build_analysis_from_candidates
 from .schemas import (
     AnalysisEvent,
     AnalysisResponse,
@@ -102,12 +102,26 @@ class InMemoryAnalysisStore:
             satellite_image_path=image_path,
             center=metadata.region.center,
             bounds=metadata.region.bounds,
+            zoom=int(metadata.map.zoom),
         )
         proposed = propose_hotspots_from_capture(metadata.region.center, radius_m, thermal_result)
-        analysis, events = build_analysis(metadata.region.center, radius_m, region_id)
+        thermal_data = thermal_result.get("thermal_data", {})
+
+        if proposed and thermal_data.get("hotspot_regions"):
+            # Real model output — build hotspots from actual thermal candidates
+            analysis, events = build_analysis_from_candidates(
+                proposed, thermal_data, metadata.region.center, radius_m, region_id
+            )
+        else:
+            # Fallback — use HOTSPOT_LIBRARY with center offsets
+            analysis, events = build_analysis(metadata.region.center, radius_m, region_id)
 
         analysis.region.bounds = metadata.region.bounds
         analysis.region.area_km2 = metadata.region.area_km2
+        # Store thermal overlay URLs on the region so frontend can render GroundOverlay
+        analysis.region.thermal_image_url = thermal_result.get("thermal_image_url")
+        analysis.region.thermal_preview_url = thermal_result.get("thermal_preview_url")
+        analysis.region.thermal_source = thermal_result.get("source", "unknown")
         analysis.region.source_records.insert(
             0,
             build_satellite_capture_source_record(
@@ -120,11 +134,6 @@ class InMemoryAnalysisStore:
         )
         analysis.region.available_source_count = len(analysis.region.source_records)
         analysis.region.summary.candidate_count = len(analysis.result.hotspots)
-
-        if proposed:
-            for hotspot in analysis.result.hotspots:
-                hotspot.why.append("analysis initialized from frontend satellite capture")
-                hotspot.updated_at = datetime.now(UTC)
 
         with self._lock:
             self._analyses[region_id] = analysis

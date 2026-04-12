@@ -10,7 +10,7 @@ import torchvision.transforms.v2 as v2
 from PIL import Image, ImageOps
 from torchvision.transforms import InterpolationMode
 
-from .data_utils import process_rgb_for_alignment
+from .data_utils import center_crop
 from .hybrid_model import HybridThermalModel
 from .metrics_utils import denorm_thermal
 
@@ -21,7 +21,12 @@ CHECKPOINT_DIR = MODEL_ROOT / "checkpoints"
 DATA_ROOT = BACKEND_ROOT / "data" / "hybrid_thermal"
 PREDICT_DIR = DATA_ROOT / "Predict_Thermal"
 ALIGNED_DIR = DATA_ROOT / "Test_RGB_centercrop_640x512"
+CAPTURES_ROOT = BACKEND_ROOT / "data" / "captures"
 ASSET_URL_PREFIX = "/thermal-assets"
+CAPTURES_URL_PREFIX = "/captures"
+
+# Model always expects this input size
+MODEL_W, MODEL_H = 640, 512
 
 
 def choose_checkpoint(checkpoint_dir: Path = CHECKPOINT_DIR) -> Path:
@@ -63,7 +68,7 @@ def load_model() -> tuple[HybridThermalModel, torch.device, Path]:
 def _transform() -> v2.Compose:
     return v2.Compose(
         [
-            v2.Resize((512, 640), interpolation=InterpolationMode.BILINEAR, antialias=True),
+            v2.Resize((MODEL_H, MODEL_W), interpolation=InterpolationMode.BILINEAR, antialias=True),
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
@@ -71,15 +76,34 @@ def _transform() -> v2.Compose:
     )
 
 
-def _save_pred_tensor(pred_tensor: torch.Tensor, output_path: Path) -> np.ndarray:
+def _prealign(img: Image.Image) -> Image.Image:
+    """Pre-align any RGB image to the model's expected input (MODEL_W × MODEL_H).
+
+    Drone originals (4000×3000) get a centre-crop first; everything else is
+    resized directly.  The model always receives MODEL_W × MODEL_H.
+    """
+    if img.size == (4000, 3000):
+        img = center_crop(img, 2700, 2160)
+    return img.resize((MODEL_W, MODEL_H), Image.BILINEAR)
+
+
+def _tensor_to_uint8(pred_tensor: torch.Tensor) -> np.ndarray:
+    """Convert the raw model output tensor to a uint8 numpy array (MODEL_H × MODEL_W)."""
     pred_vis = denorm_thermal(pred_tensor).detach().cpu().squeeze().numpy()
-    pred_uint8 = (pred_vis * 255).clip(0, 255).astype(np.uint8)
+    return (pred_vis * 255).clip(0, 255).astype(np.uint8)
+
+
+def _save_thermal_gray(pred_uint8: np.ndarray, output_path: Path, orig_size: tuple[int, int]) -> None:
+    """Save the model-space uint8 array, post-aligned to the original image dimensions."""
+    img = Image.fromarray(pred_uint8, mode="L")
+    if img.size != orig_size:
+        img = img.resize(orig_size, Image.BILINEAR)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(pred_uint8, mode="L").save(output_path)
-    return pred_uint8
+    img.save(output_path)
 
 
 def _save_thermal_preview(gray_path: Path, output_path: Path) -> Path:
+    """Colorize a saved grayscale thermal image. Output inherits whatever size gray_path is."""
     gray = Image.open(gray_path).convert("L")
     stretched = ImageOps.autocontrast(gray, cutoff=1)
     preview = ImageOps.colorize(
@@ -94,14 +118,29 @@ def _save_thermal_preview(gray_path: Path, output_path: Path) -> Path:
 
 
 def _thermal_asset_url(path: Path) -> str | None:
-    try:
-        relative = path.resolve().relative_to(DATA_ROOT.resolve())
-    except ValueError:
-        return None
-    return f"{ASSET_URL_PREFIX}/{relative.as_posix()}"
+    """Resolve a file path to a browser-accessible URL.
+
+    Checks both the hybrid_thermal assets dir and the per-region captures dir
+    so outputs land under the right static mount regardless of where they are stored.
+    """
+    resolved = path.resolve()
+    for base, prefix in [
+        (DATA_ROOT.resolve(), ASSET_URL_PREFIX),
+        (CAPTURES_ROOT.resolve(), CAPTURES_URL_PREFIX),
+    ]:
+        try:
+            return f"{prefix}/{resolved.relative_to(base).as_posix()}"
+        except ValueError:
+            continue
+    return None
 
 
 def _hotspot_regions(pred_uint8: np.ndarray, max_regions: int = 5) -> list[dict[str, Any]]:
+    """Extract connected hot regions from the MODEL-space uint8 array (MODEL_H × MODEL_W).
+
+    Centroids are reported in model pixel space so that _attach_geo_centroids can
+    map them to lat/lng using the model's fixed (MODEL_W, MODEL_H) normalisation.
+    """
     threshold = max(float(np.percentile(pred_uint8, 85)), 1.0)
     mask = pred_uint8 >= threshold
     visited = np.zeros(mask.shape, dtype=bool)
@@ -157,20 +196,47 @@ def predict_one(
     output_dir = Path(output_dir)
     aligned_dir = Path(aligned_dir)
 
-    aligned_img = process_rgb_for_alignment(rgb_image_path)
+    # ── Open once ────────────────────────────────────────────────────────────
+    # orig_size is whatever the actual snippet is — not assumed, not hardcoded.
+    raw = Image.open(rgb_image_path).convert("RGB")
+    orig_size: tuple[int, int] = raw.size  # (W, H) from the real file
+
+    stem = rgb_image_path.stem  # e.g. "source"
+
+    # ── Pre-align to model input space ───────────────────────────────────────
+    aligned_img = _prealign(raw)
     aligned_dir.mkdir(parents=True, exist_ok=True)
-    aligned_path = aligned_dir / f"{rgb_image_path.stem}.png"
+    aligned_path = aligned_dir / f"{stem}_aligned.png"
     aligned_img.save(aligned_path)
 
+    # ── Inference ─────────────────────────────────────────────────────────────
     model, device, checkpoint_path = load_model()
-    tensor = _transform()(aligned_img.convert("RGB")).unsqueeze(0).to(device)
+    tensor = _transform()(aligned_img).unsqueeze(0).to(device)
     with torch.no_grad():
         pred_thermal = model(tensor, None, None, None)
 
-    output_path = output_dir / f"{rgb_image_path.stem}.png"
-    pred_uint8 = _save_pred_tensor(pred_thermal[0], output_path)
-    preview_path = _save_thermal_preview(output_path, output_dir / f"{rgb_image_path.stem}_thermal_preview.png")
+    # pred_uint8 stays in MODEL space (MODEL_W × MODEL_H) for hotspot extraction.
+    # _attach_geo_centroids normalises against MODEL_W / MODEL_H — must not change.
+    pred_uint8 = _tensor_to_uint8(pred_thermal[0])
+
+    # ── Post-align outputs back to original snippet dimensions ────────────────
+    output_path = output_dir / f"{stem}_thermal.png"
+    _save_thermal_gray(pred_uint8, output_path, orig_size)
+
+    preview_path = _save_thermal_preview(
+        output_path,
+        output_dir / f"{stem}_thermal_preview.png",
+    )
+
     pred_norm = pred_uint8.astype(np.float32) / 255.0
+
+    print(f"\n[ThermalGen] ── Snippet processed ──────────────────────────")
+    print(f"[ThermalGen]   source   : {rgb_image_path}")
+    print(f"[ThermalGen]   aligned  : {aligned_path}")
+    print(f"[ThermalGen]   thermal  : {output_path}")
+    print(f"[ThermalGen]   preview  : {preview_path}")
+    print(f"[ThermalGen]   orig_size: {orig_size[0]}×{orig_size[1]}  model_size: {MODEL_W}×{MODEL_H}")
+    print(f"[ThermalGen] ───────────────────────────────────────────────\n")
 
     return {
         "aligned_rgb_path": str(aligned_path),

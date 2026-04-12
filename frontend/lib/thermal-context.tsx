@@ -15,12 +15,14 @@ import {
   createAnalysis,
   createAnalysisFromCaptureUpload,
   getAnalysis,
+  getAnalysisEvents,
   askQuestion,
   requestVoiceBriefing,
+  inferThermalFromMapBlob,
   mapHotspot,
   mapRecommendation,
 } from './api';
-import type { BackendPlannerResponse, CaptureMapStatePayload } from './api';
+import type { BackendPlannerResponse, BackendEvent, CaptureMapStatePayload, ThermalInferenceResponse } from './api';
 
 const POLL_INTERVAL_MS = 1200; // matches backend STEP_INTERVAL_MS
 
@@ -29,6 +31,8 @@ interface ThermalContextValue {
   session: InvestigationSession;
   hotspots: Hotspot[];
   recommendations: Record<string, Recommendation>;
+  regionDisplayName: string | null;
+  traceEvents: BackendEvent[];
 
   // Region selection
   selectionMode: SelectionMode;
@@ -60,6 +64,12 @@ interface ThermalContextValue {
   askPlannerQuestion: (question: string) => Promise<void>;
   isPlannerLoading: boolean;
 
+  // Thermal inference (model overlay)
+  thermalInference: ThermalInferenceResponse | null;
+  isThermalInferenceLoading: boolean;
+  thermalOverlayUrl: string | null; // resolved URL ready for GroundOverlay
+  thermalOverlayBounds: { north: number; south: number; east: number; west: number } | null;
+
   // Voice briefing
   voiceBriefing: { url: string | null; text: string } | null;
   isVoiceBriefingLoading: boolean;
@@ -70,6 +80,7 @@ interface ThermalContextValue {
     imageBase64: string;
     mapState: CaptureMapStatePayload;
     viewport: { north: number; south: number; east: number; west: number } | null;
+    imageBounds: { north: number; south: number; east: number; west: number } | null;
   } | null) => void;
 
   // UI state
@@ -102,6 +113,8 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
   const [session] = useState<InvestigationSession>(MOCK_SESSION);
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [recommendations, setRecommendations] = useState<Record<string, Recommendation>>({});
+  const [regionDisplayName, setRegionDisplayName] = useState<string | null>(null);
+  const [traceEvents, setTraceEvents] = useState<BackendEvent[]>([]);
   const [activeHotspot, setActiveHotspotState] = useState<Hotspot | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -127,11 +140,16 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     imageBase64: string;
     mapState: CaptureMapStatePayload;
     viewport: { north: number; south: number; east: number; west: number } | null;
+    imageBounds: { north: number; south: number; east: number; west: number } | null;
   } | null>(null);
 
   const setCapture = useCallback((payload: typeof captureRef.current) => {
     captureRef.current = payload;
   }, []);
+
+  // Thermal inference state
+  const [thermalInference, setThermalInference] = useState<ThermalInferenceResponse | null>(null);
+  const [isThermalInferenceLoading, setIsThermalInferenceLoading] = useState(false);
 
   // Voice briefing state
   const [voiceBriefing, setVoiceBriefing] = useState<{ url: string | null; text: string } | null>(null);
@@ -150,6 +168,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     (data: Awaited<ReturnType<typeof getAnalysis>>) => {
       const mapped = data.result.hotspots.map(mapHotspot);
       setHotspots(mapped);
+      if (data.region.display_name) setRegionDisplayName(data.region.display_name);
 
       // Build recommendations for finalized hotspots
       const recs: Record<string, Recommendation> = {};
@@ -202,6 +221,9 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setRegionId(null);
     setPlannerAnswer(null);
     setVoiceBriefing(null);
+    setRegionDisplayName(null);
+    setTraceEvents([]);
+    setThermalInference(null);
     captureRef.current = null;
     activeHotspotIdRef.current = null;
   }, [stopPolling]);
@@ -217,6 +239,9 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setRegionId(null);
     setPlannerAnswer(null);
     setVoiceBriefing(null);
+    setRegionDisplayName(null);
+    setTraceEvents([]);
+    setThermalInference(null);
     captureRef.current = null;
     activeHotspotIdRef.current = null;
   }, [stopPolling]);
@@ -236,6 +261,19 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     const radius_m = boundsToRadius(selectedRegion);
     const cap = captureRef.current;
 
+    // Fire thermal inference in parallel when we have a captured image
+    if (cap?.imageBase64) {
+      setIsThermalInferenceLoading(true);
+      const byteChars = atob(cap.imageBase64);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr], { type: 'image/png' });
+      inferThermalFromMapBlob(blob, { lat: center.lat, lng: center.lng, radius_m })
+        .then((res) => setThermalInference(res))
+        .catch(() => { /* non-fatal — analysis continues without overlay */ })
+        .finally(() => setIsThermalInferenceLoading(false));
+    }
+
     const doRequest = cap
       ? createAnalysisFromCaptureUpload(
           { bounds: selectedRegion.bounds, center, areaKm2: selectedRegion.areaKm2 },
@@ -254,8 +292,12 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         // Start polling until completed
         pollRef.current = setInterval(async () => {
           try {
-            const updated = await getAnalysis(rid);
+            const [updated, events] = await Promise.all([
+              getAnalysis(rid),
+              getAnalysisEvents(rid).catch(() => [] as BackendEvent[]),
+            ]);
             applyBackendResponse(updated);
+            setTraceEvents(events);
           } catch {
             // network hiccup — keep polling
           }
@@ -315,9 +357,15 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setIsVoiceBriefingLoading(true);
     try {
       const res = await requestVoiceBriefing(regionId);
-      setVoiceBriefing({ url: res.audio_url, text: res.summary_text });
-      if (res.audio_url) {
-        const audio = new Audio(res.audio_url);
+      // Backend returns a root-relative path like /data/captures/.../briefing.mp3
+      // which must be resolved against the backend origin, not the frontend origin.
+      const rawUrl = res.audio_url ?? null;
+      const resolvedUrl = rawUrl?.startsWith('/')
+        ? `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}${rawUrl}`
+        : rawUrl;
+      setVoiceBriefing({ url: resolvedUrl, text: res.summary_text });
+      if (resolvedUrl) {
+        const audio = new Audio(resolvedUrl);
         audio.play().catch(() => {/* autoplay blocked — UI shows text fallback */});
       }
     } finally {
@@ -347,6 +395,8 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         session,
         hotspots,
         recommendations,
+        regionDisplayName,
+        traceEvents,
         selectionMode,
         setSelectionMode,
         selectedRegion,
@@ -367,6 +417,15 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         plannerAnswer,
         askPlannerQuestion,
         isPlannerLoading,
+        thermalInference,
+        isThermalInferenceLoading,
+        thermalOverlayUrl: (() => {
+          const url = thermalInference?.thermal_preview_url ?? null;
+          if (!url) return null;
+          const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+          return url.startsWith('/') ? `${API_BASE}${url}` : url;
+        })(),
+        thermalOverlayBounds: captureRef.current?.imageBounds ?? null,
         voiceBriefing,
         isVoiceBriefingLoading,
         playVoiceBriefing,
