@@ -2,6 +2,8 @@
 
 This file summarizes the current project state so other coders can use the right tools without re-discovering the repo.
 
+If you are pulling `ft-galo` into another branch, read `docs/ft_galo_pull_notes.md` first for the short merge-focused summary.
+
 ## Current Product Frame
 
 ThermalGen is the agentic urban heat triage system:
