@@ -342,7 +342,7 @@ function RegionSelector() {
   return null;
 }
 
-const REASONING_STEPS = [
+const _LEGACY_REASONING_STEPS = [
   { label: 'Reading hotspot findings…', icon: '🔍' },
   { label: 'Applying Thermal Evidence…', icon: '🌡️' },
   { label: 'Consulting Heat Risk Profile…', icon: '📊' },
@@ -350,62 +350,68 @@ const REASONING_STEPS = [
   { label: 'Formulating response…', icon: '💡' },
 ];
 
-function AgentReasoningTrace() {
-  const [stepIndex, setStepIndex] = useState(0);
+function LiveChainOfThought({ steps }: { steps: import('@/lib/types').ChainOfThoughtStep[] }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Cycle through reasoning steps while loading
   useEffect(() => {
-    const id = setInterval(() => {
-      setStepIndex(prev => (prev + 1) % REASONING_STEPS.length);
-    }, 900);
-    return () => clearInterval(id);
-  }, []);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [steps.length]);
 
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
       <div className="flex items-center gap-2 mb-1">
         <Bot className="h-4 w-4 text-primary shrink-0 animate-pulse" />
-        <span className="text-xs font-semibold text-primary">Agent Reasoning</span>
+        <span className="text-xs font-semibold text-primary">Agent Investigating…</span>
+        <span className="ml-auto flex gap-0.5">
+          {[0, 1, 2].map(d => (
+            <span key={d} className="h-1 w-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: `${d * 150}ms` }} />
+          ))}
+        </span>
       </div>
+
+      {steps.length === 0 && (
+        <p className="text-[10px] text-muted-foreground italic">Starting investigation…</p>
+      )}
+
       <div className="space-y-2">
-        {REASONING_STEPS.map((step, i) => {
-          const isDone = i < stepIndex;
-          const isActive = i === stepIndex;
-          return (
-            <motion.div
-              key={step.label}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: isDone || isActive ? 1 : 0.25, x: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.05 }}
-              className="flex items-center gap-2"
-            >
-              <div className={cn(
-                "h-5 w-5 rounded-full flex items-center justify-center text-[10px] shrink-0 transition-colors",
-                isDone ? "bg-primary/20 text-primary" : isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-              )}>
-                {isDone ? '✓' : step.icon}
-              </div>
-              <span className={cn(
-                "text-xs transition-colors",
-                isActive ? "text-foreground font-medium" : isDone ? "text-muted-foreground line-through" : "text-muted-foreground/40"
-              )}>
-                {step.label}
-              </span>
-              {isActive && (
-                <span className="ml-auto flex gap-0.5">
-                  {[0, 1, 2].map(d => (
-                    <span
-                      key={d}
-                      className="h-1 w-1 rounded-full bg-primary animate-bounce"
-                      style={{ animationDelay: `${d * 150}ms` }}
-                    />
-                  ))}
-                </span>
+        {steps.map((step, i) => (
+          <motion.div
+            key={step.step_id}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="flex items-start gap-2"
+          >
+            <div className={cn(
+              "h-5 w-5 rounded-full flex items-center justify-center text-[10px] shrink-0 mt-0.5",
+              step.step_type === 'tool_call' ? "bg-blue-500/20 text-blue-500" :
+              step.step_type === 'reasoning' ? "bg-amber-500/20 text-amber-500" :
+              "bg-green-500/20 text-green-500"
+            )}>
+              {step.step_type === 'tool_call' ? '🔧' : step.step_type === 'reasoning' ? '💭' : '✓'}
+            </div>
+            <div className="flex-1 min-w-0">
+              {step.step_type === 'tool_call' && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                    {step.tool_name ?? 'tool'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground truncate">{step.summary}</span>
+                </div>
               )}
-            </motion.div>
-          );
-        })}
+              {step.step_type === 'reasoning' && (
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  {step.summary.slice(0, 200)}{step.summary.length > 200 ? '…' : ''}
+                </p>
+              )}
+              {step.step_type === 'answer' && (
+                <p className="text-[10px] text-green-600 dark:text-green-400 font-medium">Composing answer…</p>
+              )}
+            </div>
+          </motion.div>
+        ))}
       </div>
+      <div ref={bottomRef} />
     </div>
   );
 }
@@ -432,7 +438,7 @@ function MdSpan({ text }: { text: string }) {
 }
 
 function ChainOfThoughtExpander({ steps }: { steps: NonNullable<import('@/lib/types').ChatMessage['chainOfThought']> }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const toolCalls = steps.filter(s => s.step_type === 'tool_call');
   const label = toolCalls.length
     ? `${steps.length} steps · tools: ${toolCalls.map(s => s.tool_name).filter(Boolean).join(', ')}`
@@ -481,7 +487,7 @@ function ChainOfThoughtExpander({ steps }: { steps: NonNullable<import('@/lib/ty
 }
 
 function PlannerPanel() {
-  const { chatMessages, isAgentLoading, askAgent, selectedRegion } = useThermal();
+  const { chatMessages, isAgentLoading, liveChainSteps, askAgent, selectedRegion } = useThermal();
   const [question, setQuestion] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -576,8 +582,8 @@ function PlannerPanel() {
             </motion.div>
           ))}
 
-          {/* Agent reasoning trace while waiting */}
-          {isAgentLoading && <AgentReasoningTrace />}
+          {/* Live chain of thought while agent is investigating */}
+          {isAgentLoading && <LiveChainOfThought steps={liveChainSteps} />}
 
           <div ref={bottomRef} />
         </div>

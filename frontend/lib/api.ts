@@ -363,6 +363,70 @@ export async function sendSessionPrompt(
   return res.json();
 }
 
+/**
+ * POST /session/{id}/prompt/stream — SSE streaming.
+ * Calls onStep for each chain-of-thought step as it arrives,
+ * then returns the final answer when done.
+ */
+export async function sendSessionPromptStream(
+  sessionId: string,
+  prompt: string,
+  onStep: (step: ChainOfThoughtStep) => void,
+): Promise<{ answer: string; chain_of_thought: ChainOfThoughtStep[] }> {
+  const res = await fetch(`${API_BASE}/session/${sessionId}/prompt/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) throw new Error(`POST /session/${sessionId}/prompt/stream failed: ${res.status}`);
+
+  const allSteps: ChainOfThoughtStep[] = [];
+  let finalAnswer = '';
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    let eventType = '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith('data:') && eventType) {
+        const data = line.slice(5).trim();
+        if (eventType === 'step' && data) {
+          try {
+            const step: ChainOfThoughtStep = JSON.parse(data);
+            allSteps.push(step);
+            onStep(step);
+          } catch { /* skip malformed */ }
+        } else if (eventType === 'done' && data) {
+          try {
+            const result = JSON.parse(data);
+            finalAnswer = result.answer || '';
+          } catch { /* skip */ }
+        }
+        eventType = '';
+      }
+    }
+  }
+
+  // If no explicit done event, extract answer from last answer step
+  if (!finalAnswer) {
+    const answerStep = [...allSteps].reverse().find(s => s.step_type === 'answer');
+    finalAnswer = answerStep?.summary || 'Agent completed investigation.';
+  }
+
+  return { answer: finalAnswer, chain_of_thought: allSteps };
+}
+
 export async function createVoiceBriefing(
   regionId: string,
   question?: string,

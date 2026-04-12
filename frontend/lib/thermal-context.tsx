@@ -22,7 +22,7 @@ import {
   mapHotspot,
   mapRecommendation,
   createSession,
-  sendSessionPrompt,
+  sendSessionPromptStream,
 } from './api';
 import type { BackendEvent, CaptureMapStatePayload, ThermalInferenceResponse } from './api';
 
@@ -65,6 +65,7 @@ interface ThermalContextValue {
   sessionId: string | null;
   chatMessages: ChatMessage[];
   isAgentLoading: boolean;
+  liveChainSteps: import('./types').ChainOfThoughtStep[];
   askAgent: (question: string) => Promise<void>;
 
   // Thermal inference (model overlay)
@@ -135,6 +136,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isAgentLoading, setIsAgentLoading] = useState(false);
+  const [liveChainSteps, setLiveChainSteps] = useState<import('./types').ChainOfThoughtStep[]>([]);
 
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const activeHotspotIdRef = useRef<string | null>(null);
@@ -385,12 +387,13 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     async (question: string) => {
       if (!selectedRegion || isAgentLoading) return;
       setIsAgentLoading(true);
+      setLiveChainSteps([]);
 
       // Append user message immediately for responsive feel
       setChatMessages(prev => [...prev, { role: 'user', content: question }]);
 
       try {
-        // Create a session on first message — uses the drawn region's center + radius
+        // Create a session on first message
         let sid = sessionId;
         if (!sid) {
           const sess = await createSession(
@@ -401,7 +404,11 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
           setSessionId(sid);
         }
 
-        const result = await sendSessionPrompt(sid, question);
+        // Stream chain of thought steps in real time
+        const result = await sendSessionPromptStream(sid, question, (step) => {
+          setLiveChainSteps(prev => [...prev, step]);
+        });
+
         setChatMessages(prev => [
           ...prev,
           {
@@ -417,6 +424,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         ]);
       } finally {
         setIsAgentLoading(false);
+        setLiveChainSteps([]);
       }
     },
     [selectedRegion, sessionId, isAgentLoading],
@@ -450,6 +458,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         sessionId,
         chatMessages,
         isAgentLoading,
+        liveChainSteps,
         askAgent,
         thermalInference,
         isThermalInferenceLoading,
