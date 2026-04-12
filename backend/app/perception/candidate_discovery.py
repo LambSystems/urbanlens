@@ -8,24 +8,9 @@ _MODEL_H = 512
 
 
 def _type_from_region(region: dict, rank: int) -> HotspotType:
-    """Heuristic: assign hotspot type from model region properties."""
-    intensity = region.get("intensity", 0.5)
-    area_px = region.get("area_px", 0)
-
-    # Tight, very hot cluster -> mechanical equipment
-    if intensity >= 0.80 and area_px < 2_000:
-        return HotspotType.hvac_mechanical
-    # Hot but moderate area -> roof surface
-    if intensity >= 0.72:
-        return HotspotType.roof
-    # Large impervious surface -> parking lot
-    if area_px >= 4_000:
-        return HotspotType.parking_lot
-    # Broad low-medium signal -> road / pavement
-    if area_px >= 1_500:
-        return HotspotType.road_pavement
-    # Diffuse low signal -> vegetation loss
-    return HotspotType.vegetation_loss
+    """ThermalGen localizes heat, but does not classify the surface object."""
+    del region, rank
+    return HotspotType.other
 
 
 def _bbox_from_region(region: dict) -> BoundingBox:
@@ -74,6 +59,7 @@ def propose_candidates(thermal_data: dict, region_center: LatLng, radius_m: int)
                 "centroid": _centroid_from_region(r, region_center),
                 "bbox": _bbox_from_region(r),
                 "hotspot_type": _type_from_region(r, rank),
+                "classification_method": "thermal_only",
                 "intensity": r.get("intensity", 0.5),
                 "brightness_score": r.get("brightness_score", r.get("intensity", 0.5)),
                 "peak_intensity": r.get("peak_intensity", r.get("intensity", 0.5)),

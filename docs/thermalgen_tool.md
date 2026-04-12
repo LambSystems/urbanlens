@@ -39,6 +39,8 @@ Location, prompt, bounds, and Google Maps context should still be passed as `met
 
 Hotspot markers are anchored to the brightest pixel inside each connected hot region in the model output. Ranking uses `brightness_score`, which is weighted toward peak brightness while still considering mean brightness and area to reduce single-pixel noise.
 
+ThermalGen does not identify surface objects by itself. The app labels model-only detections as `Thermal Hotspot` and marks them as `thermal_only`. Semantic labels such as roof, road, parking lot, or vegetation should only appear after a vision/classification tool provides high-confidence evidence.
+
 ## Runtime Preprocessing
 
 No dataset preprocessing is required for the app workflow. Each inference request still performs the small image prep the checkpoint needs:

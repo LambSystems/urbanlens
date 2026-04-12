@@ -1,4 +1,4 @@
-"""Urban Legend — Streamlit evaluation UI."""
+"""UrbanLens Streamlit evaluation UI."""
 
 import json
 import requests
@@ -6,8 +6,8 @@ import streamlit as st
 
 API_BASE = "http://localhost:8000"
 
-st.set_page_config(page_title="Urban Legend Eval", layout="wide")
-st.title("Urban Legend — Agent Evaluation")
+st.set_page_config(page_title="UrbanLens Eval", layout="wide")
+st.title("UrbanLens Agent Evaluation")
 
 # Sidebar: session management + images
 with st.sidebar:

@@ -1,5 +1,5 @@
 /**
- * Backend API client for ThermalGen / Urban Legend.
+ * Backend API client for ThermalGen / UrbanLens.
  *
  * Typed against backend/app/schemas.py - all field names match the Python schema.
  * Use `mapHotspot()` to convert a BackendHotspot into the frontend Hotspot type.

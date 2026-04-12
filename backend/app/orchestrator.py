@@ -6,6 +6,8 @@ from math import cos, pi
 from .providers.google_maps_enrichment import summarize_enrichment_coverage
 from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
 from .heat_risk import analyze_heat_risk
+from .perception.object_classifier import classify_object
+from .perception.surface_inference import infer_surface
 from .scoring.anomaly import ANOMALY_THRESHOLD, compute_anomaly_score, passes_anomaly_gate
 from .scoring.confidence import compute_confidence_score
 from .scoring.ranker import compute_final_rank_score, rank_hotspots
@@ -36,15 +38,6 @@ from .schemas import (
 
 # Candidate-to-seed helpers used when real model output is available.
 
-_TYPE_MATERIAL: dict[HotspotType, tuple[str, str]] = {
-    HotspotType.roof:           ("roof",         "dark_roof"),
-    HotspotType.parking_lot:    ("parking_lot",  "asphalt"),
-    HotspotType.hvac_mechanical:("rooftop_hvac", "metal_equipment"),
-    HotspotType.road_pavement:  ("road",         "asphalt"),
-    HotspotType.vegetation_loss:("vegetation",   "degraded_vegetation"),
-    HotspotType.other:          ("unknown",      "unknown"),
-}
-
 _TYPE_SEVERITY_WEIGHT: dict[HotspotType, float] = {
     HotspotType.roof:            0.80,
     HotspotType.parking_lot:     0.75,
@@ -60,7 +53,7 @@ _TYPE_RECOMMENDED_ACTION: dict[HotspotType, str] = {
     HotspotType.hvac_mechanical: "hvac inspection",
     HotspotType.road_pavement:   "cool-pavement treatment",
     HotspotType.vegetation_loss: "vegetation restoration",
-    HotspotType.other:           "site inspection",
+    HotspotType.other:           "site review",
 }
 
 _TYPE_TRACE_STEPS: dict[HotspotType, list[tuple[TraceKind, str]]] = {
@@ -117,9 +110,9 @@ _TYPE_TRACE_STEPS: dict[HotspotType, list[tuple[TraceKind, str]]] = {
     HotspotType.other: [
         (TraceKind.candidate_detected,       "Candidate hotspot detected from thermal model output."),
         (TraceKind.generate_thermal_overlay, "Thermal overlay generated from captured locality imagery."),
-        (TraceKind.inspect_object,           "Object inspection inconclusive - unclassified surface type."),
-        (TraceKind.score_hotspot,            "Scored hotspot with limited surface evidence."),
-        (TraceKind.finalize_hotspot,         "Finalized for general site inspection recommendation."),
+        (TraceKind.request_thermal_evidence, "Thermal evidence requested for brightness and boundary analysis."),
+        (TraceKind.score_hotspot,            "Scored hotspot using thermal brightness, area, and confidence."),
+        (TraceKind.finalize_hotspot,         "Finalized for site review because surface type is unclassified."),
     ],
 }
 
@@ -130,9 +123,17 @@ def _why_for_candidate(htype: HotspotType, intensity: float, surface_temp: float
         reasons.append("high relative thermal intensity vs surrounding area")
     elif intensity >= 0.55:
         reasons.append("moderate thermal intensity with clear hotspot boundary")
-    label = HOTSPOT_LABELS[htype]
-    reasons.append(f"{label.lower()} surface type identified from heat signature pattern")
+    if htype == HotspotType.other:
+        reasons.append("surface type is unclassified; ThermalGen localizes heat but does not identify objects")
+    else:
+        label = HOTSPOT_LABELS[htype]
+        reasons.append(f"{label.lower()} surface type identified from supporting RGB crop inspection")
     return reasons
+
+
+def _display_name_for_seed(seed: dict) -> str:
+    htype = seed["hotspot_type"]
+    return HOTSPOT_LABELS.get(htype, HOTSPOT_LABELS[HotspotType.other])
 
 
 def _candidate_to_seed(
@@ -141,19 +142,32 @@ def _candidate_to_seed(
     thermal_min: float,
     thermal_max: float,
     thermal_mean: float,
+    image_path: str | None = None,
 ) -> dict:
-    htype: HotspotType = candidate["hotspot_type"]
     intensity: float = candidate.get("intensity", 0.5)
     bbox: BoundingBox = candidate["bbox"]
     area_px = bbox.w * bbox.h
+    fallback_type: HotspotType = candidate["hotspot_type"]
+
+    classification = classify_object(
+        image_path=image_path,
+        bbox=bbox,
+        intensity=intensity,
+        fallback_type=fallback_type,
+    )
+    htype: HotspotType = classification["hotspot_type"]
+    surface_family = classification["surface_family"]
+    type_confidence = classification["type_confidence"]
+    surface = infer_surface(htype, classification.get("visual_features"))
 
     surface_temp = round(thermal_min + intensity * (thermal_max - thermal_min), 1)
     ambient_delta = round(max(surface_temp - thermal_mean, 0.5), 1)
     coverage_score = round(min(0.50 + intensity * 0.45, 0.95), 2)
 
-    object_label, material_type = _TYPE_MATERIAL[htype]
-    object_confidence = round(min(0.65 + intensity * 0.25, 0.92), 2)
-    material_confidence = round(min(0.60 + intensity * 0.25, 0.88), 2)
+    object_label = classification["object_label"]
+    material_type = surface["material_type"]
+    object_confidence = round(float(classification["object_confidence"]), 2)
+    material_confidence = round(float(surface["material_confidence"]), 2)
     anomaly_score = round(min(intensity * 1.05, 0.95), 2)
     # Weight severity by both intensity and area so large hot surfaces rank higher
     area_weight = min(area_px / 5000, 1.0)
@@ -166,6 +180,8 @@ def _candidate_to_seed(
     seed: dict = {
         "hotspot_id": hotspot_id,
         "hotspot_type": htype,
+        "surface_family": surface_family,
+        "type_confidence": type_confidence,
         "surface_temperature_c": surface_temp,
         "ambient_delta_c": ambient_delta,
         "source_count": 1,
@@ -174,6 +190,7 @@ def _candidate_to_seed(
         "object_confidence": object_confidence,
         "material_type": material_type,
         "material_confidence": material_confidence,
+        "classification_method": classification.get("classification_method", "thermal_only"),
         "evidence_urls": [],
         "bbox": bbox,
         "centroid": candidate["centroid"],  # real LatLng from model
@@ -183,8 +200,11 @@ def _candidate_to_seed(
         "trace": trace_steps,
         "why": _why_for_candidate(htype, intensity, surface_temp),
     }
+    llm_reasoning = classification.get("llm_reasoning")
+    if llm_reasoning:
+        seed["why"].append(llm_reasoning)
     if not is_road_baseline:
-        seed["recommended_action"] = _TYPE_RECOMMENDED_ACTION[htype]
+        seed["recommended_action"] = _TYPE_RECOMMENDED_ACTION.get(htype, "site review")
     else:
         seed["discard_reason"] = "expected road heat baseline"
 
@@ -214,7 +234,9 @@ def _build_hotspot_from_seed_with_centroid(
         bbox=seed["bbox"],
         centroid=seed["centroid"],
         hotspot_type=seed["hotspot_type"],
-        display_name=HOTSPOT_LABELS[seed["hotspot_type"]],
+        surface_family=seed.get("surface_family"),
+        type_confidence=seed.get("type_confidence"),
+        display_name=_display_name_for_seed(seed),
         status_label=HOTSPOT_STATUS_LABELS[status],
         sidebar_summary=_sidebar_summary_for_seed(seed, status),
         evidence_highlights=seed["why"],
@@ -245,6 +267,7 @@ def build_analysis_from_candidates(
     center: LatLng,
     radius_m: int,
     region_id: str,
+    image_path: str | None = None,
 ) -> tuple[AnalysisResponse, list[AnalysisEvent]]:
     """Build an AnalysisResponse using real hotspot candidates from the thermal model."""
     now = datetime.now(UTC)
@@ -263,7 +286,7 @@ def build_analysis_from_candidates(
 
     for i, candidate in enumerate(candidates):
         hotspot_id = f"hs_cap_{i + 1:02d}"
-        seed = _candidate_to_seed(candidate, hotspot_id, t_min, t_max, t_mean)
+        seed = _candidate_to_seed(candidate, hotspot_id, t_min, t_max, t_mean, image_path=image_path)
         hotspot, events = _build_hotspot_from_seed_with_centroid(seed, region_id, now)
         hotspots.append(hotspot)
         all_events.extend(events)
@@ -319,7 +342,7 @@ HOTSPOT_LABELS: dict[HotspotType, str] = {
     HotspotType.parking_lot: "Parking Lot",
     HotspotType.hvac_mechanical: "HVAC / Mechanical",
     HotspotType.vegetation_loss: "Vegetation Loss",
-    HotspotType.other: "Other",
+    HotspotType.other: "Thermal Hotspot",
 }
 
 HOTSPOT_STATUS_LABELS: dict[HotspotStatus, str] = {
@@ -369,7 +392,7 @@ def _tool_signals_for_seed(seed: dict) -> list[str]:
 
 
 def _sidebar_summary_for_seed(seed: dict, status: HotspotStatus) -> str:
-    label = HOTSPOT_LABELS[seed["hotspot_type"]]
+    label = _display_name_for_seed(seed)
     if status == HotspotStatus.discarded:
         reason = seed.get("discard_reason") or "did not pass anomaly or confidence checks"
         return f"{label} was reviewed and discarded because {reason}."

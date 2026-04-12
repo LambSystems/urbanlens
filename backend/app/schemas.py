@@ -36,6 +36,14 @@ class HotspotType(str, Enum):
     other = "other"
 
 
+class SurfaceFamily(str, Enum):
+    built_surface = "built_surface"
+    paved_surface = "paved_surface"
+    vegetated_area = "vegetated_area"
+    mechanical_feature = "mechanical_feature"
+    ambiguous = "ambiguous"
+
+
 class TraceKind(str, Enum):
     candidate_detected = "candidate_detected"
     generate_thermal_overlay = "generate_thermal_overlay"
@@ -182,6 +190,8 @@ class HotspotCandidate(BaseModel):
     bbox: BoundingBox
     centroid: LatLng
     hotspot_type: HotspotType
+    surface_family: SurfaceFamily | None = None
+    type_confidence: float | None = None
     display_name: str | None = None
     status_label: str | None = None
     sidebar_summary: str | None = None
@@ -256,11 +266,6 @@ class AnalysisResponse(BaseModel):
     result: AnalysisResult
 
 
-class CreateAnalysisRequest(BaseModel):
-    center: LatLng
-    radius_m: int = Field(default=120, ge=1, le=1000)
-
-
 class CaptureRegion(BaseModel):
     bounds: SourceBounds
     center: LatLng
@@ -309,22 +314,6 @@ class CreateAnalysisFromCaptureMetadataRequest(BaseModel):
     image_bounds: SourceBounds | None = Field(default=None, alias="imageBounds")
 
     model_config = {"populate_by_name": True}
-
-
-class PlannerQuestionRequest(BaseModel):
-    question: str = Field(min_length=1, max_length=2000)
-
-
-class PlannerQuestionResponse(BaseModel):
-    region_id: str
-    hotspot_id: str
-    step_id: str
-    kind: TraceKind
-    status: TraceStepStatus
-    timestamp_ms: int | None = None
-    summary: str
-    details: dict[str, Any] = Field(default_factory=dict)
-    scheduled_offset_ms: int
 
 
 class DebugHotspotView(BaseModel):

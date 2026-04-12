@@ -1,4 +1,4 @@
-"""Urban Legend — Agent loop using Google ADK."""
+"""UrbanLens agent loop using Google ADK."""
 
 from datetime import datetime
 from pathlib import Path

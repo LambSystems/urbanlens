@@ -1,4 +1,4 @@
-"""Urban Legend — Agent loop using Anthropic Claude with tool use."""
+"""UrbanLens agent loop using Anthropic Claude with tool use."""
 
 import base64
 import json

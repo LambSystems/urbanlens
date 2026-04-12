@@ -35,6 +35,7 @@ Breaking that invariant is what causes thermal overlays to stretch or hotspots t
 - ThermalGen output is resized back to the source snippet size for preview, but hotspot extraction stays in model space.
 - Hotspot markers are anchored to the brightest pixel inside each connected hot thermal region.
 - Thermal hotspot ranking uses `brightness_score`, weighted toward peak brightness while still considering mean brightness and area.
+- ThermalGen-only detections now stay labeled as `Thermal Hotspot`; the product path no longer guesses roof, road, parking, or vegetation labels from heat intensity alone.
 - Synthetic/static thermal fallback datasets were removed from the product path.
 - If ThermalGen cannot run, the backend returns no hotspot regions and reports the error instead of inventing fake hotspots.
 - Tracked `__pycache__` files were removed from Git; keep them ignored.
@@ -124,6 +125,6 @@ The LLM should reason over that context after analysis exists. It should not be 
 ## Known Follow-Ups
 
 - Real checkpoints must be present locally for true ThermalGen results.
-- Object/material labels are still rule-based until an object detector is integrated.
+- Object/material labels require a real detector or land-use tool before they should appear in the UI.
 - Planner/tool calling can be improved, but it should consume the analysis output rather than bypassing it.
 - UI should clearly show when ThermalGen evidence is unavailable because the checkpoint or image is missing.

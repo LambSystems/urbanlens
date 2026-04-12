@@ -7,7 +7,7 @@ export const getHotspotTypeLabel = (type: Hotspot['type']): string => {
     road_pavement: 'Road Surface',
     hvac_mechanical: 'HVAC / Mechanical',
     vegetation_loss: 'Vegetation Loss',
-    other: 'Other Surface',
+    other: 'Thermal Hotspot',
   };
-  return labels[type] ?? 'Unknown Surface';
+  return labels[type] ?? 'Thermal Hotspot';
 };

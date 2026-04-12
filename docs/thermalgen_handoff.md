@@ -27,6 +27,7 @@ The thermal model is only one evidence tool in that loop. The canonical model pa
 - One-image inference has been verified using a repo-local RGB file path.
 - Backend now also writes an autocontrasted orange preview via `thermal_preview_path`.
 - FastAPI serves direct ThermalGen assets from `/thermal-assets/...` and capture-analysis assets from `/captures/...`.
+- ThermalGen-only detections are labeled `Thermal Hotspot`; the model localizes heat but does not classify roofs, roads, parking lots, or vegetation without another tool.
 - A runnable inference notebook exists at `notebooks/hybrid_thermal_inference.ipynb`.
 - Local environment and hidden-file rules are documented in `docs/local_setup.md`.
 
@@ -191,6 +192,6 @@ Expected behavior:
 
 ## Next Useful Work
 
-- Replace rule-based object/material labels with a real detector when that teammate work is ready.
+- Add a real object/material classifier when that teammate work is ready, then promote `Thermal Hotspot` detections into roof, road, parking, vegetation, or other semantic labels only when supported by evidence.
 - Pass richer Google Maps and weather metadata into the planner response once the agentic layer is finalized.
 - Add a lightweight status message in the UI when thermal inference is unavailable.

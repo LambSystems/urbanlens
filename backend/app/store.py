@@ -18,7 +18,7 @@ from .capture_pipeline import (
     propose_hotspots_from_capture,
     radius_m_from_bounds,
 )
-from .orchestrator import STEP_INTERVAL_MS, build_analysis_from_candidates
+from .orchestrator import HOTSPOT_STATUS_LABELS, STEP_INTERVAL_MS, build_analysis_from_candidates
 from .schemas import (
     AnalysisEvent,
     AnalysisResponse,
@@ -118,7 +118,12 @@ class InMemoryAnalysisStore:
         thermal_data = thermal_result.get("thermal_data", {})
 
         analysis, events = build_analysis_from_candidates(
-            proposed, thermal_data, metadata.region.center, radius_m, region_id
+            proposed,
+            thermal_data,
+            metadata.region.center,
+            radius_m,
+            region_id,
+            image_path=image_path,
         )
 
         analysis.region.bounds = metadata.region.bounds
@@ -238,6 +243,7 @@ class InMemoryAnalysisStore:
         all_terminal = True
 
         for hotspot in analysis.result.hotspots:
+            initial_terminal_status = hotspot.status
             completed_steps = 0
             for step in hotspot.trace:
                 event = events_by_step[step.step_id]
@@ -258,18 +264,38 @@ class InMemoryAnalysisStore:
             if hotspot.trace[-1].status != TraceStepStatus.completed:
                 hotspot.status = HotspotStatus.investigating
                 all_terminal = False
-            elif hotspot.trace[-1].kind.value == "discard_hotspot":
+            elif (
+                hotspot.trace[-1].kind.value == "discard_hotspot"
+                or initial_terminal_status == HotspotStatus.discarded
+            ):
                 hotspot.status = HotspotStatus.discarded
+                if not hotspot.discard_reason:
+                    hotspot.discard_reason = "below anomaly threshold"
             else:
                 hotspot.status = HotspotStatus.finalized
 
             if completed_steps and hotspot.status == HotspotStatus.investigating:
                 hotspot.status = HotspotStatus.evidence_gathered
+            hotspot.status_label = HOTSPOT_STATUS_LABELS[hotspot.status]
+            hotspot.sidebar_summary = self._summary_for_current_status(hotspot)
             hotspot.updated_at = datetime.now(UTC)
 
         analysis.region.status = AnalysisStatus.completed if all_terminal else AnalysisStatus.running
         analysis.result.status = analysis.region.status
         return analysis
+
+    @staticmethod
+    def _summary_for_current_status(hotspot: HotspotCandidate) -> str:
+        label = hotspot.display_name or "Thermal hotspot"
+        if hotspot.status == HotspotStatus.discarded:
+            reason = hotspot.discard_reason or "it did not pass anomaly or confidence checks"
+            return f"{label} was reviewed and discarded because {reason}."
+        if hotspot.status == HotspotStatus.finalized:
+            action = hotspot.recommended_action or "follow-up site review"
+            return f"{label} was recommended after thermal investigation. Suggested next step: {action}."
+        if hotspot.status == HotspotStatus.evidence_gathered:
+            return f"{label} has completed initial thermal evidence gathering and is being scored."
+        return f"{label} is still being investigated with tool-based evidence gathering."
 
 
 store = InMemoryAnalysisStore()
