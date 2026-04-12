@@ -1,302 +1,266 @@
-# Urban Legend Goals
-## Best in Agentic AI Strategy
+# UrbanLens Goals
+## Winning the Agentic AI Track With the New Pivot
 
-This document defines the winning scope for Urban Legend in the Google Build with AI Hackathon.
+This document defines the strongest plan for the current product direction.
 
-It is not a generic roadmap. It is a decision document for one outcome:
+The current direction is:
 
-> win `Best in Agentic AI`
+> build an agent for localized environmental investigation, with `ThermalGen` as the custom standout tool inside the agent
+
+This is no longer a “thermal demo first” project.
 
 ---
 
 ## 1. Primary Objective
 
-Build a system that clearly demonstrates:
+Win `Best in Agentic AI` by making these things obvious in under a minute:
 
-- prompt-driven agent behavior over multimodal geospatial inputs
-- evidence retrieval and reasoning over scattered drone imagery
-- visible chain of thought under uncertainty
-- conversational investigation that produces actionable recommendations
-
-Urban Legend should feel like a decision-making product, not a research prototype.
-
----
-
-## 2. What Winning This Track Requires
-
-To win `Best in Agentic AI`, the project needs to make four things obvious very quickly.
+- the product is an agent, not a static pipeline
+- the agent calls internal tools to investigate a locality
+- one of those tools is a custom thermal tool that gives us a real differentiator
+- the result is a grounded, useful answer
 
 Secondary objective:
 
-> make the UI strong enough to also compete for `Best Design using v0` without compromising the core agentic slice
-
-### 2.1 Real Agent Behavior
-
-The system must visibly:
-
-- interpret the user's question and decide how to investigate
-- choose what tools to call and in what order
-- gather evidence in steps through tool calls
-- reason over imperfect source coverage
-- reject weak candidates with evidence-backed reasoning
-- produce a direct answer to what the user asked
-
-If it looks like one LLM call over a prompt, it loses force. The chain of thought must show multi-step reasoning.
-
-### 2.2 Prompt to Action
-
-Judges must be able to follow:
-
-`user question -> visible investigation -> chain of thought -> actionable answer`
-
-If the output ends at "this area is hot", the project is underpowered for this track.
-
-### 2.3 Visible Chain of Thought
-
-The agent must look like it is thinking, not just rendering final answers.
-
-That means the demo should show:
-
-- the agent interpreting the user's question
-- tool selection decisions
-- evidence gathering in real time
-- reasoning over findings
-- rejection of weak signals
-- final answer with supporting evidence
-
-### 2.4 Strong Product Framing
-
-The project should feel deployable and useful right away:
-
-> ask a question about urban heat, watch the agent investigate, get an answer you can act on
-
-Not:
-
-> this is an interesting visualization or model trick
+> keep the UI polished enough to also make a credible run at `Best Design using v0`
 
 ---
 
-## 3. Final Scope Decision
+## 2. The Final Product Story
 
-We are not building the full platform.
+The product should be framed as:
 
-We are building the most convincing prompt-driven investigation slice of the platform.
+> a locality analysis agent that helps users investigate a place and understand what matters there, using custom thermal reasoning when useful
+
+The strongest examples are:
+
+- heat mitigation planning
+- city or campus operations triage
+- identifying where shade or cooling interventions may matter
+- environmental anomaly exploration in a small locality
+
+The point is not “we can answer anything about the world.”
+
+The point is:
+
+> given a selected locality, we can investigate it better than a generic agent because we have a custom thermal tool and a tight set of supporting tools
+
+---
+
+## 3. What the Agent Must Do
+
+The winning slice should visibly do this:
+
+1. receive a locality capture from the frontend
+2. understand the user’s question or investigation intent
+3. decide which tools to call
+4. call `ThermalGen` when thermal evidence is relevant
+5. call at least one additional non-thermal analysis tool
+6. reason over the combined evidence
+7. reject weak explanations or low-priority findings
+8. return an actionable answer
+
+If the system looks like “LLM sees image -> final paragraph,” it is too weak.
+
+---
+
+## 4. Final Scope Decision
+
+We are building one convincing agentic locality investigation loop.
+
+We are not building:
+
+- a giant geospatial platform
+- a broad world-model assistant
+- a purely thermal image generation showcase
 
 Recommended framing:
 
-> ship the most convincing conversational urban heat investigation agent
-
-This means depth over breadth.
+> ship the cleanest possible example of a custom-tool locality investigation agent
 
 ---
 
-## 4. Must / Should / Cut
+## 5. Must / Should / Cut
 
-## 4.1 Must Have
+## 5.1 Must Have
 
-These are non-negotiable for a winning attempt.
+### Capture-Based Input
 
-### End-to-End Flow
+- Google Maps region selection
+- structured region metadata
+- screenshot or crop upload to backend
+- persisted capture for replay and debugging
 
-- select one demo region
-- user types a question about the region
-- agent investigates with visible chain of thought
-- agent calls tools, gathers evidence, reasons through findings
-- agent discards at least one weak candidate
-- agent returns an actionable answer with ranked recommendations
-- user can ask a follow-up question
+### Agentic Investigation
 
-### Judge-Legible Chain of Thought
+- user can ask a region-specific question or trigger the default analysis path
+- agent selects tools instead of running one hidden fixed pipeline
+- tool-calling trace is visible
+- trace includes at least one `ThermalGen` call
+- trace includes at least one non-thermal tool call
 
-- every reasoning step and tool call visible in the UI
-- at least 3 to 5 visible investigation steps per prompt
-- tool choices motivated by the user's question, not a fixed pipeline
-- clear distinction between reasoning, tool calls, findings, and the final answer
+### Useful Outcome
 
-### Ranked Output
-
-- Top 3 interventions when the question calls for prioritization
-- severity, anomaly, confidence
-- recommended action
-
-### Demo-First UI
-
-- map-first interface
-- RGB plus thermal toggle
-- hotspot markers
-- prompt input field
-- chain of thought panel
-- conversation history
-- recommendation display
-- source-aware confidence messaging where coverage is partial
+- at least one strong finding or recommendation
+- at least one discarded candidate or explanation
+- rationale grounded in gathered evidence
 
 ### Reliability
 
-- one precomputed demo region
-- cached chain of thought for common demo prompts
-- fallback JSON or screenshots
+- one golden demo region
+- cached or replayable outputs if needed
+- LLM provider abstraction so the demo is not blocked by Gemini instability
 
 ---
 
-## 4.2 Should Have
+## 5.2 Should Have
 
-These increase winning odds but should never destabilize the core.
-
-- neighbor comparison
-- coarse material or surface inference
-- lightweight consistency check across nearby crops or tiles
-- session replay for investigation chain of thought
-- polished explanation layer
-- a stable schema contract shared by backend and frontend
-- v0 used as a UI accelerator for the chain of thought panel and recommendation display
-- coverage-aware confidence that reflects incomplete source availability
+- thermal overlay in UI
+- hotspot markers
+- a second internal tool like `Heat Risk Profiler`
+- follow-up question support over an existing analysis
+- Top 3 ranking for intervention-style prompts
+- v0-polished right sidebar and trace view
 
 ---
 
-## 4.3 Cut
+## 5.3 Cut
 
-These are attractive but not aligned with the fastest path to winning.
-
-- multi-region live analysis
-- temporal analysis across multiple images
-- intervention simulation
-- platform-style workflow features
-- too many new learned models
-- perfect thermal realism work
-- broad climate adaptation claims
+- sprawling tool sets that do not improve the demo
+- broad “ask anything” world-explorer claims
+- physics-heavy thermal claims you cannot defend
+- dependency on one vendor model if it is unstable
+- adding more models just to look impressive
 
 ---
 
-## 5. Product Principles
+## 6. Tool Strategy
 
-### 5.1 Prompt First
+### ThermalGen
 
-Every interaction starts with the user's question. The system investigates what the user asked, not what the system decided to analyze.
+Keep `ThermalGen` as the star custom tool.
 
-### 5.2 Rejection Is Mandatory
+It is the wow factor and the custom capability most teams will not have.
 
-Rejecting at least one hotspot is a core proof of intelligence.
+### Supporting Tool
 
-Many teams will only show detection.
+Add one lighter second tool to make the system feel like a broader agent:
 
-Urban Legend should show discernment.
+- `Heat Risk Profiler`
+  or
+- `Shade Gap Analyzer`
 
-That rejection should be justified, not decorative.
+The best default right now is `Heat Risk Profiler`.
 
-### 5.3 Use Thermal as Evidence, Not the Product
+Its job is not to beat ThermalGen. Its job is to:
 
-The thermal model is an advantage, but not the headline.
+- analyze visible environmental cues
+- explain likely heat drivers
+- give the agent another evidence source to compare against thermal output
 
-The project should be framed as:
-
-> an agent using thermal evidence to answer questions about urban heat
-
-Not:
-
-> a system that generates thermal imagery
-
-In the best demo path, thermal should appear as evidence the agent chooses to consult based on what the user asked.
-
-### 5.4 Explainability Over Bravado
-
-The project should make credible claims:
-
-- answers questions about urban heat with evidence
-- prioritizes likely interventions
-- compares hotspots against context
-- shows its reasoning transparently
-
-It should avoid overclaiming precise physical truth.
+That makes the system feel more agentic and less single-purpose.
 
 ---
 
-## 6. Team Plan for 4 Engineers
+## 7. LLM Strategy
 
-### Engineer 1: Frontend and Demo UX
+Use an `LLMProvider` abstraction.
 
-- map interface
-- thermal toggle
-- prompt input and conversation UI
-- chain of thought display panel
-- hotspot visualization
-- ranking and recommendation display
-- demo mode and fallback states
-- integrate and adapt v0-generated UI building blocks
+Current recommendation:
 
-### Engineer 2: Backend and Orchestrator
+- `Anthropic` as default for demo reliability
+- `Gemini` as optional or fallback provider if it stabilizes
+- `Featherless` as an additional provider path for open models and prize eligibility
+- deterministic scoring and ranking wherever possible
 
-- API endpoints and session management
-- agent orchestrator with Gemini
-- chain of thought streaming
-- tool routing
-- structured responses for frontend
-- cached execution path
+Practical team rule:
 
-### Engineer 3: Perception
+- the product must work with Anthropic alone
+- Featherless should integrate through the same provider interface
+- Gemini should not block the demo
 
-- hotspot proposal
-- object detection or classification
-- coarse material inference
-- thermal model integration
-- evidence packaging
+The agent should use the LLM for:
 
-### Engineer 4: Context and Scoring
+- tool-selection reasoning
+- follow-up question answering
+- explanation wording
 
-- neighbor comparison
-- consistency checks across nearby crops or tiles
-- anomaly score
-- severity score
-- confidence aggregation
-- final ranking logic
+The LLM should not own:
 
----
+- ranking math
+- hotspot scores
+- geometry
+- hard-coded discard logic
 
-## 7. Integration Milestones
+## 7.1 ElevenLabs Strategy
 
-### Milestone 1
+`ElevenLabs` should be treated as a demo enhancement layer, not a core dependency.
 
-Region selection, thermal overlay, prompt input working.
+Best use:
 
-### Milestone 2
+- short spoken briefing of the final result
+- one-click `Play briefing` after analysis completes
 
-Agent responds to a prompt with chain of thought — even if tools return stub data.
-
-### Milestone 3
-
-Visible chain of thought with real tool calls, evidence gathering, discard, and finalize.
-
-### Milestone 4
-
-Follow-up questions work. Ranked recommendations with explanations.
-
-### Milestone 5
-
-Polish, fallback path, demo rehearsal, and Devpost assets.
-
-This is also the point where the team should explicitly capture and document where `v0` was used so the submission can credibly target the design prize.
+Do not make voice a required step of the product loop.
+The product must still win visually and functionally without audio.
 
 ---
 
-## 8. Success Criteria
+## 8. Team Plan
 
-At the end of the hackathon, the system should:
+### Engineer 1
 
-- accept a user question about a region and investigate it
-- show a visible chain of thought with tool calls and reasoning
-- discard at least one hotspot with evidence-backed reasoning
-- produce a ranked intervention list when the question calls for it
-- support at least one follow-up question
-- be understandable in under 60 seconds
-- be stable enough for live judging
+- map capture UX
+- screenshot packaging
+- sidebar and trace UI
+- analysis and follow-up interaction flow
+- optional voice briefing playback UI
+
+### Engineer 2
+
+- capture ingestion endpoints
+- storage of image plus metadata
+- orchestrator and tool routing
+- LLM provider abstraction
+- optional ElevenLabs backend endpoint for generated voice briefings
+
+### Engineer 3
+
+- ThermalGen integration
+- object/surface cues
+- supporting tool outputs
+
+### Engineer 4
+
+- scoring
+- ranking
+- discard logic
+- confidence and rationale
+- test that outputs stay grounded across different LLM providers
 
 ---
 
-## 9. Final Strategic Rule
+## 9. Success Criteria
 
-If the team gets stuck, optimize for this sequence only:
+At the end of the hackathon, UrbanLens should:
 
-- user asks a question
-- agent investigates with visible chain of thought
-- agent returns an actionable answer
+- accept a selected locality from the frontend
+- store the capture and metadata
+- let the agent investigate the locality
+- visibly call `ThermalGen`
+- visibly call at least one supporting tool
+- produce a credible answer to a useful locality question
+- survive demo conditions with fallback paths
 
-That loop is the product.
+---
+
+## 10. Final Rule
+
+If the team gets pulled in too many directions, preserve only this:
+
+- user selects a place
+- agent investigates that place with visible tool calls
+- `ThermalGen` appears as the custom superpower
+- user gets a grounded answer
+
+That is the winning slice.

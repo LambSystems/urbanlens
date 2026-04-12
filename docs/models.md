@@ -1,36 +1,42 @@
-# Urban Legend Models
-## Model and Reasoning Stack for the Winning Slice
+# UrbanLens Models
+## Tool and Reasoning Stack After the Pivot
 
-This document describes the model stack for the hackathon version of Urban Legend.
+This document reflects the new best plan:
 
-The guiding rule is:
+the product is an agent, and the models exist to support its tools.
 
-> models produce evidence, the agent produces decisions driven by the user's question
+The current stack should be explained as:
 
-That distinction is what makes the project credible for `Best in Agentic AI`.
+- one standout custom model or tool: `ThermalGen`
+- one lighter supporting analysis tool: `Heat Risk Profiler`
+- small perception helpers
+- deterministic scoring
+- an LLM-driven orchestrator behind an `LLMProvider`
 
 ---
 
 ## 1. Model Philosophy
 
-The hackathon version should avoid a bloated model stack.
+Do not build a pile of disconnected models.
 
-The best version is:
+The strongest version is:
 
-- narrow models for perception and context
-- explicit scoring for triage
-- a prompt-driven orchestrator that interprets the user's question and decides what tools to call
-- visible chain of thought for every investigation
-- tool calls that are motivated by what the user asked and what evidence is missing
+- a small number of clear internal tools
+- one unique tool nobody else has
+- one supporting tool that broadens the product story
+- deterministic ranking and recommendations
+- a provider-neutral orchestrator
 
-This is more stable, easier to demo, and easier for judges to understand.
+The models produce evidence.
+The agent decides what to do with that evidence.
 
 ---
 
-## 2. Recommended Categories
+## 2. Core Tool Stack
 
-Urban Legend only needs five model or reasoning categories for the winning slice:
+## 2.1 ThermalGen
 
+<<<<<<< HEAD
 1. thermal evidence (satellite-to-thermal conversion model)
 2. perception (object and surface classification)
 3. context comparison (neighbor analysis)
@@ -74,269 +80,152 @@ See `docs/hybrid_thermal.md` for the canonical folder layout and local artifact 
 Perception turns a hotspot crop into structured evidence.
 
 ### 4.1 Object Detection or Classification
+=======
+This is the signature tool.
+>>>>>>> a25c52a6f3479edeb22cccb341715cbb54858db3
 
 Purpose:
 
-- identify whether the hotspot is a roof, road, parking lot, vegetation edge, HVAC area, or another coarse class
+- generate thermal evidence from a captured map image
+- support thermal overlay and hotspot analysis
+- provide differentiated capability for the agent
 
-Output:
+ThermalGen is not the whole product, but it is the strongest technical differentiator.
 
-- object label
-- confidence
+## 2.2 Heat Risk Profiler
 
-### 4.2 Surface or Material Inference
-
-Purpose:
-
-- estimate a coarse material class relevant to intervention logic
-
-Examples:
-
-- dark roof
-- reflective roof
-- asphalt
-- concrete
-- vegetation
-
-Output:
-
-- material class
-- confidence
-
-### 4.3 Hotspot Feature Extraction
+This is the recommended second tool.
 
 Purpose:
 
-- summarize area, intensity, contrast, and other simple hotspot signals
+- analyze a captured locality for visible heat-risk signals
+- estimate likely drivers such as dark roofs, exposed pavement, low shade, or large surface exposure
+- provide a second evidence stream the agent can compare against ThermalGen
 
-This can be mostly heuristic.
+This tool is allowed to be lighter and more heuristic than ThermalGen.
 
-Output:
+## 2.3 Perception Helpers
 
-- structured hotspot features used by the scorer
+Useful but lightweight helpers:
 
----
+- object typing
+- coarse surface inference
+- rooftop or paved-area inspection
 
-## 5. Context Comparison
-
-Urban heat only becomes actionable when interpreted relative to context.
-
-### Purpose
-
-- compare the hotspot to nearby similar structures
-- determine whether it is expected or anomalous
-- check whether the signal is consistent across nearby crops or related images
-
-### Possible Inputs
-
-- embeddings
-- nearby region stats
-- metadata such as land use or urban type
-
-### Output
-
-- neighbor comparison summary
-- anomaly evidence
-
-This is one of the strongest differentiators in the project.
+These should stay narrow and legible.
 
 ---
 
-## 6. Orchestrator Reasoning (Gemini)
+## 3. Orchestrator Layer
 
-The orchestrator is the agentic center of the system.
+The orchestrator should be LLM-assisted but not LLM-owned in every part.
 
-Its job is not to classify images directly.
+Responsibilities:
 
-Its job is to:
+- interpret the user question
+- decide which internal tools to call
+- sequence tool calls
+- summarize tool outputs
+- answer follow-up questions
 
-- interpret the user's prompt to understand what they are asking
-- examine the available data context for the region
-- decide what tools to call and in what order to answer the question
-- execute tools and gather evidence
-- reason over the evidence and decide if more is needed
-- produce a structured answer with the full chain of thought visible
-
-### Prompt-Driven Behavior
-
-The agent's investigation path is determined by the user's question, not by a fixed pipeline. Different questions lead to different tool usage patterns.
-
-Example:
-
-- "What should I fix first?" -> agent scans all hotspots, scores them, ranks them
-- "Are there HVAC issues?" -> agent focuses on mechanical equipment hotspots
-- "Why is this corner hot?" -> agent examines a specific area, identifies causes
-
-### Available Tools
-
-- `inspect_object`
-- `request_thermal_evidence`
-- `infer_surface`
-- `compare_neighbors`
-- `check_consistency`
-- `score_hotspot`
-- `discard_hotspot`
-- `finalize_hotspot`
-- `list_hotspot_candidates`
-- `get_region_summary`
-- `lookup_location`
-
-Keep this space constrained.
-
-The more constrained it is, the more believable and legible the chain of thought becomes.
-
-### Conversational Context
-
-The agent maintains session context across follow-up questions. It can reference prior chain of thought and findings when answering follow-ups.
+Keep hard logic outside the LLM where possible.
 
 ---
 
-## 7. Scoring and Ranking
+## 4. LLM Provider
 
-Not every important component needs to be learned.
+Use a provider abstraction.
 
-For the hackathon, these should be explicit and explainable.
+Recommended providers:
 
-### 7.1 Severity Score
+- `AnthropicProvider` as current default
+- `GeminiProvider` as optional or fallback
+- `FeatherlessProvider` as an open-model provider path
+- `MockProvider` for tests and demo fallback
 
-Inputs:
+The project should not fail just because one vendor is unstable.
 
-- thermal intensity
-- hotspot area
-- surface cues
+The LLM should mainly help with:
 
-Output:
+- tool choice reasoning
+- explanation wording
+- analysis follow-up questions
 
-- severity score from 0 to 1
+The LLM should not own:
 
-### 7.2 Anomaly Score
+- ranking math
+- anomaly/severity/confidence calculations
+- final deterministic sorting
 
-Inputs:
+Recommended operating rule:
 
-- hotspot features
-- context comparison
-- local baseline
-- optional nearby consistency signals
+- `AnthropicProvider` should be the safe demo default
+- `FeatherlessProvider` should be implemented against the same interface so the team can credibly claim and test sponsor integration
+- `GeminiProvider` should remain optional until it is reliable
 
-Output:
+## 4.1 Voice Output Layer
 
-- anomaly score from 0 to 1
+Voice does not belong inside `LLMProvider`.
 
-### 7.3 Confidence Score
+Treat voice separately as a downstream output system.
 
-Inputs:
+Recommended provider:
 
-- perception confidence
-- context strength
-- consistency of evidence
-- source coverage quality
-- whether enough evidence was gathered
+- `ElevenLabs`
 
-Output:
+Best use:
 
-- overall confidence score from 0 to 1
-
-### 7.4 Ranker
-
-Inputs:
-
-- severity
-- anomaly
-- confidence
-- intervention category
-
-Output:
-
-- Top 3 ranked hotspots
-
-This should be deterministic for the hackathon.
+- convert the final answer into a short decision briefing
+- keep the audio layer small and deterministic
 
 ---
 
-## 8. Answer Generation
+## 5. What Should Stay Deterministic
 
-This layer turns the agent's investigation into a structured response to the user's prompt.
+Keep these deterministic:
 
-The answer should:
+- ranking
+- discard logic
+- confidence modulation
+- hotspot ordering
+- recommendation strength
 
-- directly address what the user asked
-- reference specific hotspots and evidence gathered during chain of thought
-- include ranked recommendations when the question calls for prioritization
-- cite confidence and coverage factors when relevant
+Recommended scoring rule:
 
-Example:
+- anomaly gates
+- severity orders
+- confidence modulates
 
-> This roof is unusually hot relative to nearby roofs and appears to use a dark surface, making it a strong cool-roof retrofit candidate. I checked 12 comparable roofs in the area and this one ranks in the 83rd percentile for heat intensity.
-
-This does not need to be fancy. It needs to be clear and grounded in the evidence the agent gathered.
-
----
-
-## 9. What Should Be Heuristic vs Learned
-
-### Should Be Model-Based
-
-- thermal generation (satellite-to-thermal conversion)
-- object detection or classification
-- coarse material inference
-- context embeddings if already available
-- orchestrator reasoning (Gemini)
-
-### Should Be Heuristic or Deterministic
-
-- hotspot proposal
-- severity scoring
-- anomaly weighting
-- confidence aggregation
-- final ranking
-
-This split is ideal for a hackathon because it maximizes stability and explainability.
-
-It also makes the chain of thought more legible: learned models produce evidence, deterministic logic turns that evidence into prioritization.
+That makes the system easier to defend and easier to demo.
 
 ---
 
-## 10. Recommended Output Schema
+## 6. Recommended Investigation Pattern
 
-```json
-{
-  "prompt": "What should I fix first in this area?",
-  "chain_of_thought": [
-    {"step_type": "reasoning", "summary": "User wants prioritized interventions. Scanning all candidates."},
-    {"step_type": "tool_call", "tool_name": "inspect_object", "summary": "Identified commercial roof"},
-    {"step_type": "tool_call", "tool_name": "request_thermal_evidence", "summary": "Intensity 0.87"},
-    {"step_type": "tool_call", "tool_name": "score_hotspot", "summary": "Anomaly: 0.82, Severity: 0.76"}
-  ],
-  "answer": "The commercial roof at the northeast corner is the highest-priority intervention...",
-  "top_recommendation": {
-    "hotspot_id": "hs_07",
-    "object_type": "commercial roof",
-    "severity_score": 0.84,
-    "anomaly_score": 0.71,
-    "overall_confidence": 0.78,
-    "recommended_action": "cool-roof retrofit",
-    "priority_rank": 1,
-    "why": [
-      "high thermal concentration",
-      "large exposed roof area",
-      "hotter than nearby similar structures"
-    ]
-  }
-}
-```
+For the strongest demo path, the agent should look like this:
+
+1. see the selected locality and question
+2. decide whether thermal evidence is needed
+3. call `ThermalGen`
+4. call `Heat Risk Profiler`
+5. optionally inspect objects or surfaces
+6. reconcile findings
+7. rank or explain
+8. answer
+
+This gives you visible, believable tool-calling without too much chaos.
 
 ---
 
-## 11. Final Model Rule
+## 7. Final Rule
 
-If time gets tight, do not add more models.
+If you are deciding whether to add another model, the answer is probably no.
 
-Instead, strengthen the visibility of:
+Prefer to strengthen:
 
-- the agent interpreting the user's question
-- evidence-request decisions in the chain of thought
-- context comparison
-- rejection logic
-- the final answer with clear reasoning
+- the usefulness of `ThermalGen`
+- the clarity of `Heat Risk Profiler`
+- the legibility of the orchestrator trace
+- the stability of the deterministic scoring layer
 
-Those are the pieces that make the system feel agentic.
+That is the most convincing stack for the hackathon.

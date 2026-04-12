@@ -1,385 +1,295 @@
-# Urban Legend Architecture
-## Prompt-Driven Agentic Investigation for Best in Agentic AI
+# UrbanLens Architecture
+## Capture-Based Locality Investigation Agent
 
-This architecture is optimized for a hackathon-winning vertical slice, not a fully generalized platform.
+This architecture reflects the current best plan for the hackathon.
 
-The objective is to support one clear end-to-end behavior:
+The product is:
 
-`select region -> load data -> user prompt -> agent investigates with visible chain of thought -> actionable answer`
+> an agent that investigates a selected locality using internal tools, with `ThermalGen` as the custom standout tool
 
----
-
-## 1. Architecture Principle
-
-Urban Legend should be built as a prompt-driven investigation system.
-
-- deterministic components handle ingestion, normalization, and source retrieval
-- narrow models produce partial evidence (thermal, perception, context)
-- an agent orchestrator interprets the user's prompt and decides how to investigate
-- every reasoning step and tool call is visible in the UI as chain of thought
-- the user can ask follow-up questions in the same session
-
-This keeps the system:
-
-- debuggable
-- demoable
-- stable under time pressure
-- legible to judges
-- genuinely agentic — the user drives the investigation
+The old “scattered drone imagery as primary source” framing is no longer the core story. We still support external imagery or supplemental data later, but the canonical MVP flow starts from a frontend map capture.
 
 ---
 
-## 2. Scope Philosophy
+## 1. High-Level Principle
 
-We are not trying to prove the maximum technical surface area.
+UrbanLens should feel like:
 
-We are trying to prove the clearest agentic loop driven by user intent.
+- a locality investigation system
+- with visible tool-calling
+- using a custom thermal tool
+- to answer useful questions about a place
 
-That means:
+It should not feel like:
 
-- one strong demo region over many weak regions
-- prompt-driven investigation over a fixed pipeline
-- visible chain of thought over hidden complexity
-- conversational depth over breadth of features
-- evidence-seeking behavior motivated by what the user asked
+- a one-shot image-to-text wrapper
+- a standalone thermal map generator
+- a generic chat assistant attached to Google Maps
 
 ---
 
-## 3. High-Level System
+## 2. Canonical MVP Flow
 
 ```text
-User selects demo region
+User selects region in Google Maps
         |
         v
-Map-first frontend loads data context
-(satellite, thermal overlay, source metadata)
+Frontend captures:
+- region metadata
+- viewport/map state
+- screenshot/crop
         |
         v
-User types a prompt
+Backend stores capture and creates analysis
         |
         v
-API/session layer (passes prompt + region context)
+User asks a question or triggers default analysis
         |
         v
-Agent orchestrator (Gemini)
-   |-- interprets user intent
-   |-- examines available data
-   |-- decides what tools to call
-   |
-   |   Tool calls (visible chain of thought):
-   |        |        |        |
-   |        v        v        v
-   |   Perception  Thermal  Context/Scoring
-   |        \        |       /
-   |         \       |      /
-   |          v      v     v
-   |      Evidence gathered
-   |        |
-   |        v
-   |   Agent reasons over evidence
-   |   (loop: need more evidence? call another tool)
-   |        |
-   |        v
-   |   Agent produces answer
+Agent orchestrator examines:
+- prompt
+- region metadata
+- captured image
+- prior analysis state
         |
         v
-Structured response with chain of thought
+Agent calls internal tools:
+- ThermalGen
+- Heat Risk Profiler
+- object/surface inspection
+- scoring/ranking
         |
         v
-Frontend renders: chain of thought + answer + recommendations
+Agent reasons over evidence
         |
         v
-User asks follow-up question (same session)
+Agent returns:
+- answer
+- recommendations
+- visible trace
+- hotspot findings when applicable
 ```
 
 ---
 
-## 3.1 Current Implemented Flow
+## 3. Main Layers
 
-This is the actual repo flow right now, before the final agentic layer is complete:
+### 3.1 Frontend Capture Layer
 
-```text
-Frontend map selection
-        |
-        v
-POST /analysis
-        |
-        v
-backend.app.orchestrator.build_analysis
-   |-- retrieves local/demo source metadata
-   |-- builds deterministic hotspot candidates
-   |-- runs scoring and ranking
-   |-- optionally calls hybrid thermal inference
-        |
-        v
-GET /analysis/{region_id} polling
-        |
-        v
-Frontend renders hotspot markers, ranking, trace steps, and recommendations
-```
+The frontend is responsible for:
 
-Live hybrid thermal inference is intentionally behind a local flag:
+- region selection
+- Google Maps state capture
+- screenshot or crop creation
+- sending structured metadata plus the image to the backend
 
-```text
-THERMALGEN_ENABLE_LIVE_THERMAL=1
-```
+Recommended capture payload:
 
-With the flag off, the demo remains fast and uses deterministic hotspot evidence. With the flag on, the orchestrator runs one local RGB image through `backend/app/thermal/generator.py`, writes generated thermal outputs under `backend/data/hybrid_thermal/`, serves them from `/thermal-assets/...`, and attaches `thermal_preview_url` to the analysis response.
+- `region.bounds`
+- `region.center`
+- `region.areaKm2`
+- `map.zoom`
+- `map.mapTypeId`
+- `map.tilt`
+- `map.heading`
+- `viewport`
+- `image`
 
-The generated thermal image is evidence for the investigation. It is not yet the source of candidate discovery; candidate discovery still uses the current static demo hotspot library.
+The backend should support both:
 
----
+- `multipart/form-data` with a real image file
+- JSON + base64 fallback
 
-## 4. Main Layers
+### 3.2 Analysis API
 
-### 4.1 Frontend
+The API layer should:
 
-The frontend is the investigation interface.
+- accept captures
+- persist them to a local directory for replay/debugging
+- create an `analysis`
+- expose analysis state and outputs
+- expose a follow-up question layer over an existing analysis
 
-It must show:
+Canonical resource model:
 
-- map with RGB plus thermal overlay
-- prompt input for the user to ask questions
-- chain of thought panel showing every agent reasoning step and tool call in real time
-- evidence gathered at each step
-- final answer with structured recommendations
-- conversation history for follow-ups on the same region
+- `analysis` is the main resource
+- `questions` are nested over an analysis
 
-The frontend should optimize for fast judge comprehension of the agent's reasoning process.
+### 3.3 Agent Orchestrator
 
-### 4.2 API and Session Layer
+This is the product core.
 
-This layer manages the conversation between user and agent.
+It receives:
 
-Responsibilities:
+- the user question or investigation intent
+- region metadata
+- screenshot/crop
+- prior analysis state
 
-- accept region selection and load data context
-- accept user prompt
-- maintain session state so follow-up questions have context
-- route prompt + data context to the agent orchestrator
-- stream chain of thought steps back to the frontend
-- return structured response with answer and evidence
+It decides:
 
-This layer should not contain reasoning logic — that belongs to the agent.
+- whether to call `ThermalGen`
+- whether to call `Heat Risk Profiler`
+- whether to inspect objects or surfaces
+- whether to rank or simply explain
 
-### 4.2.1 Source Retrieval and Evidence Normalization
+The orchestrator should stay provider-neutral through `LLMProvider`.
 
-Google Maps is the interface layer, not the ground-truth data layer.
+That means the product logic should not know whether it is currently using:
 
-The selected region must first be resolved against available drone imagery and metadata, which may be scattered, partial, or inconsistent in coverage.
+- `Anthropic`
+- `Gemini`
+- `Featherless`
 
-Responsibilities:
+Only the provider layer should know that.
 
-- find drone images intersecting the selected region
-- attach source metadata
-- normalize crops or region evidence into a shared internal format
-- expose coverage quality to downstream confidence logic
-- tolerate incomplete metadata
-- optionally enrich weak metadata using Google Maps context
+### 3.4 ThermalGen
 
-### 4.3 Thermal Evidence Layer
-
-The satellite-to-thermal conversion model is prebuilt and should be treated as stable infrastructure plus an evidence tool.
+ThermalGen is the special internal tool.
 
 Responsibilities:
 
-- convert satellite imagery to thermal representation
-- provide the thermal image for UI overlay display
-- expose thermal-derived data for the analysis pipeline
-- return hotspot-specific heat evidence when the agent requests it
+- generate thermal evidence from captured map imagery
+- provide a thermal overlay or thermal-derived signals
+- support hotspot reasoning
 
-The thermal module is not the product. It is evidence the agent can choose to consult.
+ThermalGen is not the whole product. It is the custom capability that makes the larger agent more powerful.
 
-### 4.4 Perception Layer
+### 3.5 Heat Risk Profiler
 
-This layer answers:
+This is the recommended second tool.
 
-- what object is this hotspot attached to
-- what coarse surface or material might it be
+Responsibilities:
 
-These are tools the agent calls when it decides it needs object or material evidence to answer the user's question.
+- estimate heat risk from visible environmental cues
+- summarize likely risk drivers such as large roof area, dark surfaces, exposed pavement, and low shade
+- provide a second evidence source the agent can reconcile with thermal output
 
-Supported hotspot taxonomy for the MVP:
+This keeps the system from feeling like a single-tool wrapper.
 
-- `roof`
-- `road_pavement`
-- `parking_lot`
-- `hvac_mechanical`
-- `vegetation_loss`
-- `other`
+### 3.6 Perception Layer
 
-### 4.5 Context Layer
+Supporting perception tools may include:
 
-This layer answers:
+- object typing
+- coarse surface inference
+- visible structure hints
 
-- is this hotspot unusually hot relative to nearby structures
-- is it expected in local context
-- is this signal consistent across nearby crops or tiles
-- is source coverage sufficient to trust the finding strongly
+These tools are narrow and supporting. They feed evidence to the agent; they are not the headline.
 
-This is where the project gains credibility as a triage system rather than a detector.
+### 3.7 Scoring Layer
 
-### 4.6 Scoring Layer
+Use deterministic scoring where possible.
 
-This layer computes:
+Recommended hierarchy:
 
-- severity
-- anomaly
-- confidence
+- anomaly gates
+- severity orders
+- confidence modulates
 
-For the hackathon, this should favor explainable heuristics over fragile complexity.
+This should remain transparent and stable, not LLM-owned.
 
-Scoring hierarchy:
+### 3.8 Planner Mode
 
-- `anomaly` is the structural gate
-- `severity` orders surviving hotspots
-- `confidence` modulates whether the result should be trusted and how strongly it should be presented
+Planner Mode is a question layer on top of existing analysis.
 
-Confidence should incorporate both reasoning quality and evidence coverage quality.
+Examples:
 
-### 4.7 Agent Orchestrator
+- `What should we inspect first here?`
+- `Why is this roof risky?`
+- `What evidence made you call this a priority?`
 
-This is the core of the product.
+Planner Mode is not the main product by itself. It is a way to deepen the investigation after the initial answer.
 
-The agent receives:
+### 3.9 Voice Briefing Layer
 
-- the user's prompt (their question or intent)
-- the data context for the selected region (thermal data, source records, metadata)
-- conversation history (for follow-ups)
+Optional but strategically useful for demo and prize alignment.
 
-The agent then:
+Responsibilities:
 
-- interprets what the user is asking
-- examines the available data to understand what evidence exists
-- decides what tools to call and in what order based on the question
-- executes tools and gathers evidence
-- reasons over the evidence and decides if more is needed
-- produces an answer with supporting evidence and recommendations
+- turn the final answer into a short spoken summary
+- help judges experience the result quickly
+- support a polished `Play briefing` UX in the frontend
 
-Every reasoning step and tool call is recorded as chain of thought and streamed to the frontend.
+Recommended provider:
 
-Available tools:
+- `ElevenLabs`
 
-- `inspect_object` — identify the object type at a hotspot
-- `request_thermal_evidence` — get thermal data for a specific location
-- `infer_surface` — estimate surface material
-- `compare_neighbors` — compare against nearby structures
-- `check_consistency` — verify signal across sources
-- `score_hotspot` — compute anomaly, severity, confidence
-- `discard_hotspot` — reject a weak candidate with reasoning
-- `finalize_hotspot` — promote a candidate for recommendation
-
-The agent may also access additional tools depending on what the user asks — location lookups, metadata queries, broader context retrieval.
-
-The tool set is kept constrained enough that the chain of thought stays understandable.
-
-Different user prompts lead to different investigation paths through the same tool set. The agent's route is driven by the question, not by a fixed pipeline.
-
-### 4.8 Planner
-
-The planner turns validated evidence into:
-
-- ranked priority
-- recommended action
-- concise rationale
-
-This is the business-value layer.
-
-Without it, the system only observes. With it, the system recommends.
+This layer must stay downstream of analysis completion.
+It should never become a dependency for the core reasoning loop.
 
 ---
 
-## 5. Required Demo Behaviors
+## 4. Tool Set
 
-The architecture must support these behaviors explicitly:
+Recommended MVP tool vocabulary:
 
-### Prompt-Driven Investigation
+- `generate_thermal_overlay`
+- `request_thermal_evidence`
+- `analyze_heat_risk`
+- `inspect_object`
+- `infer_surface`
+- `compare_findings`
+- `score_hotspots`
+- `discard_hotspot`
+- `finalize_recommendation`
 
-The user types a question. The agent investigates based on that question, not a fixed pipeline.
+Design rule:
 
-### Visible Chain of Thought
-
-Every reasoning step and tool call is shown in the UI. Judges can watch the agent think.
-
-### Evidence Gathering
-
-The agent gathers evidence in visible steps. It should be clear that evidence was requested because the agent determined it was necessary to answer the user's question.
-
-### Rejection
-
-The agent discards at least one hotspot or finding. The discard reason should come from gathered evidence and relate to the user's question.
-
-### Actionable Answer
-
-The agent returns an answer the user can act on — not just data, but a recommendation.
-
-### Follow-Up Questions
-
-The user can ask follow-up questions that build on the previous investigation.
-
-If the architecture makes any of those hard to show, it is too broad for the hackathon.
+keep tools internal, explicit, and controlled. The agent should feel powerful because it has real custom tools, not because it has unbounded freedom.
 
 ---
 
-## 6. Reliability Plan
+## 5. LLM Provider Strategy
 
-The architecture should support both:
+The architecture must not depend on one flaky vendor.
 
-- live execution where feasible
-- precomputed fallback where necessary
+Use:
 
-Recommended reliability layers:
+- `Anthropic` as current reliable default
+- `Gemini` behind the same provider abstraction
+- `Featherless` behind the same provider abstraction for open-model support
+- `MockProvider` for fallback and testing
 
-- one fully cached demo region
-- persisted session state
-- prebuilt chain of thought sequences for common prompts
-- screenshot fallback assets
+`LLMProvider` should support at least:
 
-Caching should accelerate the demo without removing visible reasoning.
+- free-text generation
+- structured generation when needed
+- tool-selection assistance
 
-Recommended cache layers:
+This lets the demo survive vendor instability.
 
-- `region cache`
-  reused data context and source records for nearby repeated clicks
-- `investigation cache`
-  cached chain of thought and answers for known demo prompts
-- `chain of thought playback`
-  reveals cached reasoning step by step so the user still experiences investigation
-
-For the hackathon, source retrieval can be simplified to a curated region-to-drone-evidence mapping as long as the backend contract already models scattered source inputs.
-
-Winning the demo matters more than maximizing live compute.
+It also lets the team pursue sponsor-prize integrations without fragmenting the architecture.
 
 ---
 
-## 7. Ownership by Engineer
+## 6. Storage and Reproducibility
 
-### Engineer 1
+Store captures locally for replay:
 
-Frontend, map, prompt input, chain of thought display, conversation UI, recommendation panels.
+- `backend/data/captures/{region_id}/source.png`
+- `backend/data/captures/{region_id}/metadata.json`
+- optionally `thermal.png`
 
-### Engineer 2
+This gives:
 
-API, agent orchestrator, session management, chain of thought streaming, cache path.
+- reproducible demos
+- debug visibility
+- easy fallback
 
-### Engineer 3
-
-Hotspot proposal, object evidence, surface evidence, thermal integration.
-
-### Engineer 4
-
-Neighbor comparison, scoring, confidence aggregation, ranker.
+For the hackathon, local file storage is enough.
 
 ---
 
-## 8. Final Architectural Rule
+## 7. Demo Architecture Rule
 
-Urban Legend should feel like a system that answers your questions about urban heat by investigating the evidence.
+If the team has to simplify, preserve only this:
 
-If forced to simplify, preserve only this:
+- selected locality
+- captured image
+- agent tool-calling
+- `ThermalGen` visibly used
+- one supporting tool visibly used
+- grounded answer returned
 
-- user types a question
-- agent investigates with visible chain of thought
-- agent returns an actionable answer
-
-That is the winning slice.
+That is the architecture that best matches the pivot and the judging criteria.
