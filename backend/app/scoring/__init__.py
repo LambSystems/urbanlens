@@ -1,2 +1,1 @@
-# Urban Legend — Scoring & Ranking Layer
-# Anomaly gating, severity ordering, confidence modulation, final ranking.
+"""Scoring helpers for analysis-first hotspot ranking."""

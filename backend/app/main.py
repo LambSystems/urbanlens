@@ -1,15 +1,17 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 
 from .routes import router
+from .session_routes import session_router
 
 
 app = FastAPI(
-    title="ThermalGen API",
-    version="0.1.0",
-    description="Hackathon MVP backend for agentic urban heat triage.",
+    title="UrbanLens API",
+    version="0.3.0",
+    description="Agentic locality investigation backend with analysis and session flows.",
 )
 
 app.add_middleware(
@@ -21,6 +23,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(session_router)
 
 data_dir = Path(__file__).resolve().parents[1] / "data"
 if data_dir.exists():
