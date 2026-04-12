@@ -14,7 +14,7 @@ Owner:
 
 ## Immediate Goal
 
-Turn hotspot evidence into stable, explainable ranking decisions.
+Turn hotspot evidence into stable, explainable scoring and ranking decisions that the agent can use during investigation.
 
 ## First Hour
 
@@ -23,7 +23,7 @@ Turn hotspot evidence into stable, explainable ranking decisions.
 3. Define confidence score.
 4. Define discard reasons.
 5. Define final ranking score.
-6. Package outputs so Engineer 2 can plug them into traces and results.
+6. Package outputs so Engineer 2 can plug them into the agent tool dispatch.
 
 ## Core Heuristic
 
@@ -64,13 +64,23 @@ final_rank_score = severity_score * confidence_score
 - not hotter than nearby comparable roofs
 - low-confidence signal after investigation
 
+## How Your Code Gets Called
+
+The agent orchestrator calls your code through tools:
+
+- `compare_neighbors` -> `scoring/context.py`
+- `check_consistency` -> `scoring/context.py`
+- `score_hotspot` -> `scoring/ranker.py` (which calls anomaly, severity, confidence)
+
+When the user asks a question and the agent decides it needs scoring or context comparison, it calls your functions. Your output appears as a chain of thought step in the UI.
+
 ## Handoff to Engineer 2
 
 Provide either:
 
-- pure functions Engineer 2 can call, or
+- pure functions Engineer 2 can call from the tool registry, or
 - scored hotspot payloads with exact output fields
 
 ## Success Condition
 
-By hour 2, backend can rank hotspots consistently and explain why one was discarded and another became Top 1.
+By hour 2, the agent can call your scoring tools during investigation and get back real scores that drive discard/finalize decisions. The chain of thought shows why one hotspot was discarded and another became Top 1.

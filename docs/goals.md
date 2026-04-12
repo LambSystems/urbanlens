@@ -1,7 +1,7 @@
-# ThermalGen V2 Goals
+# Urban Legend Goals
 ## Best in Agentic AI Strategy
 
-This document defines the winning scope for ThermalGen in the Google Build with AI Hackathon.
+This document defines the winning scope for Urban Legend in the Google Build with AI Hackathon.
 
 It is not a generic roadmap. It is a decision document for one outcome:
 
@@ -13,12 +13,12 @@ It is not a generic roadmap. It is a decision document for one outcome:
 
 Build a system that clearly demonstrates:
 
-- agent behavior over multimodal geospatial inputs
+- prompt-driven agent behavior over multimodal geospatial inputs
 - evidence retrieval and reasoning over scattered drone imagery
-- visible decision-making under uncertainty
-- ranked, actionable outputs instead of passive analysis
+- visible chain of thought under uncertainty
+- conversational investigation that produces actionable recommendations
 
-ThermalGen should feel like a decision-making product, not a research prototype.
+Urban Legend should feel like a decision-making product, not a research prototype.
 
 ---
 
@@ -34,40 +34,41 @@ Secondary objective:
 
 The system must visibly:
 
-- choose what to inspect
-- decide what evidence is missing
+- interpret the user's question and decide how to investigate
+- choose what tools to call and in what order
 - gather evidence in steps through tool calls
 - reason over imperfect source coverage
-- reject weak candidates
-- prioritize the strongest ones
+- reject weak candidates with evidence-backed reasoning
+- produce a direct answer to what the user asked
 
-If it looks like one LLM call over a prompt, it loses force.
+If it looks like one LLM call over a prompt, it loses force. The chain of thought must show multi-step reasoning.
 
-### 2.2 Input to Action
+### 2.2 Prompt to Action
 
 Judges must be able to follow:
 
-`region -> investigation -> reasoning -> ranked recommendation`
+`user question -> visible investigation -> chain of thought -> actionable answer`
 
 If the output ends at "this area is hot", the project is underpowered for this track.
 
-### 2.3 Visible Reasoning
+### 2.3 Visible Chain of Thought
 
 The agent must look like it is thinking, not just rendering final answers.
 
 That means the demo should show:
 
-- candidate discovery
-- tool selection
-- investigation trace
-- rejection
-- prioritization
+- the agent interpreting the user's question
+- tool selection decisions
+- evidence gathering in real time
+- reasoning over findings
+- rejection of weak signals
+- final answer with supporting evidence
 
 ### 2.4 Strong Product Framing
 
 The project should feel deployable and useful right away:
 
-> this helps decide what to fix first
+> ask a question about urban heat, watch the agent investigate, get an answer you can act on
 
 Not:
 
@@ -79,11 +80,11 @@ Not:
 
 We are not building the full platform.
 
-We are building the most convincing vertical slice of the platform.
+We are building the most convincing prompt-driven investigation slice of the platform.
 
 Recommended framing:
 
-> ship the most convincing decision-making slice of an urban heat agent
+> ship the most convincing conversational urban heat investigation agent
 
 This means depth over breadth.
 
@@ -98,26 +99,24 @@ These are non-negotiable for a winning attempt.
 ### End-to-End Flow
 
 - select one demo region
-- show candidate hotspots
-- investigate at least one hotspot in detail
-- show at least one explicit evidence-seeking decision
-- discard at least one low-value candidate
-- rank the remaining hotspots
-- recommend the top action
+- user types a question about the region
+- agent investigates with visible chain of thought
+- agent calls tools, gathers evidence, reasons through findings
+- agent discards at least one weak candidate
+- agent returns an actionable answer with ranked recommendations
+- user can ask a follow-up question
 
-### Judge-Legible Agent Loop
+### Judge-Legible Chain of Thought
 
-- at least 2 to 3 visible investigation steps
-- explicit orchestrator state or trace
-- tool choices limited enough to be legible
-- at least one trace step where the agent decides to call thermal or context evidence
+- every reasoning step and tool call visible in the UI
+- at least 3 to 5 visible investigation steps per prompt
+- tool choices motivated by the user's question, not a fixed pipeline
+- clear distinction between reasoning, tool calls, findings, and the final answer
 
 ### Ranked Output
 
-- Top 3 interventions
-- severity
-- anomaly
-- confidence
+- Top 3 interventions when the question calls for prioritization
+- severity, anomaly, confidence
 - recommended action
 
 ### Demo-First UI
@@ -125,15 +124,16 @@ These are non-negotiable for a winning attempt.
 - map-first interface
 - RGB plus thermal toggle
 - hotspot markers
-- evidence panel
-- ranking panel
-- recommendation card
+- prompt input field
+- chain of thought panel
+- conversation history
+- recommendation display
 - source-aware confidence messaging where coverage is partial
 
 ### Reliability
 
 - one precomputed demo region
-- cached outputs
+- cached chain of thought for common demo prompts
 - fallback JSON or screenshots
 
 ---
@@ -145,11 +145,11 @@ These increase winning odds but should never destabilize the core.
 - neighbor comparison
 - coarse material or surface inference
 - lightweight consistency check across nearby crops or tiles
-- prompt-based planner mode
-- session replay for investigation trace
+- session replay for investigation chain of thought
 - polished explanation layer
 - a stable schema contract shared by backend and frontend
-- v0 used as a UI accelerator for the demo shell and the highest-visibility result panels
+- v0 used as a UI accelerator for the chain of thought panel and recommendation display
+- coverage-aware confidence that reflects incomplete source availability
 
 ---
 
@@ -169,11 +169,9 @@ These are attractive but not aligned with the fastest path to winning.
 
 ## 5. Product Principles
 
-### 5.1 Decision First
+### 5.1 Prompt First
 
-Every screen and every model output should support one question:
-
-> what should we fix first?
+Every interaction starts with the user's question. The system investigates what the user asked, not what the system decided to analyze.
 
 ### 5.2 Rejection Is Mandatory
 
@@ -181,39 +179,32 @@ Rejecting at least one hotspot is a core proof of intelligence.
 
 Many teams will only show detection.
 
-ThermalGen should show discernment.
+Urban Legend should show discernment.
 
 That rejection should be justified, not decorative.
 
-Examples:
-
-- expected road heat profile
-- not anomalous relative to nearby roofs
-- insufficient evidence to prioritize
-
 ### 5.3 Use Thermal as Evidence, Not the Product
 
-The thermal generator is an advantage, but not the headline.
+The thermal model is an advantage, but not the headline.
 
 The project should be framed as:
 
-> an agent using thermal evidence to make intervention decisions
+> an agent using thermal evidence to answer questions about urban heat
 
 Not:
 
 > a system that generates thermal imagery
 
-In the best demo path, thermal should appear as evidence the agent chooses to consult, not just a static layer shown from the beginning.
-
-The same is true for source coverage: the system should acknowledge when it is reasoning over strong region evidence versus partial scattered drone evidence.
+In the best demo path, thermal should appear as evidence the agent chooses to consult based on what the user asked.
 
 ### 5.4 Explainability Over Bravado
 
 The project should make credible claims:
 
+- answers questions about urban heat with evidence
 - prioritizes likely interventions
-- helps triage heat risks
 - compares hotspots against context
+- shows its reasoning transparently
 
 It should avoid overclaiming precise physical truth.
 
@@ -225,19 +216,19 @@ It should avoid overclaiming precise physical truth.
 
 - map interface
 - thermal toggle
+- prompt input and conversation UI
+- chain of thought display panel
 - hotspot visualization
-- investigation trace UI
-- ranking panel
-- recommendation card
+- ranking and recommendation display
 - demo mode and fallback states
 - integrate and adapt v0-generated UI building blocks
 
 ### Engineer 2: Backend and Orchestrator
 
-- API endpoints
-- hotspot state machine
+- API endpoints and session management
+- agent orchestrator with Gemini
+- chain of thought streaming
 - tool routing
-- evidence-request logic
 - structured responses for frontend
 - cached execution path
 
@@ -246,6 +237,7 @@ It should avoid overclaiming precise physical truth.
 - hotspot proposal
 - object detection or classification
 - coarse material inference
+- thermal model integration
 - evidence packaging
 
 ### Engineer 4: Context and Scoring
@@ -263,19 +255,19 @@ It should avoid overclaiming precise physical truth.
 
 ### Milestone 1
 
-Region selection, thermal overlay, hotspot markers.
+Region selection, thermal overlay, prompt input working.
 
 ### Milestone 2
 
-Per-hotspot evidence panel with object, material, and initial scores.
+Agent responds to a prompt with chain of thought — even if tools return stub data.
 
 ### Milestone 3
 
-Visible orchestrator trace with evidence-request decisions, compare, discard, finalize.
+Visible chain of thought with real tool calls, evidence gathering, discard, and finalize.
 
 ### Milestone 4
 
-Top 3 ranked recommendations with explanations.
+Follow-up questions work. Ranked recommendations with explanations.
 
 ### Milestone 5
 
@@ -289,11 +281,11 @@ This is also the point where the team should explicitly capture and document whe
 
 At the end of the hackathon, the system should:
 
-- process one region end-to-end without confusion
-- show that it investigated more than one candidate
-- show that it requested additional evidence before finalizing at least one candidate
-- visibly discard at least one hotspot
-- produce a ranked intervention list
+- accept a user question about a region and investigate it
+- show a visible chain of thought with tool calls and reasoning
+- discard at least one hotspot with evidence-backed reasoning
+- produce a ranked intervention list when the question calls for it
+- support at least one follow-up question
 - be understandable in under 60 seconds
 - be stable enough for live judging
 
@@ -303,10 +295,8 @@ At the end of the hackathon, the system should:
 
 If the team gets stuck, optimize for this sequence only:
 
-- detect candidates
-- investigate them
-- discard weak ones
-- prioritize strong ones
-- recommend action
+- user asks a question
+- agent investigates with visible chain of thought
+- agent returns an actionable answer
 
 That loop is the product.

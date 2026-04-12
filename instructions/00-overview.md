@@ -1,4 +1,4 @@
-# ThermalGen Build Specs
+# Urban Legend Build Specs
 
 This folder is the implementation guide for the 21-hour hackathon build.
 
@@ -10,7 +10,7 @@ Read these in order:
 
 Core rule:
 
-`one region -> 3-5 hotspots -> one visible investigation trace -> one justified discard -> Top 3 ranking -> final recommendation`
+`user prompt -> agent investigates with visible chain of thought -> actionable answer`
 
 If work does not improve that flow, cut it.
 
@@ -24,7 +24,7 @@ Secondary target:
 
 Stack:
 
-- Gemini
+- Gemini (primary LLM, other Google products as needed)
 - Google Maps API
 - Python + FastAPI
 - React + TypeScript
@@ -32,19 +32,18 @@ Stack:
 
 Known assets:
 
-- thermal image generator already exists
+- satellite-to-thermal conversion model already exists
 - datasets already exist, though Saint Louis-specific data is still under research
 - real evidence is expected to come from scattered drone imagery, not a perfectly tiled map source
 
 Non-negotiables:
 
-- analysis is over a region around a click, not a single object
+- the user's prompt drives the investigation, not a fixed pipeline
+- chain of thought is fully visible in the UI — every reasoning step and tool call
 - Google Maps is the UI layer, not the ground-truth evidence layer
-- trace vocabulary is fixed
-- trace routes are semivariable
-- anomaly gates
-- severity orders
-- confidence modulates
-- visible playback lasts about 5 to 15 seconds
+- the agent adapts its tool usage based on what the user asked
+- follow-up questions work in the same session
+- anomaly gates, severity orders, confidence modulates
+- at least one hotspot rejected with evidence-backed reasoning
 
 Do not reopen product-scope debates during implementation unless something blocks the core flow.

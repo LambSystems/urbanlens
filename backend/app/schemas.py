@@ -100,6 +100,8 @@ class AnalysisRegion(BaseModel):
     radius_m: int = Field(default=120, ge=1)
     available_source_count: int = 0
     coverage_score: float | None = None
+    maps_fallback_count: int = 0
+    enrichment_confidence_avg: float | None = None
     source_records: list[SourceRecord] = Field(default_factory=list)
     status: AnalysisStatus
     summary: AnalysisSummary
@@ -228,3 +230,15 @@ class DebugAnalysisView(BaseModel):
     ranking_formula: str
     anomaly_threshold: float
     hotspots: list[DebugHotspotView]
+
+
+class PlannerQuestionRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+class PlannerQuestionResponse(BaseModel):
+    region_id: str
+    question: str
+    answer: str
+    referenced_hotspot_ids: list[str] = Field(default_factory=list)
+    planner_mode: str = "analysis_qa"
