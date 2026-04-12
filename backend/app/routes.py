@@ -18,8 +18,11 @@ from .schemas import (
     HotspotCandidate,
     PlannerQuestionRequest,
     PlannerQuestionResponse,
+    VoiceBriefingRequest,
+    VoiceBriefingResponse,
 )
 from .store import store
+from .voice_briefing import create_voice_briefing
 
 
 router = APIRouter()
@@ -101,3 +104,15 @@ def ask_region_question(region_id: str, payload: PlannerQuestionRequest) -> Plan
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Analysis region not found.") from exc
     return answer_region_question(analysis, payload.question)
+
+
+@router.post("/analysis/{region_id}/voice-briefing", response_model=VoiceBriefingResponse)
+def create_region_voice_briefing(
+    region_id: str,
+    payload: VoiceBriefingRequest,
+) -> VoiceBriefingResponse:
+    try:
+        analysis = store.get_analysis(region_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Analysis region not found.") from exc
+    return create_voice_briefing(analysis, question=payload.question)

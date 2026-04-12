@@ -455,7 +455,51 @@ Example response:
 }
 ```
 
-## 10. Suggested Frontend Flow
+## 10. Voice Briefing
+
+Optional demo endpoint for ElevenLabs-style spoken summary integration.
+
+```http
+POST /analysis/{region_id}/voice-briefing
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "question": "What should we inspect first here?"
+}
+```
+
+Example response:
+
+```json
+{
+  "region_id": "region_ab12cd34",
+  "audio_url": null,
+  "summary_text": "For the question 'What should we inspect first here?', the top finding is hs_01, a roof. It ranked first with anomaly 0.83, severity 0.78, and confidence 0.90. The recommended next step is cool-roof retrofit.",
+  "provider": "elevenlabs_stub"
+}
+```
+
+Notes:
+
+- `audio_url` may be null until real TTS generation is wired
+- `summary_text` is already grounded and safe for frontend playback or future TTS requests
+
+## 11. LLM Provider Env
+
+Recommended options:
+
+```text
+LLM_PROVIDER=anthropic
+LLM_PROVIDER=featherless
+LLM_PROVIDER=gemini
+LLM_PROVIDER=mock
+```
+
+## 12. Suggested Frontend Flow
 
 1. Load `GET /demo/regions` or let the user click on the map.
 2. Optionally use `GET /demo/example-analysis-request` for a ready-made request body.
@@ -465,8 +509,9 @@ Example response:
 6. Poll `GET /analysis/{region_id}/events` if a separate trace feed is useful.
 7. Fetch `GET /analysis/{region_id}/hotspots/{hotspot_id}` when the user clicks a hotspot.
 8. Once analysis exists, optionally call `POST /analysis/{region_id}/questions` for Planner Mode.
+9. Optionally call `POST /analysis/{region_id}/voice-briefing` for a spoken summary.
 
-## 11. Minimal cURL Examples
+## 13. Minimal cURL Examples
 
 Create analysis:
 
@@ -500,4 +545,12 @@ Ask planner question:
 curl -X POST "http://localhost:8000/analysis/region_ab12cd34/questions" ^
   -H "Content-Type: application/json" ^
   -d "{\"question\":\"What should we fix first here?\"}"
+```
+
+Create voice briefing:
+
+```bash
+curl -X POST "http://localhost:8000/analysis/region_ab12cd34/voice-briefing" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\":\"What should we inspect first here?\"}"
 ```

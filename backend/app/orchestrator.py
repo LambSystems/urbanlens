@@ -5,6 +5,7 @@ from math import cos, pi
 
 from .providers.google_maps_enrichment import summarize_enrichment_coverage
 from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
+from .heat_risk import analyze_heat_risk
 from .scoring.anomaly import ANOMALY_THRESHOLD, compute_anomaly_score, passes_anomaly_gate
 from .scoring.confidence import compute_confidence_score
 from .scoring.ranker import compute_final_rank_score, rank_hotspots
@@ -50,8 +51,10 @@ HOTSPOT_LIBRARY: list[dict] = [
         "centroid_offset": (0.0007, 0.0005),
         "trace": [
             (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
+            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
             (TraceKind.inspect_object, "Object inspection suggests a roof structure."),
             (TraceKind.request_thermal_evidence, "Requested thermal evidence for roof heat concentration."),
+            (TraceKind.analyze_heat_risk, "Heat risk profile suggests a large exposed roof with low nearby shade."),
             (TraceKind.infer_surface, "Surface inference suggests a dark roof membrane."),
             (TraceKind.compare_neighbors, "Hotter than 83% of nearby comparable roofs."),
             (TraceKind.check_consistency, "Signal remains consistent across nearby roof crops."),
@@ -84,8 +87,10 @@ HOTSPOT_LIBRARY: list[dict] = [
         "centroid_offset": (-0.0003, 0.0008),
         "trace": [
             (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
+            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
             (TraceKind.inspect_object, "Object inspection suggests a road or pavement segment."),
             (TraceKind.request_thermal_evidence, "Requested thermal evidence for pavement heat profile."),
+            (TraceKind.analyze_heat_risk, "Heat risk profile suggests mostly expected paved-surface heat."),
             (TraceKind.compare_neighbors, "Heat is consistent with nearby roads and paved surfaces."),
             (TraceKind.score_hotspot, "Scored hotspot and found anomaly too low to escalate."),
             (TraceKind.discard_hotspot, "Discarded because the heat pattern is expected locally."),
@@ -115,8 +120,10 @@ HOTSPOT_LIBRARY: list[dict] = [
         "centroid_offset": (0.0004, -0.0004),
         "trace": [
             (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
+            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
             (TraceKind.inspect_object, "Object inspection suggests rooftop HVAC equipment."),
             (TraceKind.request_thermal_evidence, "Requested thermal evidence for localized heat release."),
+            (TraceKind.analyze_heat_risk, "Heat risk profile highlights concentrated rooftop equipment exposure."),
             (TraceKind.infer_surface, "Thermal pattern is concentrated around mechanical equipment."),
             (TraceKind.score_hotspot, "Scored hotspot after evidence gathering."),
             (TraceKind.finalize_hotspot, "Finalized as a high-priority mechanical inspection candidate."),
@@ -146,8 +153,10 @@ HOTSPOT_LIBRARY: list[dict] = [
         "centroid_offset": (-0.0006, -0.0007),
         "trace": [
             (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
+            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
             (TraceKind.inspect_object, "Object inspection suggests a parking lot surface."),
             (TraceKind.request_thermal_evidence, "Requested thermal evidence for surface heat intensity."),
+            (TraceKind.analyze_heat_risk, "Heat risk profile highlights high paved exposure and limited shade."),
             (TraceKind.compare_neighbors, "Hotter than nearby paved surfaces with limited shade."),
             (TraceKind.score_hotspot, "Scored hotspot after context comparison."),
             (TraceKind.finalize_hotspot, "Finalized as a mitigation candidate after passing anomaly gate."),
@@ -217,6 +226,14 @@ def _trace_evidence(seed: dict, kind: TraceKind) -> TraceEvidence:
         evidence.neighbor_count = 12
         evidence.relative_percentile = seed["anomaly_score"]
         evidence.coverage_score = seed["coverage_score"]
+    elif kind == TraceKind.analyze_heat_risk:
+        risk = analyze_heat_risk(
+            hotspot_type=seed["hotspot_type"],
+            surface_temperature_c=seed["surface_temperature_c"],
+            coverage_score=seed["coverage_score"],
+        )
+        evidence.coverage_score = seed["coverage_score"]
+        evidence.confidence_score = risk["heat_risk_score"]
     elif kind == TraceKind.check_consistency:
         evidence.consistency_score = min(seed["confidence_score"] + 0.08, 0.99)
         evidence.coverage_score = seed["coverage_score"]
@@ -233,6 +250,15 @@ def _trace_details(seed: dict, kind: TraceKind, evidence: TraceEvidence) -> dict
     if kind == TraceKind.request_thermal_evidence:
         details["surface_temperature_c"] = seed["surface_temperature_c"]
         details["ambient_delta_c"] = seed["ambient_delta_c"]
+    if kind == TraceKind.analyze_heat_risk:
+        risk = analyze_heat_risk(
+            hotspot_type=seed["hotspot_type"],
+            surface_temperature_c=seed["surface_temperature_c"],
+            coverage_score=seed["coverage_score"],
+        )
+        details["heat_risk_score"] = risk["heat_risk_score"]
+        details["factors"] = risk["factors"]
+        details["summary"] = risk["summary"]
     if kind == TraceKind.discard_hotspot and seed.get("discard_reason"):
         details["reason"] = seed["discard_reason"]
     if kind == TraceKind.finalize_hotspot and seed.get("recommended_action"):
