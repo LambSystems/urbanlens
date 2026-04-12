@@ -2,19 +2,21 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Eye, 
-  Camera, 
-  Layers, 
-  GitCompare, 
-  CheckCircle2, 
-  XCircle, 
-  BarChart3, 
-  Radar, 
-  Play, 
-  Pause, 
+import {
+  Eye,
+  Camera,
+  Layers,
+  GitCompare,
+  CheckCircle2,
+  XCircle,
+  BarChart3,
+  Radar,
+  Play,
+  Pause,
   RotateCcw,
-  ChevronRight
+  ChevronRight,
+  Thermometer,
+  Activity,
 } from 'lucide-react';
 import { useThermal } from '@/lib/thermal-context';
 import type { TraceAction, TraceStep } from '@/lib/types';
@@ -24,8 +26,10 @@ import { cn } from '@/lib/utils';
 
 const ACTION_CONFIG: Record<TraceAction, { icon: typeof Eye; label: string; color: string }> = {
   candidate_detected: { icon: Radar, label: 'Candidate Detected', color: 'text-blue-400' },
+  generate_thermal_overlay: { icon: Thermometer, label: 'ThermalGen', color: 'text-orange-400' },
   inspect_object: { icon: Eye, label: 'Inspecting Object', color: 'text-cyan-400' },
   request_thermal_evidence: { icon: Camera, label: 'Requesting Evidence', color: 'text-purple-400' },
+  analyze_heat_risk: { icon: Activity, label: 'Heat Risk Profile', color: 'text-red-400' },
   infer_surface: { icon: Layers, label: 'Analyzing Surface', color: 'text-amber-400' },
   compare_neighbors: { icon: GitCompare, label: 'Comparing Neighbors', color: 'text-teal-400' },
   check_consistency: { icon: CheckCircle2, label: 'Checking Consistency', color: 'text-green-400' },
@@ -245,9 +249,9 @@ export function TraceTimeline() {
   const allVisible = playback.currentStepIndex >= trace.length - 1;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header with controls */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Agent Trace</span>
           <span className="text-xs text-muted-foreground">
@@ -300,7 +304,7 @@ export function TraceTimeline() {
       </div>
       
       {/* Timeline content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div ref={scrollRef} className="p-4">
           <AnimatePresence mode="sync">
             {trace.map((step, index) => {

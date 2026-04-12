@@ -1,77 +1,69 @@
 # Engineer 3
-## Perception, Thermal Integration, and Hotspot Evidence
+## ThermalGen, Supporting Tools, and Evidence Packaging
 
 Owner:
 
-- hotspot proposal
-- object typing
-- coarse material/surface inference
-- thermal model integration
+- `ThermalGen` integration
+- supporting analysis tool outputs
+- object/surface cues when useful
 - evidence packaging for backend
-- work from scattered drone imagery or curated region evidence, not from an assumed perfect tile source
 
 ## Immediate Goal
 
-Provide believable hotspot evidence fast enough that the agent's tool calls return real data.
+Make the agent’s tool calls return believable evidence from the captured locality.
 
-If real inference is slow, ship precomputed fixtures first.
+Your work should make these tool calls real:
 
-## First Hour
+- `request_thermal_evidence`
+- `generate_thermal_overlay`
+- `analyze_heat_risk`
+- optional perception helpers
 
-1. Decide what candidate proposal path is fastest.
-2. Produce 3-5 hotspot candidates for one stable demo region.
-3. For each hotspot, provide:
-   - `hotspot_type`
-   - `object_confidence`
-   - `material_type`
-   - `material_confidence`
-4. Package results in a backend-friendly format.
-5. Wire the thermal model stub so `request_thermal_evidence` returns useful data.
+## Product Rule
 
-## Supported Types
+`ThermalGen` is the standout tool.
 
-- `roof`
-- `road_pavement`
-- `parking_lot`
-- `hvac_mechanical`
-- `vegetation_loss`
-- `other`
+But the product should not feel mono-tool. That is why the supporting tool matters.
 
-## Rules
+Recommended supporting tool:
 
-- use coarse labels
-- optimize for stable and legible evidence
-- do not overinvest in perfect classification
-- expose coverage quality or source-count hints when possible
-- assume some source records may have incomplete geolocation metadata
+- `Heat Risk Profiler`
 
-## How Your Code Gets Called
+Its job is to explain visible environmental drivers behind heat concern.
 
-The agent orchestrator calls your code through tools:
+## First Priorities
 
-- `inspect_object` -> `perception/object_classifier.py`
-- `infer_surface` -> `perception/surface_inference.py`
-- `request_thermal_evidence` -> `thermal/evidence.py`
-- `list_hotspot_candidates` -> `perception/candidate_discovery.py`
+1. Define the ThermalGen input and output contract for a captured image.
+2. Define the Heat Risk Profiler output contract.
+3. Package outputs so Engineer 2 can attach them to trace steps and findings.
+4. If real inference is unstable, provide stable fixtures that match the final output shape.
 
-When the user asks a question and the agent decides it needs object or thermal evidence, it calls your functions. Your output appears as a chain of thought step in the UI.
+## Minimum Useful Output
 
-## Handoff to Engineer 2
-
-Provide a shape that can be attached to each tool call result.
-
-Minimum useful payload:
+For ThermalGen:
 
 ```json
 {
-  "hotspot_id": "hs_01",
-  "hotspot_type": "roof",
-  "object_confidence": 0.88,
-  "material_type": "dark_roof",
-  "material_confidence": 0.74
+  "thermal_overlay_path": "backend/data/captures/region_123/thermal.png",
+  "thermal_intensity_score": 0.86,
+  "summary": "Elevated thermal evidence over the central roof mass"
+}
+```
+
+For Heat Risk Profiler:
+
+```json
+{
+  "heat_risk_score": 0.81,
+  "factors": [
+    "large exposed roof area",
+    "dark surface cues",
+    "low surrounding shade"
+  ],
+  "summary": "Visible environmental features suggest elevated retained heat risk"
 }
 ```
 
 ## Success Condition
 
-Engineer 2 can call your functions from the agent tool registry and get real evidence back. Engineer 1 can see that evidence in the chain of thought panel.
+Engineer 2 can call your tools from the orchestrator and the frontend can show those outputs as part of a compelling investigation trace.

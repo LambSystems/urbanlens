@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, Circle, Rectangle, DrawingManager } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, Rectangle, DrawingManager } from '@react-google-maps/api';
 import { useThermal } from '@/lib/thermal-context';
 import { DEMO_REGION } from '@/lib/mock-data';
 import type { Hotspot, BoundingBox, SelectedRegion } from '@/lib/types';
@@ -13,76 +13,11 @@ const mapContainerStyle = {
   height: '100%',
 };
 
-const darkMapStyles = [
-  { elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0f172a' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
-  {
-    featureType: 'administrative',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'administrative.land_parcel',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#475569' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'geometry',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#475569' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#134e4a' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#0f172a' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#64748b' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#334155' }],
-  },
-  {
-    featureType: 'transit',
-    elementType: 'geometry',
-    stylers: [{ color: '#1e293b' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#0c4a6e' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#38bdf8' }],
-  },
-];
 
 function getMarkerColor(hotspot: Hotspot): string {
   if (hotspot.status === 'discarded') return '#6b7280';
   if (hotspot.status === 'investigating') return '#f59e0b';
-  
+
   const score = hotspot.scoring?.finalScore ?? 0;
   if (score >= 0.8) return '#ef4444';
   if (score >= 0.6) return '#f97316';
@@ -90,10 +25,28 @@ function getMarkerColor(hotspot: Hotspot): string {
   return '#22c55e';
 }
 
-function getCircleRadius(hotspot: Hotspot): number {
-  const baseRadius = 20;
-  const score = hotspot.scoring?.finalScore ?? 0.5;
-  return baseRadius + (score * 30);
+/**
+ * Returns the geographic bounds of a Static Maps image.
+ * size=640x640 centered on `center` at `zoom`.
+ * The model resizes to 640×512, so the overlay covers the full 640×640 area
+ * (GroundOverlay will stretch the 640×512 image back to fill it).
+ */
+function staticMapImageBounds(
+  center: { lat: number; lng: number },
+  zoom: number,
+): { north: number; south: number; east: number; west: number } {
+  const cosLat = Math.cos((center.lat * Math.PI) / 180);
+  const mPerPx = (156_543.03392 * cosLat) / Math.pow(2, zoom);
+  const halfHM = 320 * mPerPx; // 640/2 pixels
+  const halfWM = 320 * mPerPx;
+  const halfLatDeg = halfHM / 111_000;
+  const halfLngDeg = halfWM / (111_000 * Math.max(cosLat, 1e-6));
+  return {
+    north: center.lat + halfLatDeg,
+    south: center.lat - halfLatDeg,
+    east: center.lng + halfLngDeg,
+    west: center.lng - halfLngDeg,
+  };
 }
 
 function calculateArea(bounds: BoundingBox): number {
@@ -104,17 +57,47 @@ function calculateArea(bounds: BoundingBox): number {
   return latKm * lngKm;
 }
 
+function ThermalGroundOverlay({
+  mapRef,
+  imageUrl,
+  bounds,
+}: {
+  mapRef: React.RefObject<google.maps.Map | null>;
+  imageUrl: string;
+  bounds: { north: number; south: number; east: number; west: number };
+}) {
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !imageUrl) return;
+    const overlay = new google.maps.GroundOverlay(imageUrl, bounds, {
+      opacity: 0.55,
+      clickable: false,
+    });
+    overlay.setMap(map);
+    return () => overlay.setMap(null);
+  // Re-render when URL or bounds change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl, bounds.north, bounds.south, bounds.east, bounds.west]);
+
+  return null;
+}
+
 export function ThermalMap() {
-  const { 
-    hotspots, 
-    activeHotspot, 
+  const {
+    hotspots,
+    activeHotspot,
     setActiveHotspot,
     selectionMode,
     setSelectionMode,
     selectedRegion,
     setSelectedRegion,
+    setCapture,
+    thermalOverlayUrl,
+    thermalOverlayBounds,
   } = useThermal();
-  
+
+  const [showThermal, setShowThermal] = useState(true);
+
   const [drawingManager, setDrawingManager] = useState<google.maps.drawing.DrawingManager | null>(null);
   const rectangleRef = useRef<google.maps.Rectangle | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -127,7 +110,7 @@ export function ThermalMap() {
   const center = useMemo(() => DEMO_REGION.center, []);
 
   const mapOptions: google.maps.MapOptions = useMemo(() => ({
-    styles: darkMapStyles,
+    mapTypeId: 'hybrid',
     disableDefaultUI: true,
     zoomControl: true,
     mapTypeControl: false,
@@ -135,6 +118,10 @@ export function ThermalMap() {
     fullscreenControl: false,
     clickableIcons: false,
     draggableCursor: selectionMode === 'drawing' ? 'crosshair' : undefined,
+    styles: [
+      { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+    ],
   }), [selectionMode]);
 
   const handleMarkerClick = useCallback(
@@ -169,14 +156,14 @@ export function ThermalMap() {
     if (bounds) {
       const ne = bounds.getNorthEast();
       const sw = bounds.getSouthWest();
-      
+
       const selectedBounds: BoundingBox = {
         north: ne.lat(),
         south: sw.lat(),
         east: ne.lng(),
         west: sw.lng(),
       };
-      
+
       const region: SelectedRegion = {
         bounds: selectedBounds,
         center: {
@@ -185,10 +172,56 @@ export function ThermalMap() {
         },
         areaKm2: calculateArea(selectedBounds),
       };
-      
+
       setSelectedRegion(region);
       setSelectionMode('selected');
-      
+
+      const map = mapRef.current;
+      const viewport = map?.getBounds();
+      const vne = viewport?.getNorthEast();
+      const vsw = viewport?.getSouthWest();
+      const zoom = map?.getZoom() ?? 17;
+
+      const mapState = {
+        zoom,
+        mapTypeId: map?.getMapTypeId() ?? null,
+        tilt: map?.getTilt() ?? null,
+        heading: map?.getHeading() ?? null,
+      };
+      const viewportBounds = vne && vsw ? {
+        north: vne.lat(),
+        south: vsw.lat(),
+        east: vne.lng(),
+        west: vsw.lng(),
+      } : null;
+
+      // Fetch satellite image from Static Maps API, store as capture payload
+      const staticUrl =
+        `https://maps.googleapis.com/maps/api/staticmap` +
+        `?center=${region.center.lat},${region.center.lng}` +
+        `&zoom=${zoom}` +
+        `&size=640x640` +
+        `&maptype=satellite` +
+        `&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''}`;
+
+      fetch(staticUrl)
+        .then(r => r.blob())
+        .then(blob => new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }))
+        .then(dataUrl => {
+          const imageBase64 = dataUrl.split(',')[1];
+          const imageBounds = staticMapImageBounds(region.center, zoom);
+          setCapture({ imageBase64, mapState, viewport: viewportBounds, imageBounds });
+        })
+        .catch(err => {
+          console.warn('Static Maps image fetch failed, analysis will use coordinate fallback:', err);
+          setCapture(null);
+        });
+
       // Style the rectangle
       rect.setOptions({
         fillColor: '#f97316',
@@ -199,7 +232,7 @@ export function ThermalMap() {
         draggable: false,
       });
     }
-    
+
     // Turn off drawing mode
     if (drawingManager) {
       drawingManager.setDrawingMode(null);
@@ -259,6 +292,7 @@ export function ThermalMap() {
   }
 
   return (
+    <div className="relative h-full w-full">
     <GoogleMap
       mapContainerStyle={mapContainerStyle}
       center={center}
@@ -284,6 +318,15 @@ export function ThermalMap() {
         }}
       />
 
+      {/* Thermal heatmap ground overlay — uses real Static Maps image bounds */}
+      {showThermal && thermalOverlayUrl && thermalOverlayBounds && selectionMode === 'complete' && (
+        <ThermalGroundOverlay
+          mapRef={mapRef}
+          imageUrl={thermalOverlayUrl}
+          bounds={thermalOverlayBounds}
+        />
+      )}
+
       {/* Selected region rectangle overlay (when complete) */}
       {selectedRegion && selectionMode === 'complete' && (
         <Rectangle
@@ -302,40 +345,56 @@ export function ThermalMap() {
         />
       )}
 
-      {/* Hotspot markers and circles */}
+      {/* Hotspot markers */}
       {hotspots.map((hotspot) => {
         const isActive = activeHotspot?.id === hotspot.id;
         const color = getMarkerColor(hotspot);
-        
+
         return (
-          <div key={hotspot.id}>
-            <Circle
-              center={hotspot.location}
-              radius={getCircleRadius(hotspot)}
-              options={{
-                fillColor: color,
-                fillOpacity: isActive ? 0.5 : 0.25,
-                strokeColor: color,
-                strokeOpacity: isActive ? 1 : 0.6,
-                strokeWeight: isActive ? 3 : 1.5,
-              }}
-            />
-            
-            <Marker
-              position={hotspot.location}
-              onClick={() => handleMarkerClick(hotspot)}
-              icon={{
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: isActive ? 14 : 10,
-                fillColor: color,
-                fillOpacity: 1,
-                strokeColor: '#ffffff',
-                strokeWeight: isActive ? 3 : 2,
-              }}
-            />
-          </div>
+          <Marker
+            key={hotspot.id}
+            position={hotspot.location}
+            onClick={() => handleMarkerClick(hotspot)}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: isActive ? 14 : 10,
+              fillColor: color,
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: isActive ? 3 : 2,
+            }}
+          />
         );
       })}
     </GoogleMap>
+
+    {/* Thermal / Normal toggle — only shown when overlay is available */}
+    {thermalOverlayUrl && thermalOverlayBounds && selectionMode === 'complete' && (
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
+        <div className="flex items-center rounded-full bg-black/70 backdrop-blur-sm border border-white/10 p-1 gap-1 shadow-xl">
+          <button
+            onClick={() => setShowThermal(true)}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+              showThermal
+                ? 'bg-orange-500 text-white shadow-md'
+                : 'text-white/60 hover:text-white/90'
+            }`}
+          >
+            🌡 Thermal
+          </button>
+          <button
+            onClick={() => setShowThermal(false)}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+              !showThermal
+                ? 'bg-white/20 text-white shadow-md'
+                : 'text-white/60 hover:text-white/90'
+            }`}
+          >
+            🛰 Satellite
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }

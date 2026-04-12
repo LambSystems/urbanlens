@@ -7,7 +7,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'ThermalGen V2 | Urban Heat Triage',
+  title: 'UrbanLens | Urban Heat Triage',
   description: 'Agentic urban heat island detection and prioritization system',
   generator: 'v0.app',
   icons: {

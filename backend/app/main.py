@@ -4,36 +4,38 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
-THERMAL_ASSET_ROOT = BACKEND_ROOT / "data" / "hybrid_thermal"
-THERMAL_ASSET_ROOT.mkdir(parents=True, exist_ok=True)
-
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(BACKEND_ROOT / ".env")
-except ImportError:
-    pass
-
 from .routes import router
+from .session_routes import session_router
 
 
 app = FastAPI(
-    title="ThermalGen API",
-    version="0.1.0",
-    description="Hackathon MVP backend for agentic urban heat triage.",
+    title="UrbanLens API",
+    version="0.3.0",
+    description="Agentic locality investigation backend with analysis and session flows.",
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(router)
-app.mount("/thermal-assets", StaticFiles(directory=THERMAL_ASSET_ROOT), name="thermal_assets")
+app.include_router(session_router)
+
+data_dir = Path(__file__).resolve().parents[1] / "data"
+if data_dir.exists():
+    app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
+
+thermal_assets_dir = data_dir / "hybrid_thermal"
+if thermal_assets_dir.exists():
+    app.mount("/thermal-assets", StaticFiles(directory=str(thermal_assets_dir)), name="thermal-assets")
+
+captures_dir = data_dir / "captures"
+captures_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/captures", StaticFiles(directory=str(captures_dir)), name="captures")
 
 
 @app.get("/health")

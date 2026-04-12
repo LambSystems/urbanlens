@@ -1,504 +1,235 @@
-# ThermalGen V2 Contracts
-## Resource-Oriented API, Trace, Caching, and Planner Mode
+# UrbanLens Contracts
+## Capture-Based Analysis, Tooling, and Output Contracts
 
-This document defines the operating contract for the MVP so all engineers can work in parallel without drift.
+This document is the implementation source of truth for the new pivot.
 
-It is the source of truth for:
+It defines:
 
-- analysis region behavior
-- source retrieval and evidence normalization behavior
-- source record requirements and fallback enrichment
-- hotspot taxonomy
-- trace semantics
-- ranking and discard heuristics
-- caching behavior
-- backend/frontend data contracts
-- planner mode behavior
-- the UI boundaries where `v0` can be used safely
+- what the frontend sends
+- what the backend stores
+- what the agent is allowed to call
+- how output stays stable even as internal tools evolve
 
-This contract follows a resource-oriented API design:
+The key contract rule is:
 
-- the main resource is an `analysis`
-- hotspots are nested resources under an analysis
-- planner mode is a nested question endpoint over an existing analysis
-
-We are not using a chat-first or session-first API as the primary surface for the MVP.
+> different investigation paths are allowed, but they must converge to the same stable analysis output shape
 
 ---
 
-## 1. Analysis Region
+## 1. Product Contract
 
-The user does not analyze a single structure directly.
+The product is an `analysis` of a selected locality.
 
-A click on the map defines an `analysis region` centered around that click. The system then proposes multiple hotspot candidates inside that region.
+Users may:
 
-Google Maps is the interaction surface. The evidence layer underneath may consist of scattered drone imagery, cropped images, thermal conversions, and partial metadata.
+- create an analysis from a map capture
+- inspect results
+- ask follow-up questions over that analysis
 
-Required behavior:
-
-- click on map
-- derive region center and radius
-- load or create an analysis job
-- retrieve available drone sources intersecting the region
-- normalize source evidence into an analysis-ready representation
-- detect 3 to 5 hotspot candidates
-- investigate candidates individually
-- discard or finalize each candidate
-- return a ranked list of survivors
-
-Recommended MVP fields:
-
-- `center.lat`
-- `center.lng`
-- `radius_m`
-- `region_id`
-- `available_source_count`
-- `coverage_score`
-
-## 1.1 Source Retrieval Model
-
-The backend should assume source imagery is scattered.
-
-That means:
-
-- not every region will have perfect coverage
-- source imagery may come from multiple files or partial crops
-- confidence should reflect coverage quality
-
-For the MVP, source retrieval can be implemented as a curated mapping for known demo regions, but the contract should already model:
-
-- source count
-- coverage quality
-- whether evidence is partial
-
-## 1.2 Source Record Contract
-
-Every raw source should be able to enter the system even if metadata is incomplete.
-
-Recommended minimum source contract:
-
-- `source_id`
-- `source_type`
-  one of `drone`, `satellite`, `derived`
-- `image_path` or `image_url`
-- `lat` optional
-- `lng` optional
-- `bounds` optional
-- `timestamp` optional
-- `altitude` optional
-- `heading` optional
-- `resolution` optional
-- `metadata_quality_score`
-- `geolocation_confidence`
-
-Rule:
-
-- missing metadata should reduce confidence, not break the pipeline
-
-## 1.3 Google Maps Enrichment Fallback
-
-Google Maps may be used to enrich missing or weak metadata when the source record is incomplete.
-
-Allowed fallback uses:
-
-- reverse geocoding
-- viewport and bounds support
-- approximate place or area labeling
-- contextual metadata enrichment
-
-Not allowed:
-
-- treating Google Maps as primary thermal evidence
-- replacing missing drone evidence with fake hotspot truth
-
-Fallback order:
-
-1. source record metadata
-2. uploaded-source metadata
-3. Google Maps enrichment
-4. confidence penalty if uncertainty remains
+The API is analysis-first, not chat-first.
 
 ---
 
-## 2. Hotspot Taxonomy
+## 2. Input Contract
 
-The MVP uses a small, explicit taxonomy:
+## 2.1 Preferred Input
 
-- `roof`
-- `road_pavement`
-- `parking_lot`
-- `hvac_mechanical`
-- `vegetation_loss`
-- `other`
+Preferred frontend submission:
 
-Rules:
+- `multipart/form-data`
 
-- use the most specific known label
-- use `other` only as a fallback
-- UI and ranking logic must not depend on a larger taxonomy
+Fields:
 
----
+- `metadata`
+- `image`
 
-## 3. Trace Design
+`metadata` is a JSON string.
+`image` is the screenshot or crop file.
 
-The trace must feel agentic without becoming unpredictable.
+## 2.2 Fallback Input
 
-So:
+Fallback submission:
 
-- the `trace vocabulary` is fixed
-- the `trace route` is semivariable
-- not every hotspot uses every step
+- JSON payload with `imageBase64`
 
-### 3.1 Fixed Trace Vocabulary
-
-- `candidate_detected`
-- `inspect_object`
-- `request_thermal_evidence`
-- `infer_surface`
-- `compare_neighbors`
-- `check_consistency`
-- `score_hotspot`
-- `discard_hotspot`
-- `finalize_hotspot`
-
-### 3.2 Trace Rules
-
-- every hotspot starts with `candidate_detected`
-- every hotspot must pass through `inspect_object`
-- every hotspot should request at least one additional evidence source before being finalized or discarded
-- `discard_hotspot` and `finalize_hotspot` are terminal
-- traces should be short and legible in UI
-
-### 3.3 Example Trace Templates
-
-`road_pavement`
-
-- `candidate_detected`
-- `inspect_object`
-- `request_thermal_evidence`
-- `compare_neighbors`
-- `score_hotspot`
-- `discard_hotspot`
-
-`roof`
-
-- `candidate_detected`
-- `inspect_object`
-- `request_thermal_evidence`
-- `infer_surface`
-- `compare_neighbors`
-- `check_consistency`
-- `score_hotspot`
-- `finalize_hotspot`
-
-`hvac_mechanical`
-
-- `candidate_detected`
-- `inspect_object`
-- `request_thermal_evidence`
-- `infer_surface`
-- `score_hotspot`
-- `finalize_hotspot`
+This is allowed for compatibility, but multipart is the preferred production-demo path.
 
 ---
 
-## 4. Discarded vs Top Hotspot
+## 3. Capture Metadata Contract
 
-These terms must be implemented consistently across backend, scoring, and UI.
-
-### 4.1 Discarded Hotspot
-
-A discarded hotspot is a candidate that is not worth acting on first.
-
-It usually fails because:
-
-- anomaly is too low relative to local context
-- the heat pattern is expected for the object type
-- evidence is insufficient to justify escalation
-- confidence is too low to recommend action
-- source coverage is too incomplete to support escalation
-
-Discard labels must be evidence-backed, not decorative.
-
-Examples:
-
-- expected road heat profile
-- not hotter than nearby comparable roofs
-- low-confidence signal after investigation
-
-### 4.2 Top Hotspot
-
-A top hotspot is a candidate that:
-
-- passes the anomaly gate
-- remains severe enough to matter
-- retains enough confidence to support a recommendation
-- is backed by adequate enough source coverage for the recommendation strength
-
-Top hotspots appear in the final ranked list and receive an intervention recommendation.
-
----
-
-## 5. Ranking Heuristic
-
-The ranking philosophy is:
-
-`anomaly filters`
-
-`severity orders`
-
-`confidence modulates and validates`
-
-### 5.1 Gate
-
-First apply an anomaly threshold:
-
-```text
-if anomaly_score < anomaly_threshold:
-    discard
-```
-
-This is the structural filter.
-
-### 5.2 Ranking
-
-For survivors, rank primarily by severity with confidence modulation:
-
-```text
-final_rank_score = severity_score * confidence_score
-```
-
-Confidence should combine:
-
-- model or reasoning confidence
-- context consistency
-- source coverage quality
-- metadata completeness and geolocation confidence
-
-### 5.3 Notes
-
-- anomaly is still stored and shown in UI
-- anomaly is still part of explanation
-- severity is the primary ordering signal after gating
-
----
-
-## 6. Caching Model
-
-The system should feel alive for 5 to 15 seconds even when using cached or precomputed evidence.
-
-Caching exists to improve stability and speed, not to remove the investigation experience.
-
-### 6.1 Region Cache
-
-Stores:
-
-- nearby repeated analysis regions
-- region metadata
-- candidate hotspot proposals
-- source retrieval results
-
-Use case:
-
-- repeated clicks near the same area
-
-### 6.2 Hotspot Evidence Cache
-
-Stores per hotspot:
-
-- thermal evidence
-- object classification
-- surface or material inference
-- neighbor comparison
-- consistency check outputs
-- scoring outputs
-- source coverage summaries
-
-Use case:
-
-- replaying a known hotspot investigation quickly and reliably
-
-### 6.3 Trace Playback Layer
-
-Even when evidence is cached, the frontend should reveal it step by step.
-
-This preserves:
-
-- perceived reasoning
-- demo clarity
-- visible agent behavior
-
-Recommended behavior:
-
-- total playback time: 5 to 15 seconds
-- each step transitions through `pending -> running -> completed`
-- terminal step becomes `discard_hotspot` or `finalize_hotspot`
-
----
-
-## 7. State Model
-
-Recommended hotspot states:
-
-- `candidate`
-- `investigating`
-- `evidence_gathered`
-- `discarded`
-- `finalized`
-
-Rules:
-
-- `discarded` is terminal
-- `finalized` is terminal
-- a hotspot cannot be both discarded and finalized
-
----
-
-## 8. Backend/Frontend Schema
-
-These schemas are intentionally compact and stable.
-
-### 8.1 AnalysisRegion
+Recommended metadata shape:
 
 ```json
 {
-  "region_id": "stl_001",
-  "center": {"lat": 38.6270, "lng": -90.1994},
-  "radius_m": 120,
-  "available_source_count": 6,
-  "coverage_score": 0.81,
-  "maps_fallback_count": 1,
-  "enrichment_confidence_avg": 0.77,
-  "status": "running",
+  "region": {
+    "bounds": {
+      "north": 42.28145703795954,
+      "south": 42.28057862649839,
+      "east": -83.74731891703615,
+      "west": -83.74839984726916
+    },
+    "center": {
+      "lat": 42.28101783222897,
+      "lng": -83.74785938215265
+    },
+    "areaKm2": 0.008655410213870432
+  },
+  "map": {
+    "zoom": 19,
+    "mapTypeId": "hybrid",
+    "tilt": 45,
+    "heading": null
+  },
+  "viewport": {
+    "north": 42.282105314602525,
+    "south": 42.28025027146603,
+    "east": -83.74623262238511,
+    "west": -83.75036322426804
+  }
+}
+```
+
+Required ideas:
+
+- region bounds
+- region center
+- area
+- map state
+- viewport
+
+---
+
+## 4. Capture Storage Contract
+
+Every created analysis should be reproducible from stored capture assets.
+
+Recommended local storage:
+
+- `backend/data/captures/{region_id}/metadata.json`
+- `backend/data/captures/{region_id}/source.png`
+- optional `thermal.png`
+
+This is enough for:
+
+- replay
+- debugging
+- demo fallback
+
+---
+
+## 5. Tool Contract
+
+The agent may call a constrained internal tool set.
+
+Recommended MVP tool vocabulary:
+
+- `generate_thermal_overlay`
+- `request_thermal_evidence`
+- `analyze_heat_risk`
+- `inspect_object`
+- `infer_surface`
+- `compare_findings`
+- `score_hotspots`
+- `discard_hotspot`
+- `finalize_recommendation`
+
+Rules:
+
+- `ThermalGen` is represented through the thermal tool(s)
+- `Heat Risk Profiler` is represented through `analyze_heat_risk`
+- tools are internal backend operations, not arbitrary web actions
+- the trace may vary by question, but tool names stay stable
+
+---
+
+## 6. Trace Contract
+
+The trace should feel agentic but stay easy for the frontend to render.
+
+### 6.1 Step Types
+
+- `reasoning`
+- `tool_call`
+- `finding`
+- `answer`
+
+### 6.2 Step Fields
+
+Minimum useful step shape:
+
+```json
+{
+  "step_id": "step_01",
+  "analysis_id": "region_123",
+  "status": "completed",
+  "step_type": "tool_call",
+  "tool_name": "request_thermal_evidence",
+  "summary": "Thermal evidence generated for the selected roof cluster",
+  "details": {
+    "tool_family": "thermal",
+    "coverage_score": 0.88
+  },
+  "timestamp_ms": 1712940001000
+}
+```
+
+Rules:
+
+- steps are visible in order
+- steps can be replayed progressively
+- the final step for a prompt should be an `answer`
+
+---
+
+## 7. Output Contract
+
+All investigations should converge to the same output family.
+
+## 7.1 Analysis Summary
+
+```json
+{
+  "region_id": "region_123",
+  "status": "completed",
+  "top_hotspot_id": "hs_01",
+  "discarded_hotspot_ids": ["hs_02"],
   "summary": {
-    "candidate_count": 5,
-    "discarded_count": 2,
+    "candidate_count": 4,
+    "discarded_count": 1,
     "finalized_count": 3
   }
 }
 ```
 
-### 8.1.1 SourceRecord
-
-```json
-{
-  "source_id": "drone_img_001",
-  "source_type": "drone",
-  "image_path": "data/demo/drone_img_001.png",
-  "lat": 38.6271,
-  "lng": -90.1992,
-  "bounds": null,
-  "timestamp": null,
-  "altitude": 110.0,
-  "heading": null,
-  "resolution": 0.12,
-  "metadata_quality_score": 0.72,
-  "geolocation_confidence": 0.68
-}
-```
-
-### 8.2 HotspotCandidate
+## 7.2 Hotspot Candidate
 
 ```json
 {
   "hotspot_id": "hs_01",
-  "region_id": "stl_001",
-  "bbox": {"x": 120, "y": 80, "w": 60, "h": 44},
-  "centroid": {"lat": 38.6271, "lng": -90.1991},
+  "display_name": "Central Roof Cluster",
   "hotspot_type": "roof",
-  "status": "investigating",
-  "source_count": 3,
-  "coverage_score": 0.79,
+  "status": "finalized",
   "anomaly_score": 0.82,
-  "severity_score": 0.76,
-  "confidence_score": 0.71,
-  "final_rank_score": null,
-  "discard_reason": null,
-  "recommended_action": null,
-  "why": []
-}
-```
-
-### 8.3 TraceStep
-
-```json
-{
-  "step_id": "step_03",
-  "hotspot_id": "hs_01",
-  "kind": "compare_neighbors",
-  "status": "completed",
-  "started_at": "2026-04-11T18:10:12Z",
-  "completed_at": "2026-04-11T18:10:14Z",
-  "summary": "Hotter than 83% of nearby comparable roofs",
-  "evidence": {
-    "neighbor_count": 12,
-    "relative_percentile": 0.83,
-    "coverage_score": 0.79
-  }
-}
-```
-
-### 8.4 AnalysisResult
-
-```json
-{
-  "region_id": "stl_001",
-  "status": "completed",
-  "hotspots": [],
-  "top_hotspots": [
-    {
-      "hotspot_id": "hs_01",
-      "priority_rank": 1,
-      "hotspot_type": "roof",
-      "recommended_action": "cool-roof retrofit",
-      "why": [
-        "high relative anomaly vs nearby roofs",
-        "large exposed dark surface",
-        "high-confidence thermal evidence"
-      ]
-    }
+  "severity_score": 0.79,
+  "confidence_score": 0.88,
+  "final_rank_score": 0.6952,
+  "recommended_action": "Inspect for cool-roof retrofit opportunity",
+  "why": [
+    "thermal evidence elevated",
+    "large exposed roof area",
+    "heat-risk profile agrees with low shade and dark surface cues"
   ]
 }
 ```
 
----
-
-## 9. Planner Mode
-
-Planner Mode is a question layer over an existing analysis result.
-
-It is not a general-purpose chat assistant and it is not the primary entrypoint to the product.
-
-Planner Mode exists to answer questions like:
-
-- `What should we fix first here?`
-- `Why is hs_01 ranked first?`
-- `Why was hs_02 discarded?`
-- `Which hotspot has the strongest anomaly?`
-- `What action is recommended for roof-related hotspots?`
-
-Rules:
-
-- Planner Mode only runs after an analysis region already exists
-- it should answer from structured analysis outputs first
-- an LLM may be used to improve wording, but not to invent new evidence
-- the response should cite hotspot ids, ranking, scores, discard reasons, and recommendations when possible
-
-Recommended request shape:
+## 7.3 Planner Answer
 
 ```json
 {
-  "question": "What should we fix first here?"
-}
-```
-
-Recommended response shape:
-
-```json
-{
-  "region_id": "stl_001",
-  "question": "What should we fix first here?",
-  "answer": "You should prioritize hs_01 first. It is a roof hotspot with strong anomaly and severity, and the recommended action is cool-roof retrofit.",
+  "region_id": "region_123",
+  "question": "Why did you choose that roof first?",
+  "answer": "It ranked first because both ThermalGen and the heat-risk profile indicated elevated concern, and the roof remained high-confidence after scoring.",
   "referenced_hotspot_ids": ["hs_01"],
   "planner_mode": "analysis_qa"
 }
@@ -506,96 +237,135 @@ Recommended response shape:
 
 ---
 
-## 10. API Surface
+## 8. Ranking Contract
 
-Keep the backend surface small and resource-oriented.
+Keep the ranking contract stable:
 
-Recommended endpoints:
+- anomaly gates
+- severity orders
+- confidence modulates
+
+Gate:
+
+```text
+if anomaly_score < anomaly_threshold:
+    discard
+```
+
+Ranking:
+
+```text
+final_rank_score = severity_score * confidence_score
+```
+
+Confidence may reflect:
+
+- model confidence
+- agreement between tools
+- evidence completeness
+- capture quality
+
+---
+
+## 9. API Contract
+
+Canonical endpoints:
 
 - `POST /analysis`
-  create an analysis job for a clicked region
+- `POST /analysis/from-capture`
+- `POST /analysis/from-capture-upload`
 - `GET /analysis/{region_id}`
-  fetch aggregated state
 - `GET /analysis/{region_id}/hotspots/{hotspot_id}`
-  fetch hotspot details for the sidebar
 - `GET /analysis/{region_id}/events`
-  fetch trace progress, or replace with polling on the main analysis payload
 - `GET /analysis/{region_id}/debug`
-  development-only inspection of scoring, trace kinds, and adapter outputs
 - `POST /analysis/{region_id}/questions`
-  ask structured questions about an already analyzed region
-- `POST /thermal/infer/upload`
-  upload a frontend map/RGB image blob, store it locally, run ThermalGen, and return generated thermal evidence
-- `POST /thermal/infer/path`
-  internal/dev endpoint for running ThermalGen against an existing repo-local image path
 
-Demo helpers:
+Rules:
 
-- `GET /demo/regions`
-- `GET /demo/example-analysis-request`
+- old endpoints stay resource-oriented
+- capture endpoints create normal analyses
+- follow-up questions always attach to an existing analysis
 
 ---
 
-## 11. v0 Implementation Boundary
+## 10. LLM Provider Contract
 
-`v0` should be used to accelerate visual implementation, not to define application logic.
+The orchestrator must not be hard-bound to one provider.
 
-Safe `v0` scope:
+Required abstraction:
 
-- sidebar shell
-- hotspot detail panel
-- investigation trace timeline
-- Top 3 ranking cards
-- final recommendation card
-- planner mode input
-- loading and empty states
+- `AnthropicProvider`
+- `GeminiProvider`
+- `FeatherlessProvider`
+- `MockProvider`
 
-Not `v0` scope:
+Provider choice should be environment-configurable.
 
-- backend orchestration logic
-- hotspot scoring rules
-- trace semantics
-- map event handling contract
-- caching logic
+Recommended env:
 
-Implementation approach:
+- `LLM_PROVIDER=anthropic`
 
-1. Define schema and UI state contracts first in this document.
-2. Use `v0` prompts to generate UI components against those fixed contracts.
-3. Adapt the generated React/TypeScript output into the app without renaming schema fields to fit the UI.
-4. Prefer `v0` for component structure, styling, and layout polish.
-5. Keep the Google Maps container and analysis state management under direct engineer control.
+Recommended additional env values:
 
-Suggested `v0` prompt targets:
+- `LLM_PROVIDER=featherless`
+- `LLM_PROVIDER=gemini`
 
-- a right sidebar for hotspot analysis with status badges and evidence sections
-- a vertical trace timeline with running, completed, discarded, and finalized states
-- ranked hotspot cards with anomaly, severity, and confidence badges
-- a recommendation card for the top hotspot with action, rationale, and confidence
-- a planner mode input under the completed analysis panel
+Featherless must implement the same contract as the other providers.
+No branch-specific orchestration logic is allowed just for Featherless.
 
-Success criteria for `v0` usage:
+## 10.1 Voice Briefing Contract
 
-- the UI is visibly cleaner and more legible than a hand-built default dashboard
-- the map remains the visual anchor
-- the trace and recommendation are understandable in under 10 seconds
-- generated components integrate cleanly with React and TypeScript
+Voice output is optional and separate from the LLM provider layer.
+
+Recommended endpoint shape:
+
+- `POST /analysis/{region_id}/voice-briefing`
+
+Recommended response:
+
+```json
+{
+  "region_id": "region_123",
+  "audio_url": "/data/captures/region_123/briefing.mp3",
+  "summary_text": "The central roof cluster is the top inspection target..."
+}
+```
+
+Rules:
+
+- generated only after an analysis exists
+- uses the final grounded answer as input
+- must not invent new evidence
+- may be disabled without affecting the core product
 
 ---
 
-## 12. Implementation Rule
+## 11. UI Boundary Contract
 
-If anything is ambiguous during implementation, preserve these first:
+The frontend may assume:
 
-- fixed trace vocabulary
-- semivariable trace routes
-- region-level source retrieval before hotspot reasoning
-- partial metadata is acceptable
-- Google Maps enrichment is fallback-only
-- anomaly as gate
-- severity for ordering
-- confidence for modulation
-- planner mode answers only from existing analysis outputs
-- visible playback over cached evidence
+- map is the visual anchor
+- analyses are the main backend resource
+- traces are progressive and ordered
+- planner questions are secondary to analysis creation
 
-That is the contract that keeps the product coherent.
+The frontend should not assume:
+
+- a chat-session-first API
+- arbitrary freeform tool names
+- provider-specific LLM behavior
+
+---
+
+## 12. Final Rule
+
+If implementation details drift, preserve these first:
+
+- selected locality capture
+- stable analysis output shape
+- visible tool-calling trace
+- `ThermalGen` as the standout tool
+- one supporting analysis tool
+- grounded final answer
+
+That is the contract that keeps the pivot coherent.

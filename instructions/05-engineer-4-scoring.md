@@ -1,52 +1,61 @@
 # Engineer 4
-## Context, Scoring, and Ranking
+## Scoring, Ranking, and Answer Strength
 
 Owner:
 
-- neighbor comparison
-- consistency checks
 - anomaly scoring
 - severity scoring
 - confidence scoring
 - discard logic
 - final ranking logic
-- coverage-aware confidence logic
+- recommendation strength
 
 ## Immediate Goal
 
-Turn hotspot evidence into stable, explainable scoring and ranking decisions that the agent can use during investigation.
+Turn multi-tool evidence into stable, explainable decisions.
 
-## First Hour
+You are not just scoring heat.
+You are scoring the strength of an investigation result.
 
-1. Define anomaly gate.
-2. Define severity score.
-3. Define confidence score.
-4. Define discard reasons.
-5. Define final ranking score.
-6. Package outputs so Engineer 2 can plug them into the agent tool dispatch.
+Engineer 4 has more freedom than Engineer 1, but it is not unlimited freedom.
+
+The freedom is in:
+
+- how to combine signals
+- how to shape rationale
+- how to tune discard thresholds
+
+The constraints are:
+
+- output fields must stay stable
+- ranking must stay explainable
+- the result must support demo storytelling
+
+## Inputs You Should Expect
+
+- thermal evidence from `ThermalGen`
+- supporting evidence from `Heat Risk Profiler`
+- optional perception cues
+- capture quality or evidence-quality hints
+
+You should not assume:
+
+- perfect physical truth
+- calibrated real-world temperatures
+- unlimited metadata
 
 ## Core Heuristic
 
-- anomaly filters
+- anomaly gates
 - severity orders
 - confidence modulates
 
-Confidence should include source coverage quality, not just model certainty.
+Confidence may include:
 
-Confidence should also be penalized when metadata quality or geolocation certainty is weak.
-
-Gate:
-
-```text
-if anomaly_score < anomaly_threshold:
-    discard
-```
-
-Ranking:
-
-```text
-final_rank_score = severity_score * confidence_score
-```
+- strength of thermal evidence
+- agreement with supporting tool
+- quality of capture/evidence
+- clarity of visible cues
 
 ## Required Outputs
 
@@ -54,33 +63,47 @@ final_rank_score = severity_score * confidence_score
 - `severity_score`
 - `confidence_score`
 - `final_rank_score`
-- `discard_reason` when applicable
-- `why` explanation bullets
-- lower confidence when source coverage is partial or weak
+- `discard_reason`
+- `why`
 
-## Example Discard Reasons
+Those field names are the contract. Do not reopen them casually.
 
-- expected road heat profile
-- not hotter than nearby comparable roofs
-- low-confidence signal after investigation
+## Practical Freedom Guidance
 
-## How Your Code Gets Called
+Good areas to explore:
 
-The agent orchestrator calls your code through tools:
+- making confidence reflect agreement between ThermalGen and Heat Risk Profiler
+- tuning severity so the top recommendation tells a clean story
+- improving `why` bullets so the answer sounds grounded and useful
 
-- `compare_neighbors` -> `scoring/context.py`
-- `check_consistency` -> `scoring/context.py`
-- `score_hotspot` -> `scoring/ranker.py` (which calls anomaly, severity, confidence)
+Bad areas to explore:
 
-When the user asks a question and the agent decides it needs scoring or context comparison, it calls your functions. Your output appears as a chain of thought step in the UI.
+- inventing extra score families no one will display
+- adding hidden complexity that the agent cannot explain
+- changing ranking philosophy every hour
 
-## Handoff to Engineer 2
+## Strong Discard Examples
 
-Provide either:
+- thermal concern not supported by broader risk profile
+- visible risk factors are weak despite warm appearance
+- insufficient evidence to recommend intervention
 
-- pure functions Engineer 2 can call from the tool registry, or
-- scored hotspot payloads with exact output fields
+## Strong Recommendation Examples
+
+- elevated thermal evidence confirmed by visible heat-risk drivers
+- repeated or strong concern over a large exposed roof area
+- good enough confidence to prioritize inspection or mitigation
+
+## Golden Demo Requirement
+
+Scoring should preserve a narratively clean result:
+
+- one clearly strong top finding
+- one believable discard
+- one or two secondary findings at most
+
+If the scores produce a confusing story, fix the scores or seeds.
 
 ## Success Condition
 
-By hour 2, the agent can call your scoring tools during investigation and get back real scores that drive discard/finalize decisions. The chain of thought shows why one hotspot was discarded and another became Top 1.
+The agent can show why one result mattered, why another was rejected, and why the chosen answer is worth trusting.

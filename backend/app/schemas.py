@@ -38,8 +38,10 @@ class HotspotType(str, Enum):
 
 class TraceKind(str, Enum):
     candidate_detected = "candidate_detected"
+    generate_thermal_overlay = "generate_thermal_overlay"
     inspect_object = "inspect_object"
     request_thermal_evidence = "request_thermal_evidence"
+    analyze_heat_risk = "analyze_heat_risk"
     infer_surface = "infer_surface"
     compare_neighbors = "compare_neighbors"
     check_consistency = "check_consistency"
@@ -89,6 +91,8 @@ class BoundingBox(BaseModel):
     h: int
 
 
+# ── Analysis region ───────────────────────────────────────────────────────────
+
 class AnalysisSummary(BaseModel):
     candidate_count: int
     discarded_count: int
@@ -97,6 +101,7 @@ class AnalysisSummary(BaseModel):
 
 class AnalysisRegion(BaseModel):
     region_id: str
+    display_name: str | None = None
     center: LatLng
     radius_m: int = Field(default=120, ge=1)
     bounds: SourceBounds | None = None
@@ -114,6 +119,8 @@ class AnalysisRegion(BaseModel):
     status: AnalysisStatus
     summary: AnalysisSummary
 
+
+# ── Trace ─────────────────────────────────────────────────────────────────────
 
 class TraceEvidence(BaseModel):
     object_confidence: float | None = None
@@ -143,6 +150,20 @@ class TraceStep(BaseModel):
     evidence: TraceEvidence = Field(default_factory=TraceEvidence)
 
 
+class AnalysisEvent(BaseModel):
+    region_id: str
+    hotspot_id: str
+    step_id: str
+    kind: TraceKind
+    status: TraceStepStatus
+    timestamp_ms: int | None = None
+    summary: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    scheduled_offset_ms: int
+
+
+# ── Hotspot ───────────────────────────────────────────────────────────────────
+
 class HotspotCandidate(BaseModel):
     hotspot_id: str
     region_id: str
@@ -150,6 +171,10 @@ class HotspotCandidate(BaseModel):
     centroid: LatLng
     hotspot_type: HotspotType
     display_name: str | None = None
+    status_label: str | None = None
+    sidebar_summary: str | None = None
+    evidence_highlights: list[str] = Field(default_factory=list)
+    tool_signals: list[str] = Field(default_factory=list)
     status: HotspotStatus
     surface_temperature_c: float | None = None
     ambient_delta_c: float | None = None
@@ -224,7 +249,55 @@ class CreateAnalysisRequest(BaseModel):
     radius_m: int = Field(default=120, ge=1, le=1000)
 
 
-class AnalysisEvent(BaseModel):
+class CaptureRegion(BaseModel):
+    bounds: SourceBounds
+    center: LatLng
+    area_km2: float | None = Field(default=None, alias="areaKm2")
+
+    model_config = {"populate_by_name": True}
+
+
+class CaptureMapState(BaseModel):
+    zoom: int | None = None
+    map_type_id: str | None = Field(default=None, alias="mapTypeId")
+    tilt: int | None = None
+    heading: float | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class CaptureImagePayload(BaseModel):
+    mime_type: str = Field(default="image/png", alias="mimeType")
+    image_base64: str = Field(min_length=1, alias="imageBase64")
+
+    model_config = {"populate_by_name": True}
+
+
+# ── Request / response models ─────────────────────────────────────────────────
+
+class CreateAnalysisRequest(BaseModel):
+    center: LatLng
+    radius_m: int = Field(default=120, ge=1, le=1000)
+
+
+class CreateAnalysisFromCaptureRequest(BaseModel):
+    region: CaptureRegion
+    map: CaptureMapState
+    viewport: SourceBounds
+    capture: CaptureImagePayload
+
+
+class CreateAnalysisFromCaptureMetadataRequest(BaseModel):
+    region: CaptureRegion
+    map: CaptureMapState
+    viewport: SourceBounds
+
+
+class PlannerQuestionRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class PlannerQuestionResponse(BaseModel):
     region_id: str
     hotspot_id: str
     step_id: str
@@ -262,8 +335,83 @@ class PlannerQuestionResponse(BaseModel):
     region_id: str
     question: str
     answer: str
+    answer_title: str | None = None
+    answer_sections: list[str] = Field(default_factory=list)
     referenced_hotspot_ids: list[str] = Field(default_factory=list)
     planner_mode: str = "analysis_qa"
+
+
+class VoiceBriefingRequest(BaseModel):
+    question: str | None = Field(default=None, max_length=500)
+    voice_id: str | None = Field(default=None, max_length=200)
+
+
+class VoiceBriefingResponse(BaseModel):
+    region_id: str
+    audio_url: str | None = None
+    summary_text: str
+    provider: str
+
+
+class SessionStatus(str, Enum):
+    region_loaded = "region_loaded"
+    investigating = "investigating"
+    answered = "answered"
+
+
+class ChainOfThoughtStepType(str, Enum):
+    reasoning = "reasoning"
+    tool_call = "tool_call"
+    answer = "answer"
+
+
+class StepStatus(str, Enum):
+    pending = "pending"
+    running = "running"
+    completed = "completed"
+    error = "error"
+
+
+class ChainOfThoughtStep(BaseModel):
+    step_id: str
+    step_type: ChainOfThoughtStepType
+    tool_name: str | None = None
+    status: StepStatus = StepStatus.running
+    summary: str = ""
+    evidence: dict[str, Any] | None = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now())
+
+
+class SessionMessage(BaseModel):
+    role: str
+    content: str
+    message_index: int = 0
+    chain_of_thought: list[ChainOfThoughtStep] = Field(default_factory=list)
+
+
+class Session(BaseModel):
+    session_id: str
+    center: LatLng
+    radius_m: int = 120
+    status: SessionStatus = SessionStatus.region_loaded
+    messages: list[SessionMessage] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
+
+
+class CreateSessionRequest(BaseModel):
+    center: LatLng
+    radius_m: int = Field(default=120, ge=1, le=1000)
+
+
+class UserPromptRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+
+
+class InvestigationResponse(BaseModel):
+    session_id: str
+    prompt: str
+    chain_of_thought: list[ChainOfThoughtStep]
+    answer: str
 
 
 class ThermalInferenceRequest(BaseModel):

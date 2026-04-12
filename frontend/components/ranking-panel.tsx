@@ -50,106 +50,167 @@ function getProgressColor(score: number): string {
   return 'bg-green-500';
 }
 
-function HotspotCard({ 
-  hotspot, 
-  rank, 
-  isActive, 
-  onClick 
-}: { 
-  hotspot: Hotspot; 
+function HotspotCard({
+  hotspot,
+  rank,
+  isActive,
+  onClick
+}: {
+  hotspot: Hotspot;
   rank: number;
   isActive: boolean;
   onClick: () => void;
 }) {
-  const Icon = TYPE_ICONS[hotspot.type];
+  const Icon = TYPE_ICONS[hotspot.type] ?? Circle;
   const score = hotspot.scoring?.finalScore ?? 0;
   const isDiscarded = hotspot.status === 'discarded';
-  
+  const label = hotspot.displayName ?? getHotspotTypeLabel(hotspot.type);
+
   return (
-    <motion.button
+    <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: rank * 0.05 }}
-      onClick={onClick}
       className={cn(
-        "w-full text-left p-3 rounded-lg border transition-all duration-200",
-        "hover:border-primary/50 hover:bg-muted/50",
-        isActive 
-          ? "border-primary bg-primary/5 shadow-sm" 
+        "rounded-lg border transition-all duration-200",
+        isActive
+          ? "border-primary bg-primary/5 shadow-sm"
           : "border-border bg-card",
         isDiscarded && "opacity-60"
       )}
     >
-      <div className="flex items-start gap-3">
-        {/* Rank badge */}
-        <div className={cn(
-          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-          isDiscarded 
-            ? "bg-muted text-muted-foreground" 
-            : getSeverityBg(score),
-          !isDiscarded && getSeverityColor(score)
-        )}>
-          {isDiscarded ? '-' : `#${rank}`}
-        </div>
-        
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium truncate">
-              {getHotspotTypeLabel(hotspot.type)}
-            </span>
-            {hotspot.status === 'investigating' && (
-              <span className="flex h-2 w-2">
-                <span className="animate-ping absolute h-2 w-2 rounded-full bg-amber-400 opacity-75" />
-                <span className="relative rounded-full h-2 w-2 bg-amber-500" />
-              </span>
+      <button
+        onClick={onClick}
+        className="w-full text-left p-3 hover:bg-muted/30 rounded-lg transition-colors"
+      >
+        <div className="flex items-start gap-3">
+          {/* Rank badge */}
+          <div className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+            isDiscarded
+              ? "bg-muted text-muted-foreground"
+              : getSeverityBg(score),
+            !isDiscarded && getSeverityColor(score)
+          )}>
+            {isDiscarded ? '×' : `#${rank}`}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium truncate">{label}</span>
+              {/* status_label badge */}
+              {hotspot.statusLabel && (
+                <span className={cn(
+                  "ml-auto shrink-0 text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                  hotspot.status === 'finalized' && hotspot.isTopRanked
+                    ? "bg-primary/15 text-primary"
+                    : hotspot.status === 'discarded'
+                    ? "bg-muted text-muted-foreground"
+                    : "bg-amber-500/15 text-amber-500"
+                )}>
+                  {hotspot.statusLabel}
+                </span>
+              )}
+              {hotspot.status === 'investigating' && !hotspot.statusLabel && (
+                <span className="ml-auto flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute h-2 w-2 rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+              )}
+            </div>
+
+            {/* Temperature info */}
+            {(hotspot.surfaceTemperature > 0 || hotspot.ambientDelta > 0) && (
+              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
+                <span className="flex items-center gap-1">
+                  <Thermometer className="h-3 w-3" />
+                  {hotspot.surfaceTemperature}°C
+                </span>
+                <span className={cn(
+                  "flex items-center gap-1",
+                  hotspot.ambientDelta > 15 ? "text-red-400" : "text-amber-400"
+                )}>
+                  +{hotspot.ambientDelta}° above ambient
+                </span>
+              </div>
+            )}
+
+            {/* Score bars */}
+            {hotspot.scoring && !isDiscarded && (
+              <div className="space-y-1.5">
+                <ScoreBar label="Anomaly" value={hotspot.scoring.anomalyScore} icon={TrendingUp} />
+                <ScoreBar label="Severity" value={hotspot.scoring.severityScore} icon={Thermometer} />
+                <ScoreBar label="Confidence" value={hotspot.scoring.confidenceScore} icon={ShieldCheck} />
+              </div>
+            )}
+
+            {isDiscarded && (
+              <p className="text-xs text-muted-foreground italic">
+                {hotspot.discardReason ?? 'Discarded: Expected heat source'}
+              </p>
             )}
           </div>
-          
-          {/* Temperature info */}
-          <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
-            <span className="flex items-center gap-1">
-              <Thermometer className="h-3 w-3" />
-              {hotspot.surfaceTemperature}°C
-            </span>
-            <span className={cn(
-              "flex items-center gap-1",
-              hotspot.ambientDelta > 15 ? "text-red-400" : "text-amber-400"
-            )}>
-              +{hotspot.ambientDelta}° above ambient
-            </span>
-          </div>
-          
-          {/* Score bars */}
-          {hotspot.scoring && !isDiscarded && (
-            <div className="space-y-1.5">
-              <ScoreBar 
-                label="Anomaly" 
-                value={hotspot.scoring.anomalyScore}
-                icon={TrendingUp}
-              />
-              <ScoreBar 
-                label="Severity" 
-                value={hotspot.scoring.severityScore}
-                icon={Thermometer}
-              />
-              <ScoreBar 
-                label="Confidence" 
-                value={hotspot.scoring.confidenceScore}
-                icon={ShieldCheck}
-              />
+        </div>
+      </button>
+
+      {/* Expanded detail when active */}
+      {isActive && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2 }}
+          className="border-t border-border/60 px-3 pb-3 pt-2 space-y-2"
+        >
+          {/* tool_signals */}
+          {hotspot.toolSignals && hotspot.toolSignals.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {hotspot.toolSignals.map((sig) => (
+                <span
+                  key={sig}
+                  className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-medium"
+                >
+                  {sig}
+                </span>
+              ))}
             </div>
           )}
-          
-          {isDiscarded && (
-            <p className="text-xs text-muted-foreground italic">
-              Discarded: Expected heat source
+
+          {/* sidebar_summary */}
+          {hotspot.sidebarSummary && (
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {hotspot.sidebarSummary}
             </p>
           )}
-        </div>
-      </div>
-    </motion.button>
+
+          {/* evidence_highlights */}
+          {hotspot.evidenceHighlights && hotspot.evidenceHighlights.length > 0 && (
+            <ul className="space-y-1">
+              {hotspot.evidenceHighlights.map((h, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
+                  {h}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* recommended_action */}
+          {hotspot.recommendedAction && !isDiscarded && (
+            <div className="rounded-md bg-primary/8 border border-primary/20 px-2.5 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-primary/70 font-medium mb-0.5">
+                Recommended Next Step
+              </p>
+              <p className="text-xs font-medium text-foreground">
+                {hotspot.recommendedAction}
+              </p>
+            </div>
+          )}
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 
@@ -200,9 +261,9 @@ export function RankingPanel() {
   const totalDiscarded = rankedHotspots.discarded.length;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border bg-muted/30">
+      <div className="px-4 py-3 border-b border-border bg-muted/30 shrink-0">
         <h2 className="text-sm font-medium mb-1">Priority Ranking</h2>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{totalFinalized} confirmed</span>
@@ -212,9 +273,9 @@ export function RankingPanel() {
           <span>{totalDiscarded} discarded</span>
         </div>
       </div>
-      
+
       {/* List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-3 space-y-2">
           {/* Finalized hotspots */}
           {rankedHotspots.finalized.map((hotspot, index) => (

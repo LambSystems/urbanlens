@@ -1,18 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Flame, 
-  BarChart2, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  BarChart2,
   Activity,
   MousePointer2,
   Scan,
   X,
   MapPin,
-  Thermometer
+  Thermometer,
+  Volume2,
+  Loader2,
+  MessageSquare,
+  Send,
+  Bot,
 } from 'lucide-react';
 import { useThermal } from '@/lib/thermal-context';
 import { RankingPanel } from './ranking-panel';
@@ -21,17 +26,121 @@ import { RecommendationCard } from './recommendation-card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
+const SIDEBAR_MIN_WIDTH = 280;
+const SIDEBAR_MAX_WIDTH = 640;
+const SIDEBAR_DEFAULT_WIDTH = 380;
+
+function ThermalOverlayCard() {
+  const { thermalInference, isThermalInferenceLoading } = useThermal();
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+  if (isThermalInferenceLoading) {
+    return (
+      <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 flex items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10 shrink-0">
+          <Loader2 className="h-4 w-4 text-orange-400 animate-spin" />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-orange-400">Running thermal model…</p>
+          <p className="text-[10px] text-muted-foreground">HybridThermal checkpoint processing capture</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!thermalInference) return null;
+
+  const previewUrl = thermalInference.thermal_preview_url
+    ? thermalInference.thermal_preview_url.startsWith('/')
+      ? `${API_BASE}${thermalInference.thermal_preview_url}`
+      : thermalInference.thermal_preview_url
+    : null;
+
+  const td = thermalInference.thermal_data;
+  const isReal = thermalInference.source === 'hybrid_thermal';
+  const regionCount = td.hotspot_regions?.length ?? 0;
+
+  return (
+    <div className="rounded-xl border border-orange-500/25 bg-gradient-to-b from-orange-500/8 to-transparent overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-orange-500/15 shrink-0">
+          <Thermometer className="h-3.5 w-3.5 text-orange-400" />
+        </div>
+        <span className="text-xs font-semibold text-orange-400">Thermal Overlay</span>
+        <span className={cn(
+          "ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium",
+          isReal
+            ? "bg-green-500/15 text-green-400"
+            : "bg-muted text-muted-foreground"
+        )}>
+          {isReal ? 'Model' : 'Synthetic'}
+        </span>
+      </div>
+
+      {/* Preview image */}
+      {previewUrl && (
+        <div className="relative mx-3 mb-2 rounded-lg overflow-hidden bg-black/20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={previewUrl}
+            alt="Thermal heatmap"
+            className="w-full object-cover"
+            style={{ maxHeight: '120px' }}
+          />
+          {/* Temperature legend overlay */}
+          <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 bg-black/60 text-[9px] text-white/80">
+            <span className="inline-block h-1.5 w-8 rounded-sm bg-gradient-to-r from-[#130704] via-[#d85a00] to-[#fff1a8]" />
+            cool → hot
+          </div>
+        </div>
+      )}
+
+      {/* Stats row */}
+      {td.min_temp_c !== undefined && (
+        <div className="grid grid-cols-3 gap-1.5 px-3 pb-3">
+          <div className="rounded-lg bg-muted/40 p-2 text-center">
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Min</p>
+            <p className="text-xs font-mono font-semibold">{td.min_temp_c.toFixed(1)}°</p>
+          </div>
+          <div className="rounded-lg bg-orange-500/12 border border-orange-500/20 p-2 text-center">
+            <p className="text-[9px] text-orange-400 uppercase tracking-wider mb-0.5">Mean</p>
+            <p className="text-xs font-mono font-semibold text-orange-300">{td.mean_temp_c?.toFixed(1)}°</p>
+          </div>
+          <div className="rounded-lg bg-red-500/10 border border-red-500/15 p-2 text-center">
+            <p className="text-[9px] text-red-400 uppercase tracking-wider mb-0.5">Peak</p>
+            <p className="text-xs font-mono font-semibold text-red-300">{td.max_temp_c?.toFixed(1)}°</p>
+          </div>
+        </div>
+      )}
+
+      {regionCount > 0 && (
+        <div className="border-t border-orange-500/10 px-3 py-2">
+          <p className="text-[10px] text-muted-foreground">
+            <span className="font-medium text-orange-400">{regionCount}</span> heat region{regionCount !== 1 ? 's' : ''} detected
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RegionSelector() {
-  const { 
-    selectionMode, 
-    startDrawing, 
-    cancelSelection, 
+  const {
+    selectionMode,
+    startDrawing,
+    cancelSelection,
     selectedRegion,
     analysisProgress,
     startAnalysis,
-    hotspots 
+    hotspots,
+    voiceBriefing,
+    isVoiceBriefingLoading,
+    playVoiceBriefing,
   } = useThermal();
 
   if (selectionMode === 'idle') {
@@ -174,8 +283,8 @@ function RegionSelector() {
 
   if (selectionMode === 'complete') {
     return (
-      <div className="p-4">
-        <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4 mb-4">
+      <div className="p-4 space-y-3">
+        <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
               <Thermometer className="h-5 w-5 text-green-500" />
@@ -186,15 +295,45 @@ function RegionSelector() {
                 {hotspots.length} heat zones detected
               </p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={cancelSelection}
               className="text-xs h-8"
             >
               New Region
             </Button>
           </div>
+        </div>
+
+        {/* Thermal model overlay */}
+        <ThermalOverlayCard />
+
+        {/* Voice Briefing */}
+        <div className="rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-medium">Voice Briefing</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 text-xs"
+            onClick={playVoiceBriefing}
+            disabled={isVoiceBriefingLoading}
+          >
+            {isVoiceBriefingLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5" />
+            )}
+            {isVoiceBriefingLoading ? 'Generating briefing…' : 'Play Briefing'}
+          </Button>
+          {voiceBriefing?.text && (
+            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+              {voiceBriefing.text}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -203,10 +342,274 @@ function RegionSelector() {
   return null;
 }
 
+const REASONING_STEPS = [
+  { label: 'Reading hotspot findings…', icon: '🔍' },
+  { label: 'Applying Thermal Evidence…', icon: '🌡️' },
+  { label: 'Consulting Heat Risk Profile…', icon: '📊' },
+  { label: 'Cross-referencing ranked candidates…', icon: '⚖️' },
+  { label: 'Formulating response…', icon: '💡' },
+];
+
+function AgentReasoningTrace() {
+  const [stepIndex, setStepIndex] = useState(0);
+
+  // Cycle through reasoning steps while loading
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStepIndex(prev => (prev + 1) % REASONING_STEPS.length);
+    }, 900);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+      <div className="flex items-center gap-2 mb-1">
+        <Bot className="h-4 w-4 text-primary shrink-0 animate-pulse" />
+        <span className="text-xs font-semibold text-primary">Agent Reasoning</span>
+      </div>
+      <div className="space-y-2">
+        {REASONING_STEPS.map((step, i) => {
+          const isDone = i < stepIndex;
+          const isActive = i === stepIndex;
+          return (
+            <motion.div
+              key={step.label}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: isDone || isActive ? 1 : 0.25, x: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.05 }}
+              className="flex items-center gap-2"
+            >
+              <div className={cn(
+                "h-5 w-5 rounded-full flex items-center justify-center text-[10px] shrink-0 transition-colors",
+                isDone ? "bg-primary/20 text-primary" : isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                {isDone ? '✓' : step.icon}
+              </div>
+              <span className={cn(
+                "text-xs transition-colors",
+                isActive ? "text-foreground font-medium" : isDone ? "text-muted-foreground line-through" : "text-muted-foreground/40"
+              )}>
+                {step.label}
+              </span>
+              {isActive && (
+                <span className="ml-auto flex gap-0.5">
+                  {[0, 1, 2].map(d => (
+                    <span
+                      key={d}
+                      className="h-1 w-1 rounded-full bg-primary animate-bounce"
+                      style={{ animationDelay: `${d * 150}ms` }}
+                    />
+                  ))}
+                </span>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function mdToHtml(text: string): string {
+  return text
+    // Bold **text**
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Italic *text*
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+    // Headers ## and # → bold line
+    .replace(/^#{1,3}\s+(.+)$/gm, '<strong class="block mb-0.5">$1</strong>')
+    // Trim surrounding whitespace
+    .trim();
+}
+
+function MdSpan({ text }: { text: string }) {
+  return (
+    <span
+      dangerouslySetInnerHTML={{ __html: mdToHtml(text) }}
+      className="[&_strong]:font-semibold [&_em]:italic"
+    />
+  );
+}
+
+function PlannerPanel() {
+  const { plannerAnswer, askPlannerQuestion, isPlannerLoading, regionId } = useThermal();
+  const [question, setQuestion] = useState('');
+
+  const SUGGESTED = [
+    'What should we inspect first here?',
+    'Where would it be smart to plant trees to counter heat?',
+    'Why did the top hotspot rank first?',
+    'Where would cooling interventions matter most?',
+  ];
+
+  const submitQuestion = useCallback(async () => {
+    const q = question.trim();
+    if (!q || !regionId || isPlannerLoading) return;
+    await askPlannerQuestion(q);
+    setQuestion('');
+  }, [question, regionId, isPlannerLoading, askPlannerQuestion]);
+
+  const handleSubmit = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    submitQuestion();
+  };
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-4 space-y-4">
+
+          {/* Idle state — suggested questions */}
+          {!plannerAnswer && !isPlannerLoading && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Ask anything about this locality. The agent answers using its full analysis findings.
+              </p>
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  Try asking
+                </p>
+                {SUGGESTED.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setQuestion(s)}
+                    className="w-full text-left text-xs text-muted-foreground px-3 py-2 rounded-lg border border-border/60 bg-muted/30 hover:bg-muted/60 hover:text-foreground transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Agent reasoning trace while loading */}
+          {isPlannerLoading && <AgentReasoningTrace />}
+
+          {/* Answer */}
+          {plannerAnswer && !isPlannerLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-3"
+            >
+              {/* Question echo */}
+              <div className="flex items-start gap-2">
+                <div className="shrink-0 h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+                  <MessageSquare className="h-3 w-3 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed pt-0.5 italic">
+                  {plannerAnswer.question}
+                </p>
+              </div>
+
+              {/* Answer card */}
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-primary shrink-0" />
+                  <p className="text-sm font-semibold text-foreground">
+                    {plannerAnswer.answer_title || 'Agent Response'}
+                  </p>
+                </div>
+
+                {plannerAnswer.answer_sections && plannerAnswer.answer_sections.length > 0 ? (
+                  <ul className="space-y-2">
+                    {plannerAnswer.answer_sections.map((section, i) => (
+                      <motion.li
+                        key={i}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.08 }}
+                        className="flex items-start gap-2 text-xs text-foreground/85 leading-relaxed"
+                      >
+                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
+                        <MdSpan text={section} />
+                      </motion.li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-foreground/85 leading-relaxed">
+                    <MdSpan text={plannerAnswer.answer} />
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Input */}
+      <div className="shrink-0 border-t border-sidebar-border p-3 bg-sidebar">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+          <Textarea
+            placeholder="Ask anything about this locality…"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitQuestion();
+              }
+            }}
+            rows={2}
+            className="resize-none text-xs min-h-14"
+            disabled={isPlannerLoading || !regionId}
+          />
+          <Button
+            type="submit"
+            size="sm"
+            className="w-full gap-2 text-xs"
+            disabled={!question.trim() || isPlannerLoading || !regionId}
+          >
+            {isPlannerLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            {isPlannerLoading ? 'Agent reasoning…' : 'Ask Agent'}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function ThermalSidebar() {
-  const { sidebarOpen, setSidebarOpen, activeHotspot, selectionMode } = useThermal();
+  const { sidebarOpen, setSidebarOpen, activeHotspot, selectionMode, regionDisplayName, plannerAnswer } = useThermal();
   const [activeTab, setActiveTab] = useState('ranking');
-  
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+
+  const isResizing = useRef(false);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(0);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    isResizing.current = true;
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = sidebarWidth;
+    e.preventDefault();
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      // Sidebar is on the right, dragging left increases width
+      const delta = resizeStartX.current - ev.clientX;
+      const next = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, resizeStartWidth.current + delta));
+      setSidebarWidth(next);
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [sidebarWidth]);
+
   const showTabs = selectionMode === 'complete';
 
   return (
@@ -235,9 +638,9 @@ export function ThermalSidebar() {
       {/* Sidebar panel */}
       <motion.aside
         initial={false}
-        animate={{ 
-          width: sidebarOpen ? 380 : 0,
-          opacity: sidebarOpen ? 1 : 0
+        animate={{
+          width: sidebarOpen ? sidebarWidth : 0,
+          opacity: sidebarOpen ? 1 : 0,
         }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className={cn(
@@ -245,18 +648,30 @@ export function ThermalSidebar() {
           "flex flex-col"
         )}
       >
+        {/* Resize handle — left edge drag strip */}
+        {sidebarOpen && (
+          <div
+            className="absolute left-0 top-0 bottom-0 w-3 z-30 flex items-center justify-center cursor-col-resize group"
+            onMouseDown={handleResizeStart}
+          >
+            <div className="w-0.5 h-12 rounded-full bg-border group-hover:bg-primary/60 transition-colors duration-150" />
+          </div>
+        )}
+
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-md bg-primary/10">
               <Flame className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold text-sidebar-foreground">ThermalGen</h1>
-              <p className="text-[10px] text-muted-foreground">Urban Heat Triage</p>
+              <h1 className="text-sm font-semibold text-sidebar-foreground">UrbanLens</h1>
+              <p className="text-[10px] text-muted-foreground truncate max-w-45">
+                {regionDisplayName ?? 'Urban Heat Triage'}
+              </p>
             </div>
           </div>
-          
+
           <Button
             variant="ghost"
             size="icon"
@@ -268,28 +683,35 @@ export function ThermalSidebar() {
         </div>
 
         {/* Region Selector (shown when not complete) */}
-        {!showTabs && <RegionSelector />}
+        {!showTabs && (
+          <div className="shrink-0 overflow-y-auto">
+            <RegionSelector />
+          </div>
+        )}
 
         {/* Tabs (shown after analysis complete) */}
         {showTabs && (
-          <>
-            <RegionSelector />
-            
-            <Tabs 
-              value={activeTab} 
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* "Analysis Complete" banner — fixed height */}
+            <div className="shrink-0">
+              <RegionSelector />
+            </div>
+
+            <Tabs
+              value={activeTab}
               onValueChange={setActiveTab}
               className="flex-1 flex flex-col min-h-0"
             >
-              <TabsList className="w-full justify-start rounded-none border-b border-sidebar-border bg-transparent px-4 h-10">
-                <TabsTrigger 
-                  value="ranking" 
+              <TabsList className="w-full justify-start rounded-none border-b border-sidebar-border bg-transparent px-4 h-10 shrink-0">
+                <TabsTrigger
+                  value="ranking"
                   className="gap-1.5 data-[state=active]:bg-sidebar-accent"
                 >
                   <BarChart2 className="h-3.5 w-3.5" />
                   <span className="text-xs">Ranking</span>
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="trace" 
+                <TabsTrigger
+                  value="trace"
                   className="gap-1.5 data-[state=active]:bg-sidebar-accent"
                 >
                   <Activity className="h-3.5 w-3.5" />
@@ -298,32 +720,51 @@ export function ThermalSidebar() {
                     <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                   )}
                 </TabsTrigger>
+                <TabsTrigger
+                  value="planner"
+                  className="gap-1.5 data-[state=active]:bg-sidebar-accent"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span className="text-xs">Planner</span>
+                  {plannerAnswer && (
+                    <span className="ml-1 h-1.5 w-1.5 rounded-full bg-green-500" />
+                  )}
+                </TabsTrigger>
               </TabsList>
 
-              <TabsContent 
-                value="ranking" 
-                className="flex-1 m-0 overflow-hidden"
+              {/* Ranking tab — full height scroll */}
+              <TabsContent
+                value="ranking"
+                className="flex-1 min-h-0 m-0 data-[state=inactive]:hidden"
               >
                 <RankingPanel />
               </TabsContent>
 
-              <TabsContent 
-                value="trace" 
-                className="flex-1 m-0 overflow-hidden flex flex-col"
+              {/* Trace tab — timeline scrolls, recommendation pinned below */}
+              <TabsContent
+                value="trace"
+                className="flex-1 min-h-0 m-0 flex flex-col data-[state=inactive]:hidden"
               >
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <TraceTimeline />
                 </div>
-                
-                {/* Recommendation card at bottom of trace */}
+
                 {activeHotspot && (
-                  <div className="p-3 border-t border-sidebar-border">
+                  <div className="shrink-0 border-t border-sidebar-border overflow-y-auto max-h-64 p-3">
                     <RecommendationCard />
                   </div>
                 )}
               </TabsContent>
+
+              {/* Planner tab — Q&A over existing analysis */}
+              <TabsContent
+                value="planner"
+                className="flex-1 min-h-0 m-0 flex flex-col data-[state=inactive]:hidden"
+              >
+                <PlannerPanel />
+              </TabsContent>
             </Tabs>
-          </>
+          </div>
         )}
       </motion.aside>
     </>

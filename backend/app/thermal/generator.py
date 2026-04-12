@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -58,16 +59,35 @@ def _synthetic_thermal(center_lat: float, center_lng: float, error: str | None =
     }
 
 
+def _static_map_deg_per_half_pixel(center_lat: float, zoom: int, img_w: int = 640, img_h: int = 640) -> tuple[float, float]:
+    """
+    Return (half_lat_deg, half_lng_deg) — the geographic half-extent of a
+    Static Maps image captured at the given center/zoom/size.
+    The model input is the full img_w × img_h area (resized to 640×512 internally).
+    """
+    cos_lat = math.cos(math.radians(center_lat))
+    m_per_px = (156_543.03392 * cos_lat) / (2 ** zoom)
+    half_h_m = (img_h / 2) * m_per_px
+    half_w_m = (img_w / 2) * m_per_px
+    half_lat_deg = half_h_m / 111_000
+    half_lng_deg = half_w_m / (111_000 * max(cos_lat, 1e-6))
+    return half_lat_deg, half_lng_deg
+
+
 def _attach_geo_centroids(result: dict, center_lat: float, center_lng: float) -> dict:
+    zoom = int(result.get("metadata", {}).get("zoom") or 17)
+    half_lat, half_lng = _static_map_deg_per_half_pixel(center_lat, zoom)
+
     for region in result.get("thermal_data", {}).get("hotspot_regions", []):
         centroid_px = region.get("centroid_px")
         if not centroid_px:
             continue
+        # Model output is 640×512; y_norm maps [0,1] to [north, south]
         x_norm = float(centroid_px["x"]) / 640.0
         y_norm = float(centroid_px["y"]) / 512.0
         region["centroid"] = {
-            "lat": round(center_lat + (0.5 - y_norm) * 0.0014, 6),
-            "lng": round(center_lng + (x_norm - 0.5) * 0.0014, 6),
+            "lat": round(center_lat + (0.5 - y_norm) * 2 * half_lat, 6),
+            "lng": round(center_lng + (x_norm - 0.5) * 2 * half_lng, 6),
         }
     return result
 
@@ -76,12 +96,12 @@ def generate_thermal(
     image_path: str | Path,
     metadata: dict[str, Any] | None = None,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     allow_fallback: bool = True,
 ) -> dict:
-    """Convert an RGB image file to thermal evidence.
+    """Convert an RGB image file to thermal evidence using the HybridThermal model.
 
-    The current fast path uses RGB only. Location/context metadata is carried
-    through for downstream agents, but it is not fed into the checkpoint.
+    Falls back to synthetic data if the model cannot load or the image is missing.
     """
     metadata = metadata or {}
     center_lat, center_lng = _center_from_metadata(metadata)
@@ -89,9 +109,25 @@ def generate_thermal(
 
     if image_path and image_path.exists():
         try:
-            from .hybrid_thermal.runtime import predict_one
+            from .hybrid_thermal.runtime import predict_one, PREDICT_DIR, ALIGNED_DIR
 
-            result = predict_one(image_path, output_path=output_path, metadata=metadata)
+            # output_dir priority: explicit output_dir > parent of output_path > default
+            if output_dir is not None:
+                out_dir = Path(output_dir)
+            elif output_path is not None:
+                out_dir = Path(output_path).parent
+            else:
+                out_dir = PREDICT_DIR
+
+            # When a custom output_dir is provided, store the aligned image alongside
+            # the other outputs so everything for a snippet lives in one place.
+            aligned_dir = out_dir if output_dir is not None else ALIGNED_DIR
+
+            result = predict_one(image_path, output_dir=out_dir, aligned_dir=aligned_dir)
+            # Attach missing fields so the response is fully populated
+            result.setdefault("source_image_path", str(image_path))
+            result.setdefault("metadata", metadata)
+            result.setdefault("model_input", {"uses_rgb": True, "uses_alphaearth": False, "uses_metadata": False})
             result = _attach_geo_centroids(result, center_lat, center_lng)
             result["source"] = "hybrid_thermal"
             return result

@@ -1,293 +1,212 @@
-# Urban Legend
-## Best-in-Agentic-AI Urban Heat Investigation Agent
+# UrbanLens
+## Agentic Local Environment Investigation Powered by ThermalGen
 
-Urban Legend is an agentic urban heat investigation system built for the `Best in Agentic AI` track.
+UrbanLens is our hackathon build for the `Best in Agentic AI` track.
 
-Most tools stop at showing heat maps. Urban Legend lets users ask questions about what they see and gets an AI agent to investigate, reason through the evidence step by step, and come back with actionable answers — all with a fully visible chain of thought.
+The product is not a standalone thermal image generator. The product is an agent that investigates a selected locality, decides which tools to call, and returns an answer a user can act on.
 
-The project is also positioned to make a credible run at `Best Design using v0` by using `v0` to accelerate and polish the most visible UI surfaces around the core agentic flow.
-
----
-
-## Problem
-
-Urban heat is visible, but not actionable.
-
-Stakeholders can often see that an area is hot, but they still cannot answer:
-
-- Which hotspot matters most?
-- What is causing it?
-- Is it unusual relative to nearby structures?
-- What should we fix first?
-
-Existing tools provide analysis, not decisions. They require users to interpret data themselves.
-
-In Urban Legend, Google Maps is the interaction layer, not the source of truth. The actual evidence comes from scattered drone imagery, a satellite-to-thermal conversion model, and related metadata.
+`ThermalGen` is the star custom tool inside that system. It gives UrbanLens a capability most generic agents do not have: generating thermal evidence from map imagery and using that evidence in a larger investigation loop.
 
 ---
 
-## How It Works
+## Product Framing
 
-1. User selects a region on the map
-2. System loads the data context: satellite imagery, thermal overlay, drone sources, location metadata
-3. User types a prompt describing what they want to know
-4. The agent reads the prompt, examines the available data, and decides what tools to call
-5. The agent investigates in a visible chain of thought — each reasoning step and tool call is shown in the UI
-6. The agent returns a structured answer with evidence and recommendations
-7. User can ask follow-up questions on the same region
+UrbanLens should be presented as:
 
-The user's prompt drives the investigation. The agent adapts its tool usage and reasoning path based on what the user actually asked.
+> an agent for localized environmental investigation that uses custom thermal reasoning to explain what matters in a place and what to do next
+
+Not as:
+
+- a heatmap viewer
+- a generic map chatbot
+- a standalone thermal generation demo
+
+The winning story is:
+
+1. user selects a locality in Google Maps
+2. frontend captures a high-quality map image plus region metadata
+3. backend stores the capture and creates an analysis
+4. the agent decides what tools it needs
+5. the agent calls `ThermalGen` when thermal evidence is useful
+6. the agent combines thermal evidence with lighter tools like heat-risk profiling, object inspection, and ranking
+7. the user gets an actionable answer with visible reasoning
+
+---
+
+## Core Utility
+
+The strongest utility framing is:
+
+- localized environmental investigation
+- heat mitigation planning
+- anomaly exploration for city or facilities teams
+- quick triage of what deserves inspection or intervention first
+
+Example questions:
+
+- `What should we inspect first in this block?`
+- `Why does this roof look risky?`
+- `Where would shade or cooling interventions help most?`
+- `Is there anything in this locality that looks thermally abnormal?`
+
+The agent answers those questions by choosing tools, gathering evidence, and reasoning through what it finds.
 
 ---
 
 ## Why This Is Agentic
 
-Urban Legend is not a one-shot LLM wrapper and not just a thermal visualization pipeline.
+UrbanLens goes beyond simple chat because it:
 
-It behaves like an agent by:
+- receives a concrete map capture and locality context
+- reasons about what evidence is missing
+- chooses tools to call
+- invokes custom internal tools, including `ThermalGen`
+- loops over evidence when needed
+- rejects weak explanations
+- returns a recommendation or investigation result tied to the user question
 
-- interpreting the user's intent from their prompt
-- examining available data to understand what evidence exists
-- deciding what tools to call and in what order
-- gathering evidence step by step with a visible chain of thought
-- retrieving and normalizing available drone sources for the selected region
-- comparing against context and nearby structures
-- rejecting weak findings with evidence-backed reasoning
-- returning actionable answers, not just data
+The key behavior is:
 
-The key behavior is not detection. It is **prompt-driven investigation under uncertainty**.
+`question -> tool choice -> evidence gathering -> reasoning -> answer`
 
----
-
-## Example Interactions
-
-**User prompt:** "What should I fix first in this area?"
-
-Agent investigates all hotspot candidates, scores them, discards expected heat patterns, ranks survivors, and recommends the top intervention with reasoning.
-
-**User prompt:** "Are there any HVAC issues on these rooftops?"
-
-Agent focuses on mechanical equipment hotspots, checks thermal signatures against expected patterns, and reports findings.
-
-**User prompt:** "Why is the northeast corner so hot?"
-
-Agent examines the specific area, identifies surface materials, compares against nearby structures, and explains the likely cause.
-
-**User follow-up:** "How confident are you about that roof?"
-
-Agent pulls up the source coverage for that hotspot, reports metadata quality, and explains confidence factors.
+That is the product.
 
 ---
 
-## Core Demo Loop
+## Core Tools
 
-1. User selects a region on the map
-2. System loads satellite imagery, thermal overlay, and source metadata
-3. User types a question about the region
-4. Agent begins visible investigation — chain of thought streams to the UI
-5. Agent calls tools, gathers evidence, reasons through findings
-6. Agent returns a structured answer with recommendations
-7. User asks follow-up questions to dig deeper
+### 1. ThermalGen
 
-This conversational investigation is the product.
+The wow-factor tool.
+
+Purpose:
+
+- generate thermal evidence from captured satellite or map imagery
+- provide thermal overlays and hotspot-oriented heat evidence
+- strengthen environmental investigation with a capability other teams will not have
+
+### 2. Heat Risk Profiler
+
+The supporting tool that makes the system feel like a broader agent, not a mono-tool wrapper.
+
+Purpose:
+
+- estimate heat risk from visible environmental cues
+- summarize likely heat drivers such as exposed roof area, dark surfaces, low shade, and large pavement zones
+- provide a second evidence source the agent can compare against ThermalGen
+
+### 3. Supporting Internal Tools
+
+- `inspect_object`
+- `infer_surface`
+- `analyze_heat_risk`
+- `request_thermal_evidence`
+- `compare_neighbors`
+- `score_hotspots`
+- `discard_hotspot`
+- `finalize_recommendation`
+
+These tools stay internal to the backend. The agent does not need to “go out to the internet” to feel agentic.
 
 ---
 
-## Scope for the Hackathon
+## Main User Flow
 
-We are optimizing for one polished, judge-friendly experience rather than a broad platform.
+1. User selects a region in Google Maps.
+2. Frontend sends region metadata plus a screenshot or crop.
+3. Backend stores the capture and creates an `analysis`.
+4. User asks a question or triggers a default investigation.
+5. Agent decides which tools to call.
+6. Agent gathers evidence in visible steps.
+7. Agent returns:
+   - an answer
+   - ranked hotspots when applicable
+   - recommendation(s)
+   - visible reasoning trace
+8. User can ask follow-up questions against the same analysis.
+
+Planner Mode is a question layer over an existing analysis, not the main product on its own.
+
+---
+
+## Hackathon Scope
+
+We are optimizing for one polished vertical slice.
 
 ### Must Have
 
-- one stable demo region
-- RGB map layer plus thermal overlay
-- analysis region centered around the user click
-- region-level source retrieval over scattered drone imagery
-- prompt input where the user types their question
-- visible chain of thought showing every reasoning step and tool call
-- agent tool usage driven by user intent, not a fixed pipeline
-- evidence-backed findings with confidence, severity, anomaly
-- conversational follow-ups on the same region
-- fallback precomputed outputs for live demo reliability
+- Google Maps region selection
+- frontend capture plus region metadata
+- backend capture ingestion and storage
+- one strong analysis flow over a selected locality
+- visible tool-calling trace
+- `ThermalGen` integrated as a real tool
+- one lighter second tool, `Heat Risk Profiler`
+- at least one discarded finding
+- at least one strong recommendation
+- follow-up question support over the same analysis
 
 ### Should Have
 
-- neighbor comparison
-- coarse material or surface inference
-- consistency check across nearby crops or tiles
-- cached session replay for the demo
-- shared schema contract between backend and frontend
-- v0-assisted UI generation and polish for the sidebar, chain of thought panel, and recommendation display
-- coverage-aware confidence that reflects incomplete source availability
+- thermal overlay toggle
+- hotspot markers
+- Top 3 ranking for intervention-style prompts
+- confidence and rationale badges
+- v0-polished sidebar, trace, and recommendation surfaces
 
-### Explicitly Cut
+### Cut
 
-- multi-region live analysis
-- temporal analysis
-- intervention simulation
-- overly complex model orchestration
-- claims of precise physical temperature truth
+- giant multi-city platform claims
+- overly broad generic assistant behavior
+- fragile live dependency on one LLM vendor
+- excessive learned-model sprawl
 
 ---
 
-## Architecture at a Glance
+## Stack
 
-Urban Legend is built as a prompt-driven investigation system:
+- `Google Maps API` for interaction and locality capture
+- `Python + FastAPI` backend
+- `React + TypeScript` frontend
+- `LLMProvider` abstraction over:
+  - `Anthropic` as the reliable default right now
+  - `Gemini` if it stabilizes
+  - `Featherless` as an open-model provider path and prize-track integration
+- `ThermalGen` as the custom thermal evidence tool
+- `ElevenLabs` for optional voice briefing in the demo layer
+- `v0` for selected UI surfaces only
 
-- `Source Retrieval Layer`
-  finds drone images and metadata intersecting the selected region
-- `Evidence Normalization Layer`
-  turns scattered imagery into analysis-ready region evidence
-- `Thermal Generation Module`
-  satellite-to-thermal conversion model; provides thermal evidence and UI overlay
-- `Perception Layer`
-  identifies object or surface cues from imagery
-- `Context Layer`
-  compares hotspots against nearby structures
+Important rules:
+
+- `LLMProvider` must be provider-neutral. The system must not depend on one flaky provider to demo successfully.
+- `ElevenLabs` is a demo/output layer, not the reasoning core.
+- `Featherless` should plug into the same orchestrator contract, not fork the product.
+
+---
+
+## Architecture Summary
+
+- `Frontend Capture Layer`
+  captures map screenshot and locality metadata
+- `Analysis API`
+  stores capture, creates analysis, exposes results
 - `Agent Orchestrator`
-  interprets user prompt, decides what tools to call, runs visible chain of thought
-- `Scoring Layer`
-  anomaly gating, severity ordering, confidence modulation
-- `Map-First UI`
-  prompt input, chain of thought display, and recommendations — makes the reasoning legible
+  decides what tools to call based on the question
+- `ThermalGen`
+  produces thermal evidence
+- `Heat Risk Profiler`
+  produces environmental risk signals from visible cues
+- `Perception + Scoring`
+  classifies, compares, ranks, and discards
+- `Planner Mode`
+  answers targeted follow-up questions over existing analysis outputs
 
 ---
 
-## Current Thermal Model Setup
+## Final Strategic Message
 
-The RGB-to-thermal model package is centralized at:
+UrbanLens wins if judges walk away thinking:
 
-```text
-backend/app/thermal/hybrid_thermal/
-```
+> this is an agent that can investigate a place, use a custom thermal tool nobody else has, and give me an answer I can actually use
 
-Model config is repo-relative:
-
-```text
-backend/models/hybrid_thermal/config.yaml
-```
-
-Only the model checkpoints are needed for the current app workflow. They are not committed to Git; share them separately as a zip, for example through Google Drive, and unzip so this path exists:
-
-```text
-backend/models/hybrid_thermal/checkpoints/best_psnr.pth
-```
-
-RGB images come from the frontend map capture upload or from a local image path you pass to the ThermalGen endpoint. Generated uploads and predictions are recreated under `backend/data/hybrid_thermal/` and ignored by Git.
-
-After cloning and unzipping the checkpoint bundle, run:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-```
-
-For quick visual inference, open:
-
-```text
-notebooks/hybrid_thermal_inference.ipynb
-```
-
-The backend returns both:
-
-- `thermal_image_path`: grayscale model output for pipeline use
-- `thermal_preview_path`: autocontrasted orange thermal preview for UI display
-- `thermal_preview_url`: browser-loadable preview path served from `/thermal-assets/...`
-
-More implementation notes are in:
-
-```text
-docs/thermalgen_tool.md
-docs/hybrid_thermal.md
-docs/thermalgen_handoff.md
-docs/local_setup.md
-```
-
-To keep the normal API fast, live hybrid thermal inference in `/analysis` is controlled by a local backend env flag:
-
-```text
-THERMALGEN_ENABLE_LIVE_THERMAL=1
-```
-
-Leave it off while developing frontend/agentic UI flows; turn it on when you want the backend to generate and attach one real thermal preview to the analysis response.
-
----
-
-## Example Output
-
-```json
-{
-  "prompt": "What should I fix first in this area?",
-  "answer": "The commercial roof at the northeast corner is the highest-priority intervention. It shows unusually high heat relative to nearby roofs, with a dark roofing surface that is a strong candidate for cool-roof retrofit.",
-  "chain_of_thought": [
-    {"tool": "inspect_object", "summary": "Identified commercial roof structure"},
-    {"tool": "request_thermal_evidence", "summary": "Thermal intensity 0.87, significantly above regional mean"},
-    {"tool": "compare_neighbors", "summary": "Hotter than 83% of nearby comparable roofs"},
-    {"tool": "score_hotspot", "summary": "Anomaly: 0.82, Severity: 0.76, Confidence: 0.71"},
-    {"tool": "finalize_hotspot", "summary": "Passed anomaly gate — recommended for intervention"}
-  ],
-  "top_recommendation": {
-    "hotspot_type": "commercial roof",
-    "severity": 0.84,
-    "anomaly": 0.71,
-    "confidence": 0.78,
-    "recommended_action": "cool-roof retrofit",
-    "priority_rank": 1
-  }
-}
-```
-
----
-
-## Demo Story
-
-The demo is designed around one message:
-
-> Ask a question about urban heat. Watch the agent investigate. Get an answer you can act on.
-
-The winning moment is when the user types a question, the agent visibly reasons through the evidence — calling tools, comparing structures, rejecting weak signals — and returns an actionable recommendation with full transparency.
-
-That is the proof that the system is agentic.
-
----
-
-## Team Strategy
-
-This scope is designed for a 4-engineer team with strong implementation support from Codex and Claude Code.
-
-- Engineer 1: frontend, map, prompt input, chain of thought UI, recommendations
-- Engineer 2: backend, agent orchestrator, API, session management
-- Engineer 3: perception, hotspot evidence, thermal integration
-- Engineer 4: context, scoring, ranking, confidence
-
-The goal is not maximum feature count.
-
-The goal is the most convincing prompt-driven investigation slice of an urban heat agent.
-
----
-
-## Strategic Framing
-
-Urban Legend should be presented as:
-
-> an agentic urban heat investigation system where users ask questions and the agent investigates with visible reasoning to deliver actionable recommendations
-
-Not as:
-
-- a thermal image generator
-- a generic geospatial analytics dashboard
-- a chatbot wrapper over an API
-
-Primary users:
-
-- city councils
-- facilities and campus operations teams
-- sustainability planners
-
----
-
-## Core Insight
-
-The future of geospatial AI is not better maps.
-
-It is agents that investigate what you ask about and tell you what to do next.
+That is the bar for the rest of the implementation.

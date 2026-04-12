@@ -1,12 +1,27 @@
 /**
  * Backend API client for ThermalGen / Urban Legend.
  *
- * Typed against backend/app/schemas.py. All field names match the Python schema.
+ * Typed against backend/app/schemas.py - all field names match the Python schema.
  * Use `mapHotspot()` to convert a BackendHotspot into the frontend Hotspot type.
  */
 import type { Hotspot, HotspotType, Recommendation, TraceAction, TraceStep } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+// Capture payload types (used by thermal-map and thermal-context)
+
+export interface CaptureMapStatePayload {
+  zoom: number;
+  mapTypeId: string | null;
+  tilt: number | null;
+  heading: number | null;
+}
+
+export interface CaptureRegionPayload {
+  bounds: { north: number; south: number; east: number; west: number };
+  center: BackendLatLng;
+  areaKm2: number;
+}
 
 // Backend schema types
 
@@ -50,6 +65,10 @@ export interface BackendHotspot {
   centroid: BackendLatLng;
   hotspot_type: string;
   display_name?: string | null;
+  status_label?: string | null;
+  sidebar_summary?: string | null;
+  evidence_highlights?: string[];
+  tool_signals?: string[];
   status: string;
   surface_temperature_c?: number | null;
   ambient_delta_c?: number | null;
@@ -90,6 +109,7 @@ export interface BackendAnalysisSummary {
 
 export interface BackendAnalysisRegion {
   region_id: string;
+  display_name?: string | null;
   center: BackendLatLng;
   radius_m: number;
   status: string;
@@ -121,8 +141,29 @@ export interface BackendPlannerResponse {
   region_id: string;
   question: string;
   answer: string;
+  answer_title?: string | null;
+  answer_sections?: string[];
   referenced_hotspot_ids: string[];
   planner_mode: string;
+}
+
+export interface BackendVoiceBriefingResponse {
+  region_id: string;
+  audio_url?: string | null;
+  summary_text: string;
+  provider: string;
+}
+
+export interface BackendEvent {
+  region_id: string;
+  hotspot_id: string;
+  step_id: string;
+  kind: string;
+  status: 'pending' | 'running' | 'completed';
+  timestamp_ms: number;
+  summary: string;
+  details: Record<string, unknown>;
+  scheduled_offset_ms: number;
 }
 
 export interface ThermalInferenceResponse {
@@ -136,7 +177,26 @@ export interface ThermalInferenceResponse {
   checkpoint_path?: string | null;
   metadata: Record<string, unknown>;
   model_input: Record<string, unknown>;
-  thermal_data: Record<string, unknown>;
+  thermal_data: {
+    min_temp_c?: number;
+    max_temp_c?: number;
+    mean_temp_c?: number;
+    hotspot_regions?: Array<{
+      centroid?: { lat: number; lng: number };
+      centroid_px?: { x: number; y: number };
+      bbox_px?: { x: number; y: number; w: number; h: number };
+      intensity: number;
+      area_px: number;
+    }>;
+    fallback_reason?: string;
+  };
+}
+
+export interface BackendDemoRegion {
+  label: string;
+  lat: number;
+  lng: number;
+  radius_m: number;
 }
 
 // API functions
@@ -160,6 +220,70 @@ export async function getAnalysis(regionId: string): Promise<BackendAnalysisResp
   return res.json();
 }
 
+/** POST /analysis/from-capture-upload — multipart: metadata JSON string + image file */
+export async function createAnalysisFromCaptureUpload(
+  region: CaptureRegionPayload,
+  mapState: CaptureMapStatePayload,
+  viewport: { north: number; south: number; east: number; west: number } | null,
+  imageBase64: string,
+): Promise<BackendAnalysisResponse> {
+  const metadataObj = {
+    region: { bounds: region.bounds, center: region.center, areaKm2: region.areaKm2 },
+    map: { zoom: mapState.zoom, mapTypeId: mapState.mapTypeId, tilt: mapState.tilt, heading: mapState.heading },
+    viewport: viewport ?? { north: 0, south: 0, east: 0, west: 0 },
+  };
+
+  // base64 → Blob
+  const byteChars = atob(imageBase64);
+  const byteArr = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+  const blob = new Blob([byteArr], { type: 'image/png' });
+
+  const formData = new FormData();
+  formData.append('metadata', JSON.stringify(metadataObj));
+  formData.append('image', blob, 'capture.png');
+
+  const res = await fetch(`${API_BASE}/analysis/from-capture-upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`POST /analysis/from-capture-upload failed: ${res.status}`);
+  return res.json();
+}
+
+/** POST /analysis/{region_id}/voice-briefing */
+export async function requestVoiceBriefing(
+  regionId: string,
+  question?: string,
+): Promise<BackendVoiceBriefingResponse> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/voice-briefing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: question ?? null }),
+  });
+  if (!res.ok) throw new Error(`POST /analysis/${regionId}/voice-briefing failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getAnalysisEvents(regionId: string): Promise<BackendEvent[]> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/events`);
+  if (!res.ok) throw new Error(`GET /analysis/${regionId}/events failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getHotspotDetail(regionId: string, hotspotId: string): Promise<BackendHotspot> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/hotspots/${hotspotId}`);
+  if (!res.ok) throw new Error(`GET /analysis/${regionId}/hotspots/${hotspotId} failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getDemoRegions(): Promise<BackendDemoRegion[]> {
+  const res = await fetch(`${API_BASE}/demo/regions`);
+  if (!res.ok) throw new Error(`GET /demo/regions failed: ${res.status}`);
+  const data = await res.json();
+  return data.regions ?? [];
+}
+
 export async function askQuestion(
   regionId: string,
   question: string,
@@ -173,43 +297,38 @@ export async function askQuestion(
   return res.json();
 }
 
-export async function inferThermalFromPath(payload: {
-  image_path: string;
-  metadata?: Record<string, unknown>;
-  output_name?: string;
-  allow_fallback?: boolean;
-}): Promise<ThermalInferenceResponse> {
-  const res = await fetch(`${API_BASE}/thermal/infer/path`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`POST /thermal/infer/path failed: ${res.status}`);
-  return res.json();
-}
-
+/** POST /thermal/infer/upload — send raw image blob, get thermal overlay back */
 export async function inferThermalFromMapBlob(
   blob: Blob,
-  params: {
-    lat?: number;
-    lng?: number;
-    radius_m?: number;
-    prompt?: string;
-    filename?: string;
-    allow_fallback?: boolean;
-  } = {},
+  params: { lat?: number; lng?: number; radius_m?: number; filename?: string } = {},
 ): Promise<ThermalInferenceResponse> {
   const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null) query.set(key, String(value));
-  }
-  const suffix = query.toString();
-  const res = await fetch(`${API_BASE}/thermal/infer/upload${suffix ? `?${suffix}` : ''}`, {
+  if (params.lat !== undefined) query.set('lat', String(params.lat));
+  if (params.lng !== undefined) query.set('lng', String(params.lng));
+  if (params.radius_m !== undefined) query.set('radius_m', String(params.radius_m));
+  if (params.filename) query.set('filename', params.filename);
+  query.set('allow_fallback', 'true');
+
+  const qs = query.toString();
+  const res = await fetch(`${API_BASE}/thermal/infer/upload${qs ? `?${qs}` : ''}`, {
     method: 'POST',
     headers: { 'Content-Type': blob.type || 'image/png' },
     body: blob,
   });
   if (!res.ok) throw new Error(`POST /thermal/infer/upload failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createVoiceBriefing(
+  regionId: string,
+  question?: string,
+): Promise<BackendVoiceBriefingResponse> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/voice-briefing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  });
+  if (!res.ok) throw new Error(`POST /analysis/${regionId}/voice-briefing failed: ${res.status}`);
   return res.json();
 }
 
@@ -231,7 +350,8 @@ function flattenEvidence(ev: BackendTraceEvidence): Record<string, unknown> {
 }
 
 function normalizeEvidenceUrl(url: string): string {
-  if (url.startsWith('/thermal-assets/')) return `${API_BASE}${url}`;
+  // Any root-relative path is backend-served — prefix with the backend origin.
+  if (url.startsWith('/')) return `${API_BASE}${url}`;
   return url;
 }
 
@@ -277,9 +397,21 @@ export function mapHotspot(b: BackendHotspot): Hotspot {
     evidenceUrls,
     createdAt: b.created_at ? new Date(b.created_at).getTime() : Date.now(),
     updatedAt: b.updated_at ? new Date(b.updated_at).getTime() : Date.now(),
+    displayName: b.display_name ?? undefined,
+    statusLabel: b.status_label ?? undefined,
+    sidebarSummary: b.sidebar_summary ?? undefined,
+    evidenceHighlights: b.evidence_highlights,
+    toolSignals: b.tool_signals,
+    discardReason: b.discard_reason ?? undefined,
+    recommendedAction: b.recommended_action ?? undefined,
+    priorityRank: b.priority_rank ?? undefined,
+    isTopRanked: b.is_top_ranked,
   };
 }
 
+// Derive a Recommendation from a finalized backend hotspot.
+// The backend doesn't have full recommendation objects yet, so we synthesize
+// from recommended_action + why bullets.
 const COST_ESTIMATES: Record<string, string> = {
   roof: '$3,500 - $12,000',
   parking_lot: '$18,000 - $52,000',

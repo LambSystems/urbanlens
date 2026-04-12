@@ -18,8 +18,10 @@ export type HotspotType =
 
 export type TraceAction =
   | 'candidate_detected'
+  | 'generate_thermal_overlay'
   | 'inspect_object'
   | 'request_thermal_evidence'
+  | 'analyze_heat_risk'
   | 'infer_surface'
   | 'compare_neighbors'
   | 'check_consistency'
@@ -73,6 +75,16 @@ export interface Hotspot {
   evidenceUrls: string[];
   createdAt: number;
   updatedAt: number;
+  // Backend display fields
+  displayName?: string;
+  statusLabel?: string;
+  sidebarSummary?: string;
+  evidenceHighlights?: string[];
+  toolSignals?: string[];
+  discardReason?: string;
+  recommendedAction?: string;
+  priorityRank?: number;
+  isTopRanked?: boolean;
 }
 
 export interface RecommendationAction {
