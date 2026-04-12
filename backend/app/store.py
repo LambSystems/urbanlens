@@ -118,7 +118,7 @@ class InMemoryAnalysisStore:
         thermal_data = thermal_result.get("thermal_data", {})
 
         analysis, events = build_analysis_from_candidates(
-            proposed, thermal_data, metadata.region.center, radius_m, region_id
+            proposed, thermal_data, metadata.region.center, radius_m, region_id, image_path=image_path
         )
 
         analysis.region.bounds = metadata.region.bounds

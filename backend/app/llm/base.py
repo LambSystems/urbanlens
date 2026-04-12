@@ -15,3 +15,6 @@ class LLMProvider(Protocol):
 
     def generate_text(self, system_prompt: str, user_prompt: str) -> LLMTextResult:
         ...
+
+    def classify_hotspot_image(self, image_bytes: bytes, mime_type: str, prompt: str) -> dict:
+        ...

@@ -6,6 +6,8 @@ from math import cos, pi
 from .providers.google_maps_enrichment import summarize_enrichment_coverage
 from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
 from .heat_risk import analyze_heat_risk
+from .perception.object_classifier import classify_object
+from .perception.surface_inference import infer_surface
 from .scoring.anomaly import ANOMALY_THRESHOLD, compute_anomaly_score, passes_anomaly_gate
 from .scoring.confidence import compute_confidence_score
 from .scoring.ranker import compute_final_rank_score, rank_hotspots
@@ -131,8 +133,16 @@ def _why_for_candidate(htype: HotspotType, intensity: float, surface_temp: float
     elif intensity >= 0.55:
         reasons.append("moderate thermal intensity with clear hotspot boundary")
     label = HOTSPOT_LABELS[htype]
-    reasons.append(f"{label.lower()} surface type identified from heat signature pattern")
+    reasons.append(f"{label.lower()} surface type identified from RGB crop inspection")
     return reasons
+
+
+def _display_name_for_seed(seed: dict) -> str:
+    htype = seed["hotspot_type"]
+    if htype != HotspotType.other:
+        return HOTSPOT_LABELS[htype]
+    family = seed.get("surface_family")
+    return SURFACE_FAMILY_LABELS.get(str(family), "Ambiguous Surface")
 
 
 def _candidate_to_seed(
@@ -141,19 +151,32 @@ def _candidate_to_seed(
     thermal_min: float,
     thermal_max: float,
     thermal_mean: float,
+    image_path: str | None = None,
 ) -> dict:
-    htype: HotspotType = candidate["hotspot_type"]
     intensity: float = candidate.get("intensity", 0.5)
     bbox: BoundingBox = candidate["bbox"]
     area_px = bbox.w * bbox.h
+    fallback_type: HotspotType = candidate["hotspot_type"]
+
+    classification = classify_object(
+        image_path=image_path,
+        bbox=bbox,
+        intensity=intensity,
+        fallback_type=fallback_type,
+    )
+    htype: HotspotType = classification["hotspot_type"]
+    surface_family = classification["surface_family"]
+    type_confidence = classification["type_confidence"]
+    surface = infer_surface(htype, classification.get("visual_features"))
 
     surface_temp = round(thermal_min + intensity * (thermal_max - thermal_min), 1)
     ambient_delta = round(max(surface_temp - thermal_mean, 0.5), 1)
     coverage_score = round(min(0.50 + intensity * 0.45, 0.95), 2)
 
-    object_label, material_type = _TYPE_MATERIAL[htype]
-    object_confidence = round(min(0.65 + intensity * 0.25, 0.92), 2)
-    material_confidence = round(min(0.60 + intensity * 0.25, 0.88), 2)
+    object_label = classification["object_label"]
+    material_type = surface["material_type"]
+    object_confidence = max(round(float(classification["object_confidence"]), 2), 0.45)
+    material_confidence = max(round(float(surface["material_confidence"]), 2), 0.3)
     anomaly_score = round(min(intensity * 1.05, 0.95), 2)
     # Weight severity by both intensity and area so large hot surfaces rank higher
     area_weight = min(area_px / 5000, 1.0)
@@ -166,6 +189,8 @@ def _candidate_to_seed(
     seed: dict = {
         "hotspot_id": hotspot_id,
         "hotspot_type": htype,
+        "surface_family": surface_family,
+        "type_confidence": type_confidence,
         "surface_temperature_c": surface_temp,
         "ambient_delta_c": ambient_delta,
         "source_count": 1,
@@ -183,8 +208,11 @@ def _candidate_to_seed(
         "trace": trace_steps,
         "why": _why_for_candidate(htype, intensity, surface_temp),
     }
+    llm_reasoning = classification.get("llm_reasoning")
+    if llm_reasoning:
+        seed["why"].append(llm_reasoning)
     if not is_road_baseline:
-        seed["recommended_action"] = _TYPE_RECOMMENDED_ACTION[htype]
+        seed["recommended_action"] = _TYPE_RECOMMENDED_ACTION.get(htype, "site inspection")
     else:
         seed["discard_reason"] = "expected road heat baseline"
 
@@ -214,7 +242,9 @@ def _build_hotspot_from_seed_with_centroid(
         bbox=seed["bbox"],
         centroid=seed["centroid"],
         hotspot_type=seed["hotspot_type"],
-        display_name=HOTSPOT_LABELS[seed["hotspot_type"]],
+        surface_family=seed.get("surface_family"),
+        type_confidence=seed.get("type_confidence"),
+        display_name=_display_name_for_seed(seed),
         status_label=HOTSPOT_STATUS_LABELS[status],
         sidebar_summary=_sidebar_summary_for_seed(seed, status),
         evidence_highlights=seed["why"],
@@ -245,6 +275,7 @@ def build_analysis_from_candidates(
     center: LatLng,
     radius_m: int,
     region_id: str,
+    image_path: str | None = None,
 ) -> tuple[AnalysisResponse, list[AnalysisEvent]]:
     """Build an AnalysisResponse using real hotspot candidates from the thermal model."""
     now = datetime.now(UTC)
@@ -263,7 +294,7 @@ def build_analysis_from_candidates(
 
     for i, candidate in enumerate(candidates):
         hotspot_id = f"hs_cap_{i + 1:02d}"
-        seed = _candidate_to_seed(candidate, hotspot_id, t_min, t_max, t_mean)
+        seed = _candidate_to_seed(candidate, hotspot_id, t_min, t_max, t_mean, image_path=image_path)
         hotspot, events = _build_hotspot_from_seed_with_centroid(seed, region_id, now)
         hotspots.append(hotspot)
         all_events.extend(events)
@@ -320,6 +351,14 @@ HOTSPOT_LABELS: dict[HotspotType, str] = {
     HotspotType.hvac_mechanical: "HVAC / Mechanical",
     HotspotType.vegetation_loss: "Vegetation Loss",
     HotspotType.other: "Other",
+}
+
+SURFACE_FAMILY_LABELS = {
+    "built_surface": "Built Surface",
+    "paved_surface": "Paved Surface",
+    "vegetated_area": "Vegetated Area",
+    "mechanical_feature": "Mechanical Feature",
+    "ambiguous": "Ambiguous Surface",
 }
 
 HOTSPOT_STATUS_LABELS: dict[HotspotStatus, str] = {
@@ -524,6 +563,8 @@ def build_debug_view(analysis: AnalysisResponse) -> DebugAnalysisView:
                 perception=PerceptionEvidence(
                     hotspot_id=hotspot.hotspot_id,
                     hotspot_type=hotspot.hotspot_type,
+                    surface_family=hotspot.surface_family,
+                    type_confidence=hotspot.type_confidence,
                     object_label=hotspot.display_name or hotspot.hotspot_type.value,
                     object_confidence=hotspot.confidence_score or 0.0,
                     source_count=hotspot.source_count,

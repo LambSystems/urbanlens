@@ -36,6 +36,14 @@ class HotspotType(str, Enum):
     other = "other"
 
 
+class SurfaceFamily(str, Enum):
+    built_surface = "built_surface"
+    paved_surface = "paved_surface"
+    vegetated_area = "vegetated_area"
+    mechanical_feature = "mechanical_feature"
+    ambiguous = "ambiguous"
+
+
 class TraceKind(str, Enum):
     candidate_detected = "candidate_detected"
     generate_thermal_overlay = "generate_thermal_overlay"
@@ -182,6 +190,8 @@ class HotspotCandidate(BaseModel):
     bbox: BoundingBox
     centroid: LatLng
     hotspot_type: HotspotType
+    surface_family: SurfaceFamily | None = None
+    type_confidence: float | None = None
     display_name: str | None = None
     status_label: str | None = None
     sidebar_summary: str | None = None
@@ -210,6 +220,8 @@ class HotspotCandidate(BaseModel):
 class PerceptionEvidence(BaseModel):
     hotspot_id: str
     hotspot_type: HotspotType
+    surface_family: SurfaceFamily | None = None
+    type_confidence: float | None = None
     object_label: str
     object_confidence: float
     source_count: int = 0
