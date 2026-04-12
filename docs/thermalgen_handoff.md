@@ -25,7 +25,9 @@ The thermal model is only one evidence tool in that loop. The canonical model pa
 - One-image inference has been verified using `487.JPG`.
 - Generated thermal output was written to `backend/data/hybrid_thermal/Predict_Thermal/487.png`.
 - Backend now also writes an autocontrasted orange preview via `thermal_preview_path`.
+- FastAPI serves generated thermal assets from `/thermal-assets/...`.
 - A runnable inference notebook exists at `notebooks/hybrid_thermal_inference.ipynb`.
+- Local environment and hidden-file rules are documented in `docs/local_setup.md`.
 
 ## Naming Rules
 
@@ -91,9 +93,40 @@ result = generate_thermal(
 - Use the notebook for quick image generation and visual checks.
 - Use `generate_thermal` when integrating with the backend agent flow.
 - Use `predict_one` from `backend.app.thermal.hybrid_thermal.runtime` for direct model inference.
-- Frontend/backend consumers should render `thermal_preview_path` for display and keep `thermal_image_path` as the grayscale model output.
+- Frontend/backend consumers should render `thermal_preview_url` for display and keep `thermal_image_path` as the grayscale model output.
 - Keep `--limit 1` while testing to avoid processing the full dataset.
 - Do not commit dataset zips, unzipped dataset files, generated predictions, cache folders, or `.pth` checkpoints.
+
+## Frontend And Backend Connection
+
+The frontend calls FastAPI through:
+
+```text
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+Keep the real value in `frontend/.env`; commit only `frontend/.env.example`.
+
+The backend can attach live hybrid thermal evidence to `/analysis` responses when this local toggle is enabled:
+
+```text
+THERMALGEN_ENABLE_LIVE_THERMAL=1
+```
+
+Default is off so the demo remains fast while the agentic orchestration layer is still being finished. With the toggle on, the orchestrator runs one local RGB image through `generate_thermal`, adds region-level `thermal_image_url` / `thermal_preview_url`, and prepends the preview URL to hotspot `evidence_urls`.
+
+Current browser flow:
+
+```text
+draw/select region in frontend
+-> POST /analysis
+-> backend creates region + hotspot trace
+-> frontend polls GET /analysis/{region_id}
+-> frontend maps backend hotspots into UI hotspots
+-> trace panel displays generated thermal preview only when the URL starts with /thermal-assets/
+```
+
+Known placeholder paths such as `/evidence/hs_01-thermal.jpg` are legacy demo metadata. They are not real files unless someone adds static evidence assets. The UI should not render them as images.
 
 ## Teammate Setup After Clone
 
@@ -129,6 +162,15 @@ python -m venv .venv
 
 Open `notebooks/hybrid_thermal_inference.ipynb`, select the `UrbanLens .venv` kernel, and run all cells.
 
+Copy env templates before running services:
+
+```powershell
+Copy-Item frontend\.env.example frontend\.env
+Copy-Item backend\.env.example backend\.env
+```
+
+Then fill in the Google Maps browser key in `frontend/.env`.
+
 ## Push Checklist
 
 Before pushing:
@@ -136,6 +178,8 @@ Before pushing:
 ```powershell
 git status --short
 ```
+
+This command is not required for the app to run. It is a quick safety check before committing so secrets, datasets, checkpoints, generated predictions, and build artifacts do not accidentally get pushed.
 
 Expected behavior:
 

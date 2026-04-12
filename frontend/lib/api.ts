@@ -1,14 +1,14 @@
 /**
  * Backend API client for ThermalGen / Urban Legend.
  *
- * Typed against backend/app/schemas.py — all field names match the Python schema.
+ * Typed against backend/app/schemas.py. All field names match the Python schema.
  * Use `mapHotspot()` to convert a BackendHotspot into the frontend Hotspot type.
  */
 import type { Hotspot, HotspotType, Recommendation, TraceAction, TraceStep } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-// ─── Backend schema types ────────────────────────────────────────────────────
+// Backend schema types
 
 export interface BackendLatLng {
   lat: number;
@@ -95,6 +95,11 @@ export interface BackendAnalysisRegion {
   status: string;
   available_source_count: number;
   coverage_score?: number | null;
+  thermal_image_path?: string | null;
+  thermal_image_url?: string | null;
+  thermal_preview_path?: string | null;
+  thermal_preview_url?: string | null;
+  thermal_source?: string | null;
   summary: BackendAnalysisSummary;
 }
 
@@ -120,7 +125,7 @@ export interface BackendPlannerResponse {
   planner_mode: string;
 }
 
-// ─── API functions ───────────────────────────────────────────────────────────
+// API functions
 
 export async function createAnalysis(
   center: BackendLatLng,
@@ -154,13 +159,13 @@ export async function askQuestion(
   return res.json();
 }
 
-// ─── Mappers ─────────────────────────────────────────────────────────────────
+// Mappers
 
 function mapBackendStatus(s: string): Hotspot['status'] {
   if (s === 'discarded') return 'discarded';
   if (s === 'finalized') return 'finalized';
   if (s === 'candidate') return 'candidate';
-  return 'investigating'; // covers 'investigating' and 'evidence_gathered'
+  return 'investigating';
 }
 
 function flattenEvidence(ev: BackendTraceEvidence): Record<string, unknown> {
@@ -171,13 +176,22 @@ function flattenEvidence(ev: BackendTraceEvidence): Record<string, unknown> {
   return out;
 }
 
+function normalizeEvidenceUrl(url: string): string {
+  if (url.startsWith('/thermal-assets/')) return `${API_BASE}${url}`;
+  return url;
+}
+
 export function mapHotspot(b: BackendHotspot): Hotspot {
+  const evidenceUrls = b.evidence_urls.map(normalizeEvidenceUrl);
+  const thermalPreviewUrl = evidenceUrls.find((url) => url.includes('/thermal-assets/'));
+
   const trace: TraceStep[] = b.trace.map((step) => ({
     id: step.step_id,
     action: step.kind as TraceAction,
     timestamp: step.timestamp_ms ?? 0,
     message: step.summary,
     details: { ...step.details, ...flattenEvidence(step.evidence) },
+    evidenceUrl: step.kind === 'request_thermal_evidence' ? thermalPreviewUrl : undefined,
     status: step.status,
   }));
 
@@ -206,31 +220,28 @@ export function mapHotspot(b: BackendHotspot): Hotspot {
           reasoning: b.why.join('. '),
         }
       : undefined,
-    evidenceUrls: b.evidence_urls,
+    evidenceUrls,
     createdAt: b.created_at ? new Date(b.created_at).getTime() : Date.now(),
     updatedAt: b.updated_at ? new Date(b.updated_at).getTime() : Date.now(),
   };
 }
 
-// Derive a Recommendation from a finalized backend hotspot.
-// The backend doesn't have full recommendation objects yet, so we synthesise
-// from recommended_action + why bullets.
 const COST_ESTIMATES: Record<string, string> = {
-  roof: '$3,500 – $12,000',
-  parking_lot: '$18,000 – $52,000',
-  road_pavement: '$9,000 – $22,000',
-  hvac_mechanical: '$2,000 – $8,000',
-  vegetation_loss: '$5,000 – $20,000',
-  other: '$5,000 – $25,000',
+  roof: '$3,500 - $12,000',
+  parking_lot: '$18,000 - $52,000',
+  road_pavement: '$9,000 - $22,000',
+  hvac_mechanical: '$2,000 - $8,000',
+  vegetation_loss: '$5,000 - $20,000',
+  other: '$5,000 - $25,000',
 };
 
 const TEMP_REDUCTIONS: Record<string, string> = {
-  roof: '18 – 28°C',
-  parking_lot: '24 – 32°C',
-  road_pavement: '10 – 15°C',
-  hvac_mechanical: '5 – 12°C',
-  vegetation_loss: '8 – 18°C',
-  other: '5 – 15°C',
+  roof: '18 - 28 C',
+  parking_lot: '24 - 32 C',
+  road_pavement: '10 - 15 C',
+  hvac_mechanical: '5 - 12 C',
+  vegetation_loss: '8 - 18 C',
+  other: '5 - 15 C',
 };
 
 export function mapRecommendation(b: BackendHotspot): Recommendation | null {
@@ -241,17 +252,17 @@ export function mapRecommendation(b: BackendHotspot): Recommendation | null {
 
   return {
     hotspotId: b.hotspot_id,
-    summary: `${b.display_name ?? type} — ${action} recommended based on agent investigation.`,
+    summary: `${b.display_name ?? type} - ${action} recommended based on agent investigation.`,
     actions: [
       {
         id: 'action-1',
         title: action.charAt(0).toUpperCase() + action.slice(1),
         description: b.why.join('. ') || 'Agent identified this as the highest-priority intervention.',
         priority: (b.final_rank_score ?? 0) >= 0.6 ? 'high' : 'medium',
-        estimatedImpact: `Addresses thermal anomaly — reduce surface temp by ${TEMP_REDUCTIONS[type] ?? '5–20°C'}`,
+        estimatedImpact: `Addresses thermal anomaly - reduce surface temp by ${TEMP_REDUCTIONS[type] ?? '5 - 20 C'}`,
       },
     ],
-    estimatedCostRange: COST_ESTIMATES[type] ?? '$5,000 – $25,000',
-    estimatedTemperatureReduction: TEMP_REDUCTIONS[type] ?? '5 – 20°C',
+    estimatedCostRange: COST_ESTIMATES[type] ?? '$5,000 - $25,000',
+    estimatedTemperatureReduction: TEMP_REDUCTIONS[type] ?? '5 - 20 C',
   };
 }

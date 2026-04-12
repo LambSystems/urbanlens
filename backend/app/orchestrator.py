@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from math import cos, pi
+import os
+from pathlib import Path
 
 from .providers.google_maps_enrichment import summarize_enrichment_coverage
 from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
@@ -9,6 +11,7 @@ from .scoring.anomaly import ANOMALY_THRESHOLD, compute_anomaly_score, passes_an
 from .scoring.confidence import compute_confidence_score
 from .scoring.ranker import compute_final_rank_score, rank_hotspots
 from .scoring.severity import compute_severity_score
+from .thermal.generator import generate_thermal
 from .schemas import (
     AnalysisEvent,
     DebugAnalysisView,
@@ -165,6 +168,9 @@ HOTSPOT_LIBRARY: list[dict] = [
 
 STEP_INTERVAL_MS = 1200
 RANKING_FORMULA = "final_rank_score = severity_score * confidence_score after anomaly gate"
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+DEMO_RGB_DIR = BACKEND_ROOT / "data" / "hybrid_thermal" / "RGB_to_thermal_dataset" / "Test" / "RGB"
+LIVE_THERMAL_ENV = "THERMALGEN_ENABLE_LIVE_THERMAL"
 
 DEMO_REGION_PRESETS: list[dict] = [
     {"label": "downtown_core", "lat": 38.6270, "lng": -90.1994, "radius_m": 120},
@@ -180,6 +186,30 @@ HOTSPOT_LABELS: dict[HotspotType, str] = {
     HotspotType.vegetation_loss: "Vegetation Loss",
     HotspotType.other: "Other",
 }
+
+
+def _live_thermal_enabled() -> bool:
+    return os.getenv(LIVE_THERMAL_ENV, "").lower() in {"1", "true", "yes", "on"}
+
+
+def _first_demo_rgb_image() -> Path | None:
+    for pattern in ("*.JPG", "*.jpg", "*.JPEG", "*.jpeg", "*.PNG", "*.png"):
+        candidate = next(DEMO_RGB_DIR.glob(pattern), None)
+        if candidate:
+            return candidate
+    return None
+
+
+def _build_region_thermal_evidence(center: LatLng) -> dict:
+    if not _live_thermal_enabled():
+        return {}
+
+    configured_image = os.getenv("THERMALGEN_DEMO_IMAGE")
+    rgb_image = Path(configured_image) if configured_image else _first_demo_rgb_image()
+    if not rgb_image or not rgb_image.exists():
+        return {"source": "missing_local_hybrid_thermal_data"}
+
+    return generate_thermal(str(rgb_image), center.model_dump())
 
 
 def _region_bounds(center: LatLng, radius_m: int) -> dict[str, float]:
@@ -338,6 +368,8 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
     enrichment_summary = summarize_enrichment_coverage(source_records, center)
     bounds = _region_bounds(center, radius_m)
     area_km2 = _area_km2(bounds)
+    thermal_evidence = _build_region_thermal_evidence(center)
+    thermal_preview_url = thermal_evidence.get("thermal_preview_url")
 
     for seed in HOTSPOT_LIBRARY:
         trace, events = _build_trace(seed)
@@ -351,6 +383,10 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             status = HotspotStatus.discarded
         elif trace[-1].kind == TraceKind.finalize_hotspot:
             status = HotspotStatus.finalized
+
+        evidence_urls = list(seed.get("evidence_urls", []))
+        if thermal_preview_url:
+            evidence_urls.insert(0, thermal_preview_url)
 
         hotspot = HotspotCandidate(
             hotspot_id=seed["hotspot_id"],
@@ -373,7 +409,7 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             final_rank_score=final_rank_score,
             discard_reason=scoring.discard_reason,
             recommended_action=seed.get("recommended_action"),
-            evidence_urls=seed.get("evidence_urls", []),
+            evidence_urls=evidence_urls,
             created_at=now,
             updated_at=now,
             why=scoring.why,
@@ -406,6 +442,11 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             coverage_score=region_coverage_score,
             maps_fallback_count=int(enrichment_summary["maps_fallback_count"]),
             enrichment_confidence_avg=float(enrichment_summary["enrichment_confidence_avg"]),
+            thermal_image_path=thermal_evidence.get("thermal_image_path"),
+            thermal_image_url=thermal_evidence.get("thermal_image_url"),
+            thermal_preview_path=thermal_evidence.get("thermal_preview_path"),
+            thermal_preview_url=thermal_preview_url,
+            thermal_source=thermal_evidence.get("source"),
             source_records=source_records,
             status=AnalysisStatus.running,
             summary=summary,

@@ -21,6 +21,7 @@ CHECKPOINT_DIR = MODEL_ROOT / "checkpoints"
 DATA_ROOT = BACKEND_ROOT / "data" / "hybrid_thermal"
 PREDICT_DIR = DATA_ROOT / "Predict_Thermal"
 ALIGNED_DIR = DATA_ROOT / "Test_RGB_centercrop_640x512"
+ASSET_URL_PREFIX = "/thermal-assets"
 
 
 def choose_checkpoint(checkpoint_dir: Path = CHECKPOINT_DIR) -> Path:
@@ -90,6 +91,14 @@ def _save_thermal_preview(gray_path: Path, output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     preview.save(output_path)
     return output_path
+
+
+def _thermal_asset_url(path: Path) -> str | None:
+    try:
+        relative = path.resolve().relative_to(DATA_ROOT.resolve())
+    except ValueError:
+        return None
+    return f"{ASSET_URL_PREFIX}/{relative.as_posix()}"
 
 
 def _hotspot_regions(pred_uint8: np.ndarray, max_regions: int = 5) -> list[dict[str, Any]]:
@@ -166,7 +175,9 @@ def predict_one(
     return {
         "aligned_rgb_path": str(aligned_path),
         "thermal_image_path": str(output_path),
+        "thermal_image_url": _thermal_asset_url(output_path),
         "thermal_preview_path": str(preview_path),
+        "thermal_preview_url": _thermal_asset_url(preview_path),
         "checkpoint_path": str(checkpoint_path),
         "thermal_data": {
             "min_temp_c": round(28.0 + float(pred_norm.min()) * 20.0, 1),

@@ -197,13 +197,23 @@ The backend returns both:
 
 - `thermal_image_path`: grayscale model output for pipeline use
 - `thermal_preview_path`: autocontrasted orange thermal preview for UI display
+- `thermal_preview_url`: browser-loadable preview path served from `/thermal-assets/...`
 
 More implementation notes are in:
 
 ```text
 docs/hybrid_thermal.md
 docs/thermalgen_handoff.md
+docs/local_setup.md
 ```
+
+To keep the normal API fast, live hybrid thermal inference in `/analysis` is controlled by a local backend env flag:
+
+```text
+THERMALGEN_ENABLE_LIVE_THERMAL=1
+```
+
+Leave it off while developing frontend/agentic UI flows; turn it on when you want the backend to generate and attach one real thermal preview to the analysis response.
 
 ---
 

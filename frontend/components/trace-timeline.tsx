@@ -166,6 +166,21 @@ function TraceStepItem({
               ))}
             </motion.div>
           )}
+
+          {step.evidenceUrl && isVisible && (
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              className="mt-3 overflow-hidden rounded-md border border-border bg-muted/30"
+            >
+              <img
+                src={step.evidenceUrl}
+                alt="Thermal evidence preview"
+                className="h-32 w-full object-cover"
+              />
+            </motion.div>
+          )}
         </div>
       </div>
     </motion.div>

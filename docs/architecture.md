@@ -94,6 +94,42 @@ User asks follow-up question (same session)
 
 ---
 
+## 3.1 Current Implemented Flow
+
+This is the actual repo flow right now, before the final agentic layer is complete:
+
+```text
+Frontend map selection
+        |
+        v
+POST /analysis
+        |
+        v
+backend.app.orchestrator.build_analysis
+   |-- retrieves local/demo source metadata
+   |-- builds deterministic hotspot candidates
+   |-- runs scoring and ranking
+   |-- optionally calls hybrid thermal inference
+        |
+        v
+GET /analysis/{region_id} polling
+        |
+        v
+Frontend renders hotspot markers, ranking, trace steps, and recommendations
+```
+
+Live hybrid thermal inference is intentionally behind a local flag:
+
+```text
+THERMALGEN_ENABLE_LIVE_THERMAL=1
+```
+
+With the flag off, the demo remains fast and uses deterministic hotspot evidence. With the flag on, the orchestrator runs one local RGB image through `backend/app/thermal/generator.py`, writes generated thermal outputs under `backend/data/hybrid_thermal/`, serves them from `/thermal-assets/...`, and attaches `thermal_preview_url` to the analysis response.
+
+The generated thermal image is evidence for the investigation. It is not yet the source of candidate discovery; candidate discovery still uses the current static demo hotspot library.
+
+---
+
 ## 4. Main Layers
 
 ### 4.1 Frontend

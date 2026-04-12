@@ -11,6 +11,23 @@ venv/
 env/
 .ipynb_checkpoints/
 
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+
 # Local imported project scratch/caches
 *.arrow
 *.zip

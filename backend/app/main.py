@@ -1,5 +1,19 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+THERMAL_ASSET_ROOT = BACKEND_ROOT / "data" / "hybrid_thermal"
+THERMAL_ASSET_ROOT.mkdir(parents=True, exist_ok=True)
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(BACKEND_ROOT / ".env")
+except ImportError:
+    pass
 
 from .routes import router
 
@@ -19,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.mount("/thermal-assets", StaticFiles(directory=THERMAL_ASSET_ROOT), name="thermal_assets")
 
 
 @app.get("/health")

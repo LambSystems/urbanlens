@@ -105,6 +105,11 @@ class AnalysisRegion(BaseModel):
     coverage_score: float | None = None
     maps_fallback_count: int = 0
     enrichment_confidence_avg: float | None = None
+    thermal_image_path: str | None = None
+    thermal_image_url: str | None = None
+    thermal_preview_path: str | None = None
+    thermal_preview_url: str | None = None
+    thermal_source: str | None = None
     source_records: list[SourceRecord] = Field(default_factory=list)
     status: AnalysisStatus
     summary: AnalysisSummary
