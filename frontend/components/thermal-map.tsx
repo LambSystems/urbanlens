@@ -146,6 +146,8 @@ export function ThermalMap() {
   });
 
   const center = useMemo(() => DEFAULT_MAP_CENTER, []);
+  const thermalAvailable = Boolean(thermalOverlayUrl && thermalOverlayBounds);
+  const showViewToggle = Boolean(selectedRegion) && selectionMode !== 'idle' && selectionMode !== 'drawing';
 
   const mapOptions: google.maps.MapOptions = useMemo(() => ({
     mapTypeId: 'hybrid',
@@ -361,11 +363,11 @@ export function ThermalMap() {
           }}
         />
 
-        {showThermal && thermalOverlayUrl && thermalOverlayBounds && selectionMode === 'complete' && (
+        {showThermal && thermalAvailable && selectionMode === 'complete' && (
           <ThermalGroundOverlay
             mapRef={mapRef}
-            imageUrl={thermalOverlayUrl}
-            bounds={thermalOverlayBounds}
+            imageUrl={thermalOverlayUrl as string}
+            bounds={thermalOverlayBounds as { north: number; south: number; east: number; west: number }}
           />
         )}
 
@@ -408,15 +410,18 @@ export function ThermalMap() {
         })}
       </GoogleMap>
 
-      {thermalOverlayUrl && thermalOverlayBounds && selectionMode === 'complete' && (
+      {showViewToggle && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
           <div className="flex items-center rounded-full bg-black/70 backdrop-blur-sm border border-white/10 p-1 gap-1 shadow-xl">
             <button
               onClick={() => setShowThermal(true)}
+              disabled={!thermalAvailable}
               className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                showThermal
+                showThermal && thermalAvailable
                   ? 'bg-orange-500 text-white shadow-md'
-                  : 'text-white/60 hover:text-white/90'
+                  : thermalAvailable
+                    ? 'text-white/60 hover:text-white/90'
+                    : 'text-white/35 cursor-not-allowed'
               }`}
             >
               Thermal
@@ -424,7 +429,7 @@ export function ThermalMap() {
             <button
               onClick={() => setShowThermal(false)}
               className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                !showThermal
+                !showThermal || !thermalAvailable
                   ? 'bg-white/20 text-white shadow-md'
                   : 'text-white/60 hover:text-white/90'
               }`}
