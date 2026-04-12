@@ -141,6 +141,7 @@ These increase winning odds but should never destabilize the core.
 - prompt-based planner mode
 - session replay for investigation trace
 - polished explanation layer
+- a stable schema contract shared by backend and frontend
 
 ---
 
@@ -259,7 +260,7 @@ Per-hotspot evidence panel with object, material, and initial scores.
 
 ### Milestone 3
 
-Visible orchestrator trace with investigate, compare, discard, finalize.
+Visible orchestrator trace with evidence-request decisions, compare, discard, finalize.
 
 ### Milestone 4
 

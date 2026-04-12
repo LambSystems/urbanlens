@@ -1,0 +1,382 @@
+# ThermalGen V2 Contracts
+## Trace, Caching, and Backend/Frontend Schema
+
+This document defines the operating contract for the MVP so all engineers can work in parallel without drift.
+
+It is the source of truth for:
+
+- analysis region behavior
+- hotspot taxonomy
+- trace semantics
+- ranking and discard heuristics
+- caching behavior
+- backend/frontend data contracts
+
+---
+
+## 1. Analysis Region
+
+The user does not analyze a single structure directly.
+
+A click on the map defines an `analysis region` centered around that click. The system then proposes multiple hotspot candidates inside that region.
+
+Required behavior:
+
+- click on map
+- derive region center and radius
+- load or create an analysis job
+- detect 3 to 5 hotspot candidates
+- investigate candidates individually
+- discard or finalize each candidate
+- return a ranked list of survivors
+
+Recommended MVP fields:
+
+- `center.lat`
+- `center.lng`
+- `radius_m`
+- `region_id`
+
+---
+
+## 2. Hotspot Taxonomy
+
+The MVP uses a small, explicit taxonomy:
+
+- `roof`
+- `road_pavement`
+- `parking_lot`
+- `hvac_mechanical`
+- `vegetation_loss`
+- `other`
+
+Rules:
+
+- use the most specific known label
+- use `other` only as a fallback
+- UI and ranking logic must not depend on a larger taxonomy
+
+---
+
+## 3. Trace Design
+
+The trace must feel agentic without becoming unpredictable.
+
+So:
+
+- the `trace vocabulary` is fixed
+- the `trace route` is semivariable
+- not every hotspot uses every step
+
+### 3.1 Fixed Trace Vocabulary
+
+- `candidate_detected`
+- `inspect_object`
+- `request_thermal_evidence`
+- `infer_surface`
+- `compare_neighbors`
+- `check_consistency`
+- `score_hotspot`
+- `discard_hotspot`
+- `finalize_hotspot`
+
+### 3.2 Trace Rules
+
+- every hotspot starts with `candidate_detected`
+- every hotspot must pass through `inspect_object`
+- every hotspot should request at least one additional evidence source before being finalized or discarded
+- `discard_hotspot` and `finalize_hotspot` are terminal
+- traces should be short and legible in UI
+
+### 3.3 Example Trace Templates
+
+`road_pavement`
+
+- `candidate_detected`
+- `inspect_object`
+- `request_thermal_evidence`
+- `compare_neighbors`
+- `score_hotspot`
+- `discard_hotspot`
+
+`roof`
+
+- `candidate_detected`
+- `inspect_object`
+- `request_thermal_evidence`
+- `infer_surface`
+- `compare_neighbors`
+- `check_consistency`
+- `score_hotspot`
+- `finalize_hotspot`
+
+`hvac_mechanical`
+
+- `candidate_detected`
+- `inspect_object`
+- `request_thermal_evidence`
+- `infer_surface`
+- `score_hotspot`
+- `finalize_hotspot`
+
+---
+
+## 4. Discarded vs Top Hotspot
+
+These terms must be implemented consistently across backend, scoring, and UI.
+
+### 4.1 Discarded Hotspot
+
+A discarded hotspot is a candidate that is not worth acting on first.
+
+It usually fails because:
+
+- anomaly is too low relative to local context
+- the heat pattern is expected for the object type
+- evidence is insufficient to justify escalation
+- confidence is too low to recommend action
+
+Discard labels must be evidence-backed, not decorative.
+
+Examples:
+
+- expected road heat profile
+- not hotter than nearby comparable roofs
+- low-confidence signal after investigation
+
+### 4.2 Top Hotspot
+
+A top hotspot is a candidate that:
+
+- passes the anomaly gate
+- remains severe enough to matter
+- retains enough confidence to support a recommendation
+
+Top hotspots appear in the final ranked list and receive an intervention recommendation.
+
+---
+
+## 5. Ranking Heuristic
+
+The ranking philosophy is:
+
+`anomaly filters`
+
+`severity orders`
+
+`confidence modulates and validates`
+
+### 5.1 Gate
+
+First apply an anomaly threshold:
+
+```text
+if anomaly_score < anomaly_threshold:
+    discard
+```
+
+This is the structural filter.
+
+### 5.2 Ranking
+
+For survivors, rank primarily by severity with confidence modulation:
+
+```text
+final_rank_score = severity_score * confidence_score
+```
+
+This preserves the intended hierarchy:
+
+- anomaly decides whether the hotspot deserves attention
+- severity determines how urgent it is
+- confidence prevents unstable results from dominating
+
+### 5.3 Notes
+
+- anomaly is still stored and shown in UI
+- anomaly is still part of explanation
+- severity is the primary ordering signal after gating
+
+---
+
+## 6. Caching Model
+
+The system should feel alive for 5 to 15 seconds even when using cached or precomputed evidence.
+
+Caching exists to improve stability and speed, not to remove the investigation experience.
+
+### 6.1 Region Cache
+
+Stores:
+
+- nearby repeated analysis regions
+- region metadata
+- candidate hotspot proposals
+
+Use case:
+
+- repeated clicks near the same area
+
+### 6.2 Hotspot Evidence Cache
+
+Stores per hotspot:
+
+- thermal evidence
+- object classification
+- surface or material inference
+- neighbor comparison
+- consistency check outputs
+- scoring outputs
+
+Use case:
+
+- replaying a known hotspot investigation quickly and reliably
+
+### 6.3 Trace Playback Layer
+
+Even when evidence is cached, the frontend should reveal it step by step.
+
+This preserves:
+
+- perceived reasoning
+- demo clarity
+- visible agent behavior
+
+Recommended behavior:
+
+- total playback time: 5 to 15 seconds
+- each step transitions through `pending -> running -> completed`
+- terminal step becomes `discard_hotspot` or `finalize_hotspot`
+
+---
+
+## 7. State Model
+
+Recommended hotspot states:
+
+- `candidate`
+- `investigating`
+- `evidence_gathered`
+- `discarded`
+- `finalized`
+
+Rules:
+
+- `discarded` is terminal
+- `finalized` is terminal
+- a hotspot cannot be both discarded and finalized
+
+---
+
+## 8. Backend/Frontend Schema
+
+These schemas are intentionally compact and stable.
+
+### 8.1 AnalysisRegion
+
+```json
+{
+  "region_id": "stl_001",
+  "center": {"lat": 38.6270, "lng": -90.1994},
+  "radius_m": 120,
+  "status": "running",
+  "summary": {
+    "candidate_count": 5,
+    "discarded_count": 2,
+    "finalized_count": 3
+  }
+}
+```
+
+### 8.2 HotspotCandidate
+
+```json
+{
+  "hotspot_id": "hs_01",
+  "region_id": "stl_001",
+  "bbox": {"x": 120, "y": 80, "w": 60, "h": 44},
+  "centroid": {"lat": 38.6271, "lng": -90.1991},
+  "hotspot_type": "roof",
+  "status": "investigating",
+  "anomaly_score": 0.82,
+  "severity_score": 0.76,
+  "confidence_score": 0.71,
+  "final_rank_score": null,
+  "discard_reason": null,
+  "recommended_action": null,
+  "why": []
+}
+```
+
+### 8.3 TraceStep
+
+```json
+{
+  "step_id": "step_03",
+  "hotspot_id": "hs_01",
+  "kind": "compare_neighbors",
+  "status": "completed",
+  "started_at": "2026-04-11T18:10:12Z",
+  "completed_at": "2026-04-11T18:10:14Z",
+  "summary": "Hotter than 83% of nearby comparable roofs",
+  "evidence": {
+    "neighbor_count": 12,
+    "relative_percentile": 0.83
+  }
+}
+```
+
+### 8.4 AnalysisResult
+
+```json
+{
+  "region_id": "stl_001",
+  "status": "completed",
+  "hotspots": [],
+  "top_hotspots": [
+    {
+      "hotspot_id": "hs_01",
+      "priority_rank": 1,
+      "hotspot_type": "roof",
+      "recommended_action": "cool-roof retrofit",
+      "why": [
+        "high relative anomaly vs nearby roofs",
+        "large exposed dark surface",
+        "high-confidence thermal evidence"
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## 9. API Surface
+
+Keep the backend surface small.
+
+Recommended endpoints:
+
+- `POST /analysis`
+  create an analysis job for a clicked region
+- `GET /analysis/{region_id}`
+  fetch aggregated state
+- `GET /analysis/{region_id}/hotspots/{hotspot_id}`
+  fetch hotspot details for the sidebar
+- `GET /analysis/{region_id}/events`
+  fetch trace progress, or replace with polling on the main analysis payload
+
+---
+
+## 10. Implementation Rule
+
+If anything is ambiguous during implementation, preserve these first:
+
+- fixed trace vocabulary
+- semivariable trace routes
+- anomaly as gate
+- severity for ordering
+- confidence for modulation
+- visible playback over cached evidence
+
+That is the contract that keeps the product coherent.

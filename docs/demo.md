@@ -72,6 +72,7 @@ Time:
 Goal:
 
 - make it clear these are candidates, not final answers
+- frame them as hotspots inside a region around the user click
 
 ---
 
@@ -241,6 +242,7 @@ Total:
 - Top 3 hotspots
 - short rationale
 - priority labels
+- anomaly, severity, and confidence values or badges
 
 ### Recommendation Card
 

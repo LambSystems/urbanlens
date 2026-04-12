@@ -64,6 +64,7 @@ We are optimizing for one polished, judge-friendly experience rather than a broa
 
 - one stable demo region
 - RGB map layer plus thermal overlay
+- analysis region centered around the user click
 - 3 to 5 visible hotspot candidates
 - investigation trace for at least 1 hotspot
 - explicit tool-selection step in the investigation trace
@@ -79,6 +80,7 @@ We are optimizing for one polished, judge-friendly experience rather than a broa
 - consistency check across nearby crops or tiles
 - planner prompt like `What should we fix first in this area?`
 - cached session replay for the demo
+- shared schema contract between backend and frontend
 
 ### Explicitly Cut
 

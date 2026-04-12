@@ -102,6 +102,7 @@ This layer should stay thin.
 Responsibilities:
 
 - accept region analysis request
+- define an analysis region around a map click
 - load cached or live evidence
 - coordinate orchestrator lifecycle
 - return structured data for the UI
@@ -122,7 +123,7 @@ The thermal module is not the product. It is evidence the agent can choose to co
 
 ### 4.4 Candidate Discovery
 
-This layer proposes 3 to 5 initial hotspots.
+This layer proposes 3 to 5 initial hotspots inside an analysis region around the user click.
 
 Possible techniques:
 
@@ -141,6 +142,15 @@ This layer answers:
 - what coarse surface or material might it be
 
 Outputs should be structured and simple enough for scoring and explanation.
+
+Supported hotspot taxonomy for the MVP:
+
+- `roof`
+- `road_pavement`
+- `parking_lot`
+- `hvac_mechanical`
+- `vegetation_loss`
+- `other`
 
 ### 4.6 Context Layer
 
@@ -161,6 +171,12 @@ This layer computes:
 - confidence
 
 For the hackathon, this should favor explainable heuristics over fragile complexity.
+
+Scoring hierarchy:
+
+- `anomaly` is the structural gate
+- `severity` orders surviving hotspots
+- `confidence` modulates whether the result should be trusted and how strongly it should be presented
 
 ### 4.8 Agent Orchestrator
 
@@ -188,6 +204,17 @@ Recommended tool/action space:
 - `finalize_hotspot`
 
 Keep the action space constrained enough that the UI trace stays understandable.
+
+The trace vocabulary is fixed, but the route is not. Different hotspot types can take different valid paths through the same state machine.
+
+Example routes:
+
+- `road_pavement`
+  `candidate_detected -> inspect_object -> request_thermal_evidence -> compare_neighbors -> score_hotspot -> discard_hotspot`
+- `roof`
+  `candidate_detected -> inspect_object -> request_thermal_evidence -> infer_surface -> compare_neighbors -> check_consistency -> score_hotspot -> finalize_hotspot`
+- `hvac_mechanical`
+  `candidate_detected -> inspect_object -> request_thermal_evidence -> infer_surface -> score_hotspot -> finalize_hotspot`
 
 ### 4.9 Planner
 
@@ -248,6 +275,17 @@ Recommended reliability layers:
 - persisted hotspot state
 - prebuilt ranking payloads
 - screenshot fallback assets
+
+Caching should accelerate the demo without removing visible reasoning.
+
+Recommended cache layers:
+
+- `region cache`
+  reused candidate proposals and region metadata for nearby repeated clicks
+- `hotspot evidence cache`
+  thermal, object, surface, and neighbor-comparison outputs for known hotspots
+- `trace playback layer`
+  reveals cached or precomputed evidence step by step over 5 to 15 seconds so the user still experiences investigation
 
 Winning the demo matters more than maximizing live compute.
 
