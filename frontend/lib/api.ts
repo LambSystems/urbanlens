@@ -226,12 +226,9 @@ export function mapHotspot(b: BackendHotspot): Hotspot {
   };
 }
 
-<<<<<<< HEAD
-=======
 // Derive a Recommendation from a finalized backend hotspot.
 // The backend doesn't have full recommendation objects yet, so we synthesize
 // from recommended_action + why bullets.
->>>>>>> b0fb1a2d18d182eeeded94421e8c8c544da90d0c
 const COST_ESTIMATES: Record<string, string> = {
   roof: '$3,500 - $12,000',
   parking_lot: '$18,000 - $52,000',

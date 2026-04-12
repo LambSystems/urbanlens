@@ -18,7 +18,7 @@ Render the real hackathon product flow from the backend analysis API as fast as 
 
 Do not wait for real ML or perfect datasets.
 
-Use the adapter in [frontend/lib/api.ts](/C:/Users/akuma/repos/thermalgen/frontend/lib/api.ts) as the bridge from backend payloads to frontend UI types.
+Use the adapter in [frontend/lib/api.ts](/frontend/lib/api.ts) as the bridge from backend payloads to frontend UI types.
 
 ## First Hour
 
