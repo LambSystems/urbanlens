@@ -37,8 +37,6 @@ def build_satellite_capture_source_record(
         altitude=None,
         heading=map_state.heading,
         resolution=None,
-        metadata_quality_score=0.92,
-        geolocation_confidence=0.95,
     )
 
 
