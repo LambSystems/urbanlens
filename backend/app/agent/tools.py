@@ -539,5 +539,5 @@ ALL_TOOLS = [
     get_flood_risk,
     estimate_surface_temperature,
     estimate_intervention_impact,
-    lookup_image_metadata,
+    # lookup_image_metadata,
 ]
