@@ -1,1 +1,1 @@
-from __future__ import annotations
+"""Perception helpers for capture-driven hotspot analysis."""

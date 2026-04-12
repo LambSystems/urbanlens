@@ -5,8 +5,8 @@ import json
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
 
-from .example_payloads import EXAMPLE_ANALYSIS_REQUEST
 from .agent.planner import answer_region_question
+from .example_payloads import EXAMPLE_ANALYSIS_REQUEST
 from .orchestrator import DEMO_REGION_PRESETS
 from .schemas import (
     AnalysisEvent,
@@ -24,7 +24,6 @@ from .schemas import (
 from .store import store
 from .voice_briefing import create_voice_briefing
 
-from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -111,10 +110,7 @@ def healthcheck() -> dict[str, str]:
 
 
 @router.post("/analysis/{region_id}/voice-briefing", response_model=VoiceBriefingResponse)
-def create_region_voice_briefing(
-    region_id: str,
-    payload: VoiceBriefingRequest,
-) -> VoiceBriefingResponse:
+def create_region_voice_briefing(region_id: str, payload: VoiceBriefingRequest) -> VoiceBriefingResponse:
     try:
         analysis = store.get_analysis(region_id)
     except KeyError as exc:

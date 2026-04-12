@@ -1,1 +1,1 @@
-from __future__ import annotations
+"""Scoring helpers for analysis-first hotspot ranking."""

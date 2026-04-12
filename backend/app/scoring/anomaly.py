@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-ANOMALY_THRESHOLD = 0.35
+ANOMALY_THRESHOLD = 0.25
 
 
 def compute_anomaly_score(
     thermal_intensity: float,
-    relative_percentile: float,
-    consistency_score: float,
+    relative_percentile: float | None = None,
+    consistency_score: float | None = None,
 ) -> float:
-    """Weighted anomaly score — gates whether a hotspot is worth escalating."""
-    raw = (
-        thermal_intensity * 0.45
-        + relative_percentile * 0.35
-        + consistency_score * 0.20
-    )
-    return round(min(max(raw, 0.0), 1.0), 4)
+    base = thermal_intensity * 0.6
+    if relative_percentile is not None:
+        base += relative_percentile * 0.3
+    if consistency_score is not None:
+        base += consistency_score * 0.1
+    return round(min(max(base, 0.0), 1.0), 4)
 
 
 def passes_anomaly_gate(anomaly_score: float) -> bool:

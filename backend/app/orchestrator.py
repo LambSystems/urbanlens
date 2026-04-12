@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from math import cos, pi
-import os
-from pathlib import Path
 
 from .providers.google_maps_enrichment import summarize_enrichment_coverage
 from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
@@ -12,7 +10,6 @@ from .scoring.anomaly import ANOMALY_THRESHOLD, compute_anomaly_score, passes_an
 from .scoring.confidence import compute_confidence_score
 from .scoring.ranker import compute_final_rank_score, rank_hotspots
 from .scoring.severity import compute_severity_score
-from .thermal.generator import generate_thermal
 from .schemas import (
     AnalysisEvent,
     DebugAnalysisView,
@@ -196,29 +193,13 @@ HOTSPOT_LABELS: dict[HotspotType, str] = {
     HotspotType.other: "Other",
 }
 
-
-def _live_thermal_enabled() -> bool:
-    return os.getenv(LIVE_THERMAL_ENV, "").lower() in {"1", "true", "yes", "on"}
-
-
-def _first_demo_rgb_image() -> Path | None:
-    for pattern in ("*.JPG", "*.jpg", "*.JPEG", "*.jpeg", "*.PNG", "*.png"):
-        candidate = next(DEMO_RGB_DIR.glob(pattern), None)
-        if candidate:
-            return candidate
-    return None
-
-
-def _build_region_thermal_evidence(center: LatLng) -> dict:
-    if not _live_thermal_enabled():
-        return {}
-
-    configured_image = os.getenv("THERMALGEN_DEMO_IMAGE")
-    rgb_image = Path(configured_image) if configured_image else _first_demo_rgb_image()
-    if not rgb_image or not rgb_image.exists():
-        return {"source": "missing_local_hybrid_thermal_data"}
-
-    return generate_thermal(str(rgb_image), center.model_dump())
+HOTSPOT_STATUS_LABELS: dict[HotspotStatus, str] = {
+    HotspotStatus.candidate: "Candidate",
+    HotspotStatus.investigating: "Investigating",
+    HotspotStatus.evidence_gathered: "Evidence Gathered",
+    HotspotStatus.discarded: "Discarded",
+    HotspotStatus.finalized: "Recommended",
+}
 
 
 def _region_bounds(center: LatLng, radius_m: int) -> dict[str, float]:
@@ -238,6 +219,35 @@ def _area_km2(bounds: dict[str, float]) -> float:
     lat_km = lat_diff * 111
     lng_km = lng_diff * 111 * cos(((bounds["north"] + bounds["south"]) / 2) * pi / 180)
     return round(lat_km * lng_km, 3)
+
+
+def _region_display_name(center: LatLng) -> str:
+    return f"Selected Locality ({center.lat:.4f}, {center.lng:.4f})"
+
+
+def _tool_signals_for_seed(seed: dict) -> list[str]:
+    signals: list[str] = []
+    trace_kinds = [kind for kind, _ in seed["trace"]]
+    if TraceKind.generate_thermal_overlay in trace_kinds or TraceKind.request_thermal_evidence in trace_kinds:
+        signals.append("Thermal Evidence")
+    if TraceKind.analyze_heat_risk in trace_kinds:
+        signals.append("Heat Risk Profile")
+    if TraceKind.inspect_object in trace_kinds:
+        signals.append("Object Inspection")
+    if TraceKind.compare_neighbors in trace_kinds:
+        signals.append("Neighbor Comparison")
+    return signals
+
+
+def _sidebar_summary_for_seed(seed: dict, status: HotspotStatus) -> str:
+    label = HOTSPOT_LABELS[seed["hotspot_type"]]
+    if status == HotspotStatus.discarded:
+        reason = seed.get("discard_reason") or "did not pass anomaly or confidence checks"
+        return f"{label} was reviewed and discarded because {reason}."
+    if status == HotspotStatus.finalized:
+        action = seed.get("recommended_action") or "follow-up inspection"
+        return f"{label} was recommended after thermal and environmental investigation. Suggested next step: {action}."
+    return f"{label} is still being investigated with tool-based evidence gathering."
 
 
 def _trace_evidence(seed: dict, kind: TraceKind) -> TraceEvidence:
@@ -394,8 +404,6 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
     enrichment_summary = summarize_enrichment_coverage(source_records, center)
     bounds = _region_bounds(center, radius_m)
     area_km2 = _area_km2(bounds)
-    thermal_evidence = _build_region_thermal_evidence(center)
-    thermal_preview_url = thermal_evidence.get("thermal_preview_url")
 
     for seed in HOTSPOT_LIBRARY:
         trace, events = _build_trace(seed)
@@ -410,10 +418,6 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
         elif trace[-1].kind == TraceKind.finalize_hotspot:
             status = HotspotStatus.finalized
 
-        evidence_urls = list(seed.get("evidence_urls", []))
-        if thermal_preview_url:
-            evidence_urls.insert(0, thermal_preview_url)
-
         hotspot = HotspotCandidate(
             hotspot_id=seed["hotspot_id"],
             region_id=region_id,
@@ -424,6 +428,10 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             ),
             hotspot_type=seed["hotspot_type"],
             display_name=HOTSPOT_LABELS[seed["hotspot_type"]],
+            status_label=HOTSPOT_STATUS_LABELS[status],
+            sidebar_summary=_sidebar_summary_for_seed(seed, status),
+            evidence_highlights=seed["why"],
+            tool_signals=_tool_signals_for_seed(seed),
             status=status,
             surface_temperature_c=seed["surface_temperature_c"],
             ambient_delta_c=seed["ambient_delta_c"],
@@ -435,7 +443,7 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             final_rank_score=final_rank_score,
             discard_reason=scoring.discard_reason,
             recommended_action=seed.get("recommended_action"),
-            evidence_urls=evidence_urls,
+            evidence_urls=seed.get("evidence_urls", []),
             created_at=now,
             updated_at=now,
             why=scoring.why,
@@ -460,6 +468,7 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
     response = AnalysisResponse(
         region=AnalysisRegion(
             region_id=region_id,
+            display_name=_region_display_name(center),
             center=center,
             radius_m=radius_m,
             bounds=bounds,

@@ -7,8 +7,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-# ── Enums ────────────────────────────────────────────────────────────────────
-
 class AnalysisStatus(str, Enum):
     pending = "pending"
     running = "running"
@@ -52,14 +50,6 @@ class TraceKind(str, Enum):
     finalize_hotspot = "finalize_hotspot"
 
 
-class SourceType(str, Enum):
-    drone = "drone"
-    satellite = "satellite"
-    derived = "derived"
-
-
-# ── Core geo models ───────────────────────────────────────────────────────────
-
 class LatLng(BaseModel):
     lat: float
     lng: float
@@ -70,6 +60,12 @@ class SourceBounds(BaseModel):
     south: float
     east: float
     west: float
+
+
+class SourceType(str, Enum):
+    drone = "drone"
+    satellite = "satellite"
+    derived = "derived"
 
 
 class SourceRecord(BaseModel):
@@ -84,6 +80,8 @@ class SourceRecord(BaseModel):
     altitude: float | None = None
     heading: float | None = None
     resolution: float | None = None
+    metadata_quality_score: float = 0.0
+    geolocation_confidence: float = 0.0
 
 
 class BoundingBox(BaseModel):
@@ -103,6 +101,7 @@ class AnalysisSummary(BaseModel):
 
 class AnalysisRegion(BaseModel):
     region_id: str
+    display_name: str | None = None
     center: LatLng
     radius_m: int = Field(default=120, ge=1)
     bounds: SourceBounds | None = None
@@ -172,6 +171,10 @@ class HotspotCandidate(BaseModel):
     centroid: LatLng
     hotspot_type: HotspotType
     display_name: str | None = None
+    status_label: str | None = None
+    sidebar_summary: str | None = None
+    evidence_highlights: list[str] = Field(default_factory=list)
+    tool_signals: list[str] = Field(default_factory=list)
     status: HotspotStatus
     surface_temperature_c: float | None = None
     ambient_delta_c: float | None = None
@@ -192,17 +195,15 @@ class HotspotCandidate(BaseModel):
     trace: list[TraceStep] = Field(default_factory=list)
 
 
-# ── Scoring / debug ───────────────────────────────────────────────────────────
-
 class PerceptionEvidence(BaseModel):
     hotspot_id: str
     hotspot_type: HotspotType
     object_label: str
     object_confidence: float
-    source_count: int
-    coverage_score: float
-    material_type: str
-    material_confidence: float
+    source_count: int = 0
+    coverage_score: float | None = None
+    material_type: str | None = None
+    material_confidence: float | None = None
 
 
 class ScoringResult(BaseModel):
@@ -210,32 +211,12 @@ class ScoringResult(BaseModel):
     anomaly_score: float
     severity_score: float
     confidence_score: float
-    coverage_score: float
-    metadata_quality_score: float
+    coverage_score: float | None = None
+    metadata_quality_score: float | None = None
     final_rank_score: float | None = None
     discard_reason: str | None = None
     why: list[str] = Field(default_factory=list)
 
-
-class DebugHotspotView(BaseModel):
-    hotspot_id: str
-    hotspot_type: HotspotType
-    status: HotspotStatus
-    perception: PerceptionEvidence
-    scoring: ScoringResult
-    trace_kinds: list[TraceKind]
-
-
-class DebugAnalysisView(BaseModel):
-    region_id: str
-    status: AnalysisStatus
-    hotspot_count: int
-    ranking_formula: str
-    anomaly_threshold: float
-    hotspots: list[DebugHotspotView]
-
-
-# ── Ranked hotspot / analysis result ─────────────────────────────────────────
 
 class RankedHotspot(BaseModel):
     hotspot_id: str
@@ -263,7 +244,10 @@ class AnalysisResponse(BaseModel):
     result: AnalysisResult
 
 
-# ── Capture models ────────────────────────────────────────────────────────────
+class CreateAnalysisRequest(BaseModel):
+    center: LatLng
+    radius_m: int = Field(default=120, ge=1, le=1000)
+
 
 class CaptureRegion(BaseModel):
     bounds: SourceBounds
@@ -315,8 +299,44 @@ class PlannerQuestionRequest(BaseModel):
 
 class PlannerQuestionResponse(BaseModel):
     region_id: str
+    hotspot_id: str
+    step_id: str
+    kind: TraceKind
+    status: TraceStepStatus
+    timestamp_ms: int | None = None
+    summary: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    scheduled_offset_ms: int
+
+
+class DebugHotspotView(BaseModel):
+    hotspot_id: str
+    hotspot_type: HotspotType
+    status: HotspotStatus
+    perception: PerceptionEvidence
+    scoring: ScoringResult
+    trace_kinds: list[TraceKind]
+
+
+class DebugAnalysisView(BaseModel):
+    region_id: str
+    status: AnalysisStatus
+    hotspot_count: int
+    ranking_formula: str
+    anomaly_threshold: float
+    hotspots: list[DebugHotspotView]
+
+
+class PlannerQuestionRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+class PlannerQuestionResponse(BaseModel):
+    region_id: str
     question: str
     answer: str
+    answer_title: str | None = None
+    answer_sections: list[str] = Field(default_factory=list)
     referenced_hotspot_ids: list[str] = Field(default_factory=list)
     planner_mode: str = "analysis_qa"
 
@@ -331,3 +351,64 @@ class VoiceBriefingResponse(BaseModel):
     audio_url: str | None = None
     summary_text: str
     provider: str
+
+
+class SessionStatus(str, Enum):
+    region_loaded = "region_loaded"
+    investigating = "investigating"
+    answered = "answered"
+
+
+class ChainOfThoughtStepType(str, Enum):
+    reasoning = "reasoning"
+    tool_call = "tool_call"
+    answer = "answer"
+
+
+class StepStatus(str, Enum):
+    pending = "pending"
+    running = "running"
+    completed = "completed"
+    error = "error"
+
+
+class ChainOfThoughtStep(BaseModel):
+    step_id: str
+    step_type: ChainOfThoughtStepType
+    tool_name: str | None = None
+    status: StepStatus = StepStatus.running
+    summary: str = ""
+    evidence: dict[str, Any] | None = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now())
+
+
+class SessionMessage(BaseModel):
+    role: str
+    content: str
+    message_index: int = 0
+    chain_of_thought: list[ChainOfThoughtStep] = Field(default_factory=list)
+
+
+class Session(BaseModel):
+    session_id: str
+    center: LatLng
+    radius_m: int = 120
+    status: SessionStatus = SessionStatus.region_loaded
+    messages: list[SessionMessage] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
+
+
+class CreateSessionRequest(BaseModel):
+    center: LatLng
+    radius_m: int = Field(default=120, ge=1, le=1000)
+
+
+class UserPromptRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+
+
+class InvestigationResponse(BaseModel):
+    session_id: str
+    prompt: str
+    chain_of_thought: list[ChainOfThoughtStep]
+    answer: str

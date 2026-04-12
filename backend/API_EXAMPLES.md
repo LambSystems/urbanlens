@@ -100,6 +100,7 @@ Example response shape:
 {
   "region": {
     "region_id": "region_ab12cd34",
+    "display_name": "Selected Locality (38.6270, -90.1994)",
     "center": {
       "lat": 38.627,
       "lng": -90.1994
@@ -341,6 +342,19 @@ Example hotspot detail shape:
   "centroid": {"lat": 38.6277, "lng": -90.1989},
   "hotspot_type": "roof",
   "display_name": "Building Roof",
+  "status_label": "Recommended",
+  "sidebar_summary": "Building Roof was recommended after thermal and environmental investigation. Suggested next step: cool-roof retrofit.",
+  "evidence_highlights": [
+    "high relative anomaly vs nearby roofs",
+    "large exposed dark surface",
+    "high-confidence thermal evidence"
+  ],
+  "tool_signals": [
+    "Thermal Evidence",
+    "Heat Risk Profile",
+    "Object Inspection",
+    "Neighbor Comparison"
+  ],
   "status": "investigating",
   "surface_temperature_c": 54.0,
   "ambient_delta_c": 16.0,
@@ -497,6 +511,23 @@ LLM_PROVIDER=anthropic
 LLM_PROVIDER=featherless
 LLM_PROVIDER=gemini
 LLM_PROVIDER=mock
+```
+
+Relevant provider env:
+
+```text
+FEATHERLESS_API_KEY=...
+FEATHERLESS_MODEL=Qwen/Qwen2.5-7B-Instruct
+FEATHERLESS_HTTP_REFERER=https://urbanlens.local
+FEATHERLESS_X_TITLE=UrbanLens
+```
+
+Voice briefing env:
+
+```text
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
 ```
 
 ## 12. Suggested Frontend Flow

@@ -50,6 +50,10 @@ export interface BackendHotspot {
   centroid: BackendLatLng;
   hotspot_type: string;
   display_name?: string | null;
+  status_label?: string | null;
+  sidebar_summary?: string | null;
+  evidence_highlights?: string[];
+  tool_signals?: string[];
   status: string;
   surface_temperature_c?: number | null;
   ambient_delta_c?: number | null;
@@ -90,6 +94,7 @@ export interface BackendAnalysisSummary {
 
 export interface BackendAnalysisRegion {
   region_id: string;
+  display_name?: string | null;
   center: BackendLatLng;
   radius_m: number;
   status: string;
@@ -121,28 +126,17 @@ export interface BackendPlannerResponse {
   region_id: string;
   question: string;
   answer: string;
+  answer_title?: string | null;
+  answer_sections?: string[];
   referenced_hotspot_ids: string[];
   planner_mode: string;
 }
 
 export interface BackendVoiceBriefingResponse {
   region_id: string;
-  audio_url: string | null;
+  audio_url?: string | null;
   summary_text: string;
   provider: string;
-}
-
-export interface CaptureRegionPayload {
-  bounds: { north: number; south: number; east: number; west: number };
-  center: BackendLatLng;
-  areaKm2: number | null;
-}
-
-export interface CaptureMapStatePayload {
-  zoom: number | null;
-  mapTypeId: string | null;
-  tilt: number | null;
-  heading: number | null;
 }
 
 // API functions
@@ -221,6 +215,19 @@ export async function askQuestion(
     body: JSON.stringify({ question }),
   });
   if (!res.ok) throw new Error(`POST /analysis/${regionId}/questions failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createVoiceBriefing(
+  regionId: string,
+  question?: string,
+): Promise<BackendVoiceBriefingResponse> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/voice-briefing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  });
+  if (!res.ok) throw new Error(`POST /analysis/${regionId}/voice-briefing failed: ${res.status}`);
   return res.json();
 }
 
