@@ -1,5 +1,5 @@
-# ThermalGen V2 Contracts
-## Trace, Caching, and Backend/Frontend Schema
+# Urban Legend Contracts
+## Prompt-Driven Investigation, Chain of Thought, and Backend/Frontend Schema
 
 This document defines the operating contract for the MVP so all engineers can work in parallel without drift.
 
@@ -8,12 +8,13 @@ It is the source of truth for:
 - analysis region behavior
 - source retrieval and evidence normalization behavior
 - source record requirements and fallback enrichment
+- user prompt and conversation model
+- chain of thought design
 - hotspot taxonomy
-- trace semantics
+- tool vocabulary
 - ranking and discard heuristics
 - caching behavior
 - backend/frontend data contracts
-- planner mode behavior
 - the UI boundaries where `v0` can be used safely
 
 ---
@@ -22,21 +23,21 @@ It is the source of truth for:
 
 The user does not analyze a single structure directly.
 
-A click on the map defines an `analysis region` centered around that click. The system then proposes multiple hotspot candidates inside that region.
+A click on the map defines an `analysis region` centered around that click. The system loads the data context for that region, then the user asks a question about it.
 
-Google Maps is the interaction surface. The evidence layer underneath may consist of scattered drone imagery, cropped images, and partial metadata.
+Google Maps is the interaction surface. The evidence layer underneath may consist of scattered drone imagery, thermal conversions, and partial metadata.
 
 Required behavior:
 
 - click on map
 - derive region center and radius
-- load or create an analysis job
-- retrieve available drone sources intersecting the region
-- normalize source evidence into an analysis-ready representation
-- detect 3 to 5 hotspot candidates
-- investigate candidates individually
-- discard or finalize each candidate
-- return a ranked list of survivors
+- load data context: satellite imagery, thermal overlay, source records, metadata
+- present loaded context to the user
+- accept user prompt (question or intent)
+- pass prompt + data context to the agent
+- stream chain of thought steps to the frontend
+- return structured answer with evidence and recommendations
+- support follow-up questions in the same session
 
 Recommended MVP fields:
 
@@ -44,6 +45,7 @@ Recommended MVP fields:
 - `center.lng`
 - `radius_m`
 - `region_id`
+- `session_id`
 - `available_source_count`
 - `coverage_score`
 
@@ -112,7 +114,41 @@ Fallback order:
 
 ---
 
-## 2. Hotspot Taxonomy
+## 2. User Prompt and Conversation Model
+
+The user drives the investigation by typing prompts.
+
+### 2.1 Prompt Contract
+
+The user's prompt is a free-text question or instruction about the loaded region data.
+
+Examples:
+
+- "What should I fix first in this area?"
+- "Are there any HVAC issues on these rooftops?"
+- "Why is the northeast corner so hot?"
+- "Compare the roofs in this region"
+- "How confident are you about that roof?" (follow-up)
+
+### 2.2 Session Contract
+
+A session represents one region plus a conversation.
+
+- `session_id` persists across follow-up questions
+- each prompt is a new message in the session
+- the agent sees the full conversation history for context
+- the region data context is loaded once and reused across the session
+
+### 2.3 Conversation Rules
+
+- the first prompt in a session starts a fresh investigation
+- follow-up prompts build on previous findings
+- the agent can reference prior chain of thought when answering follow-ups
+- the frontend shows the full conversation thread
+
+---
+
+## 3. Hotspot Taxonomy
 
 The MVP uses a small, explicit taxonomy:
 
@@ -131,19 +167,23 @@ Rules:
 
 ---
 
-## 3. Trace Design
+## 4. Chain of Thought Design
 
-The trace must feel agentic without becoming unpredictable.
+The chain of thought must feel agentic without becoming unpredictable.
 
-So:
+Every investigation produces a visible chain of thought — a sequence of reasoning steps and tool calls that the frontend renders in real time.
 
-- the `trace vocabulary` is fixed
-- the `trace route` is semivariable
-- not every hotspot uses every step
+### 4.1 Chain of Thought Step Types
 
-### 3.1 Fixed Trace Vocabulary
+- `reasoning` — the agent's internal reasoning (text)
+- `tool_call` — the agent invoked a tool (tool name + input summary + output summary)
+- `finding` — the agent arrived at a conclusion about a specific item
+- `answer` — the agent's final response to the user's prompt
 
-- `candidate_detected`
+### 4.2 Tool Vocabulary
+
+Available tools the agent can call during investigation:
+
 - `inspect_object`
 - `request_thermal_evidence`
 - `infer_surface`
@@ -153,54 +193,48 @@ So:
 - `discard_hotspot`
 - `finalize_hotspot`
 
-### 3.2 Trace Rules
+Additional tools available depending on the question:
 
-- every hotspot starts with `candidate_detected`
-- every hotspot must pass through `inspect_object`
-- every hotspot should request at least one additional evidence source before being finalized or discarded
-- `discard_hotspot` and `finalize_hotspot` are terminal
-- traces should be short and legible in UI
+- `list_hotspot_candidates` — enumerate candidates in the region
+- `get_region_summary` — overview stats for the region
+- `lookup_location` — query location metadata
 
-### 3.3 Example Trace Templates
+### 4.3 Chain of Thought Rules
 
-`road_pavement`
+- every investigation starts with the agent interpreting the user's prompt
+- tool calls must be motivated by the question — not called just because they exist
+- each step has a visible summary the frontend can display
+- the chain of thought ends with a structured answer
+- chain of thought is streamed to the frontend step by step
 
-- `candidate_detected`
-- `inspect_object`
-- `request_thermal_evidence`
-- `compare_neighbors`
-- `score_hotspot`
-- `discard_hotspot`
+### 4.4 Example Chain of Thought
 
-`roof`
+User prompt: "What should I fix first in this area?"
 
-- `candidate_detected`
-- `inspect_object`
-- `request_thermal_evidence`
-- `infer_surface`
-- `compare_neighbors`
-- `check_consistency`
-- `score_hotspot`
-- `finalize_hotspot`
-
-`hvac_mechanical`
-
-- `candidate_detected`
-- `inspect_object`
-- `request_thermal_evidence`
-- `infer_surface`
-- `score_hotspot`
-- `finalize_hotspot`
+```
+1. [reasoning] User wants prioritized intervention recommendations. I need to identify and score all hotspot candidates.
+2. [tool_call] list_hotspot_candidates -> found 4 candidates
+3. [tool_call] inspect_object(hs_01) -> roof structure
+4. [tool_call] request_thermal_evidence(hs_01) -> intensity 0.87, well above regional mean
+5. [tool_call] compare_neighbors(hs_01) -> hotter than 83% of nearby comparable roofs
+6. [finding] hs_01: significant roof anomaly, strong intervention candidate
+7. [tool_call] inspect_object(hs_02) -> road pavement
+8. [tool_call] request_thermal_evidence(hs_02) -> intensity 0.52, consistent with nearby roads
+9. [tool_call] discard_hotspot(hs_02) -> expected road heat profile, not anomalous
+10. [tool_call] score_hotspot(hs_01) -> anomaly: 0.82, severity: 0.76, confidence: 0.71
+11. [tool_call] finalize_hotspot(hs_01) -> passed anomaly gate
+12. [answer] The commercial roof at the northeast corner is the highest-priority intervention...
+```
 
 ---
 
-## 4. Discarded vs Top Hotspot
+## 5. Discarded vs Top Hotspot
 
 These terms must be implemented consistently across backend, scoring, and UI.
 
-### 4.1 Discarded Hotspot
+### 5.1 Discarded Hotspot
 
-A discarded hotspot is a candidate that is not worth acting on first.
+A discarded hotspot is a candidate that is not worth acting on.
 
 It usually fails because:
 
@@ -212,13 +246,7 @@ It usually fails because:
 
 Discard labels must be evidence-backed, not decorative.
 
-Examples:
-
-- expected road heat profile
-- not hotter than nearby comparable roofs
-- low-confidence signal after investigation
-
-### 4.2 Top Hotspot
+### 5.2 Top Hotspot
 
 A top hotspot is a candidate that:
 
@@ -227,11 +255,11 @@ A top hotspot is a candidate that:
 - retains enough confidence to support a recommendation
 - is backed by adequate enough source coverage for the recommendation strength
 
-Top hotspots appear in the final ranked list and receive an intervention recommendation.
+Top hotspots appear in the final answer and receive an intervention recommendation.
 
 ---
 
-## 5. Ranking Heuristic
+## 6. Ranking Heuristic
 
 The ranking philosophy is:
 
@@ -241,7 +269,7 @@ The ranking philosophy is:
 
 `confidence modulates and validates`
 
-### 5.1 Gate
+### 6.1 Gate
 
 First apply an anomaly threshold:
 
@@ -252,19 +280,13 @@ if anomaly_score < anomaly_threshold:
 
 This is the structural filter.
 
-### 5.2 Ranking
+### 6.2 Ranking
 
 For survivors, rank primarily by severity with confidence modulation:
 
 ```text
 final_rank_score = severity_score * confidence_score
 ```
-
-This preserves the intended hierarchy:
-
-- anomaly decides whether the hotspot deserves attention
-- severity determines how urgent it is
-- confidence prevents unstable results from dominating
 
 Confidence should combine:
 
@@ -273,7 +295,7 @@ Confidence should combine:
 - source coverage quality
 - metadata completeness and geolocation confidence
 
-### 5.3 Notes
+### 6.3 Notes
 
 - anomaly is still stored and shown in UI
 - anomaly is still part of explanation
@@ -281,44 +303,39 @@ Confidence should combine:
 
 ---
 
-## 6. Caching Model
+## 7. Caching Model
 
-The system should feel alive for 5 to 15 seconds even when using cached or precomputed evidence.
+The system should feel alive even when using cached or precomputed evidence.
 
 Caching exists to improve stability and speed, not to remove the investigation experience.
 
-### 6.1 Region Cache
+### 7.1 Region Cache
 
 Stores:
 
 - nearby repeated analysis regions
 - region metadata
-- candidate hotspot proposals
 - source retrieval results
 
 Use case:
 
 - repeated clicks near the same area
 
-### 6.2 Hotspot Evidence Cache
+### 7.2 Investigation Cache
 
-Stores per hotspot:
+Stores per prompt:
 
-- thermal evidence
-- object classification
-- surface or material inference
-- neighbor comparison
-- consistency check outputs
-- scoring outputs
-- source coverage summaries
+- chain of thought steps
+- tool call results
+- final answer
 
 Use case:
 
-- replaying a known hotspot investigation quickly and reliably
+- replaying a known demo prompt quickly and reliably
 
-### 6.3 Trace Playback Layer
+### 7.3 Chain of Thought Playback
 
-Even when evidence is cached, the frontend should reveal it step by step.
+Even when the investigation is cached, the frontend should reveal chain of thought steps progressively.
 
 This preserves:
 
@@ -328,13 +345,19 @@ This preserves:
 
 Recommended behavior:
 
-- total playback time: 5 to 15 seconds
 - each step transitions through `pending -> running -> completed`
-- terminal step becomes `discard_hotspot` or `finalize_hotspot`
+- total playback adjusts based on number of steps
 
 ---
 
-## 7. State Model
+## 8. State Model
+
+Recommended session states:
+
+- `region_loaded` — data context loaded, waiting for user prompt
+- `investigating` — agent is running chain of thought
+- `answered` — agent has returned a response
+- `follow_up` — user is asking a follow-up question
 
 Recommended hotspot states:
 
@@ -352,29 +375,25 @@ Rules:
 
 ---
 
-## 8. Backend/Frontend Schema
+## 9. Backend/Frontend Schema
 
 These schemas are intentionally compact and stable.
 
-### 8.1 AnalysisRegion
+### 9.1 AnalysisRegion
 
 ```json
 {
   "region_id": "stl_001",
+  "session_id": "sess_abc123",
   "center": {"lat": 38.6270, "lng": -90.1994},
   "radius_m": 120,
   "available_source_count": 6,
   "coverage_score": 0.81,
-  "status": "running",
-  "summary": {
-    "candidate_count": 5,
-    "discarded_count": 2,
-    "finalized_count": 3
-  }
+  "status": "region_loaded"
 }
 ```
 
-### 8.1.1 SourceRecord
+### 9.1.1 SourceRecord
 
 ```json
 {
@@ -393,7 +412,35 @@ These schemas are intentionally compact and stable.
 }
 ```
 
-### 8.2 HotspotCandidate
+### 9.2 UserPrompt
+
+```json
+{
+  "session_id": "sess_abc123",
+  "prompt": "What should I fix first in this area?",
+  "message_index": 0
+}
+```
+
+### 9.3 ChainOfThoughtStep
+
+```json
+{
+  "step_id": "cot_03",
+  "step_type": "tool_call",
+  "tool_name": "compare_neighbors",
+  "status": "completed",
+  "summary": "Hotter than 83% of nearby comparable roofs",
+  "evidence": {
+    "neighbor_count": 12,
+    "relative_percentile": 0.83,
+    "coverage_score": 0.79
+  },
+  "timestamp": "2026-04-11T18:10:14Z"
+}
+```
+
+### 9.4 HotspotCandidate
 
 ```json
 {
@@ -402,44 +449,43 @@ These schemas are intentionally compact and stable.
   "bbox": {"x": 120, "y": 80, "w": 60, "h": 44},
   "centroid": {"lat": 38.6271, "lng": -90.1991},
   "hotspot_type": "roof",
-  "status": "investigating",
+  "status": "finalized",
   "source_count": 3,
   "coverage_score": 0.79,
   "anomaly_score": 0.82,
   "severity_score": 0.76,
   "confidence_score": 0.71,
-  "final_rank_score": null,
-  "discard_reason": null,
-  "recommended_action": null,
-  "why": []
+  "final_rank_score": 0.5396,
+  "recommended_action": "cool-roof retrofit",
+  "why": [
+    "high relative anomaly vs nearby roofs",
+    "large exposed dark surface",
+    "high-confidence thermal evidence"
+  ]
 }
 ```
 
-### 8.3 TraceStep
+### 9.5 InvestigationResponse
 
 ```json
 {
-  "step_id": "step_03",
-  "hotspot_id": "hs_01",
-  "kind": "compare_neighbors",
-  "status": "completed",
-  "started_at": "2026-04-11T18:10:12Z",
-  "completed_at": "2026-04-11T18:10:14Z",
-  "summary": "Hotter than 83% of nearby comparable roofs",
-  "evidence": {
-    "neighbor_count": 12,
-    "relative_percentile": 0.83,
-    "coverage_score": 0.79
-  }
-}
-```
-
-### 8.4 AnalysisResult
-
-```json
-{
+  "session_id": "sess_abc123",
   "region_id": "stl_001",
-  "status": "completed",
+  "prompt": "What should I fix first in this area?",
+  "chain_of_thought": [
+    {
+      "step_id": "cot_01",
+      "step_type": "reasoning",
+      "summary": "User wants prioritized intervention recommendations. I need to identify and score all hotspot candidates."
+    },
+    {
+      "step_id": "cot_02",
+      "step_type": "tool_call",
+      "tool_name": "list_hotspot_candidates",
+      "summary": "Found 4 candidates in the region"
+    }
+  ],
+  "answer": "The commercial roof at the northeast corner is the highest-priority intervention. It shows unusually high heat relative to nearby roofs, with a dark roofing surface that is a strong candidate for cool-roof retrofit.",
   "hotspots": [],
   "top_hotspots": [
     {
@@ -459,24 +505,53 @@ These schemas are intentionally compact and stable.
 
 ---
 
-## 9. v0 Implementation Boundary
+## 10. API Surface
+
+Keep the backend surface small.
+
+Recommended endpoints:
+
+- `POST /session`
+  create a session for a selected region, load data context
+- `POST /session/{session_id}/prompt`
+  send a user prompt, triggers agent investigation
+- `GET /session/{session_id}/chain-of-thought`
+  stream or poll chain of thought steps during investigation
+- `GET /session/{session_id}/messages`
+  fetch conversation history (prompts + answers)
+- `GET /session/{session_id}/hotspots/{hotspot_id}`
+  fetch hotspot details
+
+Legacy endpoints (still supported for direct analysis):
+
+- `POST /analysis`
+- `GET /analysis/{region_id}`
+- `GET /analysis/{region_id}/hotspots/{hotspot_id}`
+- `GET /analysis/{region_id}/events`
+
+---
+
+## 11. v0 Implementation Boundary
 
 `v0` should be used to accelerate visual implementation, not to define application logic.
 
 Safe `v0` scope:
 
 - sidebar shell
+- prompt input component
+- chain of thought timeline panel
 - hotspot detail panel
-- investigation trace timeline
-- Top 3 ranking cards
-- final recommendation card
+- ranking cards
+- recommendation card
 - loading and empty states
+- conversation thread display
 
 Not `v0` scope:
 
 - backend orchestration logic
+- agent prompts or tool definitions
 - hotspot scoring rules
-- trace semantics
+- chain of thought semantics
 - map event handling contract
 - caching logic
 
@@ -490,92 +565,31 @@ Implementation approach:
 
 Suggested `v0` prompt targets:
 
-- a right sidebar for hotspot analysis with status badges and evidence sections
-- a vertical trace timeline with running, completed, discarded, and finalized states
+- a right sidebar with prompt input and chain of thought timeline
+- chain of thought steps with reasoning, tool call, finding, and answer states
 - ranked hotspot cards with anomaly, severity, and confidence badges
 - a recommendation card for the top hotspot with action, rationale, and confidence
+- conversation thread showing prompt history and agent responses
 
 Success criteria for `v0` usage:
 
 - the UI is visibly cleaner and more legible than a hand-built default dashboard
 - the map remains the visual anchor
-- the trace and recommendation are understandable in under 10 seconds
+- the chain of thought and answers are understandable in under 10 seconds
 - generated components integrate cleanly with React and TypeScript
 
 ---
 
-## 10. API Surface
-
-Keep the backend surface small.
-
-Recommended endpoints:
-
-- `POST /analysis`
-  create an analysis job for a clicked region
-- `GET /analysis/{region_id}`
-  fetch aggregated state
-- `GET /analysis/{region_id}/hotspots/{hotspot_id}`
-  fetch hotspot details for the sidebar
-- `GET /analysis/{region_id}/events`
-  fetch trace progress, or replace with polling on the main analysis payload
-- `POST /analysis/{region_id}/questions`
-  ask structured questions about an already analyzed region
-
-## 10.1 Planner Mode
-
-Planner Mode is a question layer over an existing analysis result.
-
-It is not a general-purpose chat assistant and it should not be the primary entrypoint to the product.
-
-Planner Mode exists to answer questions like:
-
-- `What should we fix first here?`
-- `Why is hs_01 ranked first?`
-- `Why was hs_02 discarded?`
-- `Which hotspot has the strongest anomaly?`
-- `What action is recommended for roof-related hotspots?`
-
-Rules:
-
-- Planner Mode only runs after an analysis region already exists
-- it should answer from structured analysis outputs first
-- an LLM may be used to improve wording, but not to invent new evidence
-- the response should cite hotspot ids, ranking, scores, discard reasons, and recommendations when possible
-
-Recommended request shape:
-
-```json
-{
-  "question": "What should we fix first here?"
-}
-```
-
-Recommended response shape:
-
-```json
-{
-  "region_id": "stl_001",
-  "question": "What should we fix first here?",
-  "answer": "You should prioritize hs_03 first. It is a hvac_mechanical hotspot with strong anomaly and severity, and the recommended action is hvac inspection.",
-  "referenced_hotspot_ids": ["hs_03"],
-  "planner_mode": "analysis_qa"
-}
-```
-
----
-
-## 11. Implementation Rule
+## 12. Implementation Rule
 
 If anything is ambiguous during implementation, preserve these first:
 
-- fixed trace vocabulary
-- semivariable trace routes
-- region-level source retrieval before hotspot reasoning
-- partial metadata is acceptable
-- Google Maps enrichment is fallback-only
-- anomaly as gate
-- severity for ordering
-- confidence for modulation
-- visible playback over cached evidence
+- user prompt drives the investigation
+- chain of thought is fully visible in the UI
+- the agent decides what tools to call based on the question
+- follow-up questions work within the same session
+- anomaly as gate, severity for ordering, confidence for modulation
+- visible reasoning over cached evidence
+- source coverage affects confidence
 
 That is the contract that keeps the product coherent.

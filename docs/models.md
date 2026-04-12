@@ -1,11 +1,11 @@
-# ThermalGen V2 Models
+# Urban Legend Models
 ## Model and Reasoning Stack for the Winning Slice
 
-This document describes the model stack for the hackathon version of ThermalGen.
+This document describes the model stack for the hackathon version of Urban Legend.
 
 The guiding rule is:
 
-> models produce evidence, the agent produces decisions
+> models produce evidence, the agent produces decisions driven by the user's question
 
 That distinction is what makes the project credible for `Best in Agentic AI`.
 
@@ -19,9 +19,9 @@ The best version is:
 
 - narrow models for perception and context
 - explicit scoring for triage
-- a constrained orchestrator for decision-making
-- a clean planner or explanation layer for output
-- tool calls that are motivated by missing evidence
+- a prompt-driven orchestrator that interprets the user's question and decides what tools to call
+- visible chain of thought for every investigation
+- tool calls that are motivated by what the user asked and what evidence is missing
 
 This is more stable, easier to demo, and easier for judges to understand.
 
@@ -29,13 +29,13 @@ This is more stable, easier to demo, and easier for judges to understand.
 
 ## 2. Recommended Categories
 
-ThermalGen only needs five model or reasoning categories for the winning slice:
+Urban Legend only needs five model or reasoning categories for the winning slice:
 
-1. thermal evidence
-2. perception
-3. context comparison
-4. orchestrator reasoning
-5. ranking and explanation
+1. thermal evidence (satellite-to-thermal conversion model)
+2. perception (object and surface classification)
+3. context comparison (neighbor analysis)
+4. orchestrator reasoning (Gemini — interprets prompt, picks tools, produces chain of thought)
+5. answer generation (structured response with recommendations)
 
 ---
 
@@ -43,22 +43,22 @@ ThermalGen only needs five model or reasoning categories for the winning slice:
 
 ### Role
 
-The thermal generator is already built and should be treated as stable infrastructure.
+The satellite-to-thermal conversion model is already built and should be treated as stable infrastructure.
 
 ### Use in the Hackathon
 
-- align thermal output with RGB
-- use it to propose candidate hotspots
-- derive heat-related cues for scoring
-- expose hotspot-level thermal evidence on demand
+- convert satellite imagery to thermal representation
+- provide the thermal image for UI overlay display
+- extract thermal data for the analysis pipeline
+- expose hotspot-level thermal evidence when the agent requests it
 
 ### Strategic Rule
 
 Do not treat thermal generation as the headline.
 
-It is a strong upstream component, but the product is the decision layer built on top of it.
+It is a strong upstream component, but the product is the prompt-driven investigation built on top of it.
 
-In the investigation trace, thermal should look like a tool the agent decided to use.
+In the chain of thought, thermal should look like a tool the agent decided to consult because it needed heat evidence to answer the user's question.
 
 ---
 
@@ -135,20 +135,32 @@ This is one of the strongest differentiators in the project.
 
 ---
 
-## 6. Orchestrator Reasoning
+## 6. Orchestrator Reasoning (Gemini)
 
 The orchestrator is the agentic center of the system.
 
 Its job is not to classify images directly.
 
-Its job is to decide:
+Its job is to:
 
-- what evidence to request next
-- whether evidence is sufficient
-- whether to discard or escalate
-- when to finalize a hotspot
+- interpret the user's prompt to understand what they are asking
+- examine the available data context for the region
+- decide what tools to call and in what order to answer the question
+- execute tools and gather evidence
+- reason over the evidence and decide if more is needed
+- produce a structured answer with the full chain of thought visible
 
-### Recommended Action Space
+### Prompt-Driven Behavior
+
+The agent's investigation path is determined by the user's question, not by a fixed pipeline. Different questions lead to different tool usage patterns.
+
+Example:
+
+- "What should I fix first?" -> agent scans all hotspots, scores them, ranks them
+- "Are there HVAC issues?" -> agent focuses on mechanical equipment hotspots
+- "Why is this corner hot?" -> agent examines a specific area, identifies causes
+
+### Available Tools
 
 - `inspect_object`
 - `request_thermal_evidence`
@@ -158,10 +170,17 @@ Its job is to decide:
 - `score_hotspot`
 - `discard_hotspot`
 - `finalize_hotspot`
+- `list_hotspot_candidates`
+- `get_region_summary`
+- `lookup_location`
 
 Keep this space constrained.
 
-The more constrained it is, the more believable and legible the investigation trace becomes.
+The more constrained it is, the more believable and legible the chain of thought becomes.
+
+### Conversational Context
+
+The agent maintains session context across follow-up questions. It can reference prior chain of thought and findings when answering follow-ups.
 
 ---
 
@@ -203,7 +222,8 @@ Inputs:
 - perception confidence
 - context strength
 - consistency of evidence
-- whether enough evidence was gathered before finalization
+- source coverage quality
+- whether enough evidence was gathered
 
 Output:
 
@@ -226,15 +246,22 @@ This should be deterministic for the hackathon.
 
 ---
 
-## 8. Explanation Layer
+## 8. Answer Generation
 
-This layer turns structured evidence into a short explanation for judges and users.
+This layer turns the agent's investigation into a structured response to the user's prompt.
+
+The answer should:
+
+- directly address what the user asked
+- reference specific hotspots and evidence gathered during chain of thought
+- include ranked recommendations when the question calls for prioritization
+- cite confidence and coverage factors when relevant
 
 Example:
 
-> This roof is unusually hot relative to nearby roofs and appears to use a dark surface, making it a strong cool-roof retrofit candidate.
+> This roof is unusually hot relative to nearby roofs and appears to use a dark surface, making it a strong cool-roof retrofit candidate. I checked 12 comparable roofs in the area and this one ranks in the 83rd percentile for heat intensity.
 
-This does not need to be fancy. It needs to be clear.
+This does not need to be fancy. It needs to be clear and grounded in the evidence the agent gathered.
 
 ---
 
@@ -242,11 +269,11 @@ This does not need to be fancy. It needs to be clear.
 
 ### Should Be Model-Based
 
-- thermal generation
+- thermal generation (satellite-to-thermal conversion)
 - object detection or classification
 - coarse material inference
 - context embeddings if already available
-- orchestrator reasoning
+- orchestrator reasoning (Gemini)
 
 ### Should Be Heuristic or Deterministic
 
@@ -258,7 +285,7 @@ This does not need to be fancy. It needs to be clear.
 
 This split is ideal for a hackathon because it maximizes stability and explainability.
 
-It also makes the agent trace more legible: learned models produce evidence, deterministic logic turns that evidence into prioritization.
+It also makes the chain of thought more legible: learned models produce evidence, deterministic logic turns that evidence into prioritization.
 
 ---
 
@@ -266,25 +293,30 @@ It also makes the agent trace more legible: learned models produce evidence, det
 
 ```json
 {
-  "hotspot_id": "hs_07",
-  "object_type": "commercial roof",
-  "object_confidence": 0.88,
-  "material_type": "dark membrane roofing",
-  "material_confidence": 0.74,
-  "severity_score": 0.84,
-  "anomaly_score": 0.71,
-  "overall_confidence": 0.78,
-  "recommended_action": "inspect for cool-roof retrofit",
-  "priority_rank": 1,
-  "why": [
-    "high thermal concentration",
-    "large exposed roof area",
-    "hotter than nearby similar structures"
-  ]
+  "prompt": "What should I fix first in this area?",
+  "chain_of_thought": [
+    {"step_type": "reasoning", "summary": "User wants prioritized interventions. Scanning all candidates."},
+    {"step_type": "tool_call", "tool_name": "inspect_object", "summary": "Identified commercial roof"},
+    {"step_type": "tool_call", "tool_name": "request_thermal_evidence", "summary": "Intensity 0.87"},
+    {"step_type": "tool_call", "tool_name": "score_hotspot", "summary": "Anomaly: 0.82, Severity: 0.76"}
+  ],
+  "answer": "The commercial roof at the northeast corner is the highest-priority intervention...",
+  "top_recommendation": {
+    "hotspot_id": "hs_07",
+    "object_type": "commercial roof",
+    "severity_score": 0.84,
+    "anomaly_score": 0.71,
+    "overall_confidence": 0.78,
+    "recommended_action": "cool-roof retrofit",
+    "priority_rank": 1,
+    "why": [
+      "high thermal concentration",
+      "large exposed roof area",
+      "hotter than nearby similar structures"
+    ]
+  }
 }
 ```
-
-This schema is enough to drive the UI, the ranking panel, and the final recommendation card.
 
 ---
 
@@ -294,10 +326,10 @@ If time gets tight, do not add more models.
 
 Instead, strengthen the visibility of:
 
-- object evidence
-- evidence-request decisions
+- the agent interpreting the user's question
+- evidence-request decisions in the chain of thought
 - context comparison
 - rejection logic
-- ranking logic
+- the final answer with clear reasoning
 
 Those are the pieces that make the system feel agentic.

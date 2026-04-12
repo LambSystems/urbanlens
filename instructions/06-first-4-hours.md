@@ -8,51 +8,53 @@ All together for 10-15 minutes:
 
 - freeze shared contract
 - freeze one demo region
-- freeze one discarded hotspot example
-- freeze one Top 1 hotspot example
+- freeze one example prompt and expected answer
+- freeze chain of thought step format
 
 Then split:
 
-- Engineer 1 builds UI shell
-- Engineer 2 builds API and orchestrator skeleton
+- Engineer 1 builds UI shell with prompt input and chain of thought panel
+- Engineer 2 builds session API and mocked chain of thought response
 - Engineer 3 builds hotspot evidence fixtures
 - Engineer 4 builds scoring logic
 
 ## Hour 1 to 2
 
-- Engineer 2 exposes real endpoints
-- Engineer 1 connects to backend payloads
-- Engineer 3 improves evidence quality
-- Engineer 4 plugs scoring into backend flow
+- Engineer 2 exposes real session endpoints with mocked chain of thought
+- Engineer 1 connects to backend — renders prompt input, chain of thought, and answers
+- Engineer 3 improves evidence quality, wires thermal tool
+- Engineer 4 plugs scoring into tool dispatch
 
 Goal:
 
-- full product renders from API
+- full product renders from API with chain of thought visible
 
 ## Hour 2 to 3
 
-- implement trace playback
-- add discarded hotspot path
-- add Top 3 ranking
-- validate schema consistency
+- Wire Gemini into the agent loop — real tool calling
+- Chain of thought streams from agent decisions, not mocked sequences
+- Add follow-up question support
+- Validate schema consistency
 
 Goal:
 
-- visible 5-15 second investigation
+- user types a prompt, agent investigates live with visible chain of thought
 
 ## Hour 3 to 4
 
-- replace one or more mocked internals with real evidence
-- polish trace summaries
-- improve ranking explanations
-- stabilize one demo region
+- Replace mocked tool internals with real evidence
+- Polish chain of thought summaries
+- Improve ranking explanations
+- Stabilize one demo region with one primary prompt and one follow-up
 
 Goal:
 
-- one full region works end-to-end
+- one full region works end-to-end with real investigation
 
 ## Rule
 
 Integrate early.
 
 Do not wait for "real" implementations before wiring the system together.
+
+The mocked chain of thought should look exactly like the real one — same step types, same field names, same streaming behavior. The only difference is where the data comes from.

@@ -1,11 +1,11 @@
-# ThermalGen V2 Demo
+# Urban Legend Demo
 ## Best in Agentic AI Demo Script and Execution Plan
 
 This demo is designed to win `Best in Agentic AI`.
 
 The goal is not to explain every model. The goal is to make judges feel, very quickly, that the system is:
 
-> detecting, deciding what evidence it needs, investigating, rejecting, prioritizing, and recommending
+> listening to what the user asks, investigating with visible reasoning, and coming back with an answer you can act on
 
 ---
 
@@ -13,9 +13,9 @@ The goal is not to explain every model. The goal is to make judges feel, very qu
 
 By the first minute, a judge should understand:
 
-- why this is an agent
-- why it is more than a heat map
-- what action the system recommends
+- why this is an agent (it investigates based on what you ask)
+- why it is more than a heat map (it reasons, rejects, and recommends)
+- that you can have a conversation with it about urban heat data
 
 If those three things are clear, the demo is doing its job.
 
@@ -25,9 +25,9 @@ If those three things are clear, the demo is doing its job.
 
 Use this framing:
 
-> Most tools show you heat. ThermalGen investigates hotspots and tells you what to fix first.
+> Ask a question about urban heat. Watch the agent investigate. Get an answer you can act on.
 
-This framing is stronger than leading with models or thermal generation.
+This framing is stronger than leading with models or thermal generation. It puts the user's question at the center.
 
 ---
 
@@ -37,13 +37,14 @@ This framing is stronger than leading with models or thermal generation.
 
 What you say:
 
-> We are looking at a real region where the system first gathers available drone evidence, then reasons over thermal and geospatial context.
+> We are looking at a real region. The system has loaded satellite imagery, thermal data from our conversion model, and metadata from scattered drone sources.
 
 What you show:
 
 - map view
 - RGB layer
 - thermal overlay toggle
+- data context loaded indicator
 
 Time:
 
@@ -51,63 +52,60 @@ Time:
 
 Goal:
 
-- establish inputs fast
+- establish the data context fast
 - frame Google Maps as the interface, not the only data source
 
 ---
 
-### Step 2: Show Candidate Hotspots
+### Step 2: Ask the First Question
+
+This is the key moment. The user types a question.
 
 What you say:
 
-> First, the system proposes candidate hotspots worth investigating.
+> Now we ask: "What should I fix first in this area?"
 
 What you show:
 
-- 3 to 5 hotspot markers
+- user types the prompt
+- agent begins investigating — chain of thought starts streaming
 
 Time:
 
-- 10 to 15 seconds
+- 5 seconds to type
 
 Goal:
 
-- make it clear these are candidates, not final answers
-- frame them as hotspots inside a region around the user click
+- show that the user drives the investigation
+- the agent responds to the specific question
 
 ---
 
-### Step 3: Walk Through Investigation
+### Step 3: Watch the Chain of Thought
 
 This is the most important section.
 
 What you say:
 
-> Instead of stopping at detection, the agent decides what evidence it needs next.
-
-Walk one hotspot through a visible trace:
-
-1. detect object
-2. decide it needs thermal or context evidence
-3. infer surface or material
-4. compare against nearby structures
-5. decide whether to discard or escalate
+> Watch the agent think. It is deciding what evidence to gather, calling tools, and reasoning through what it finds.
 
 What you show:
 
-- selected hotspot
-- evidence panel
-- investigation trace
-- tool call or evidence request label
-- labels such as roof, dark membrane, hotter than neighbors
+- chain of thought panel with steps appearing in real time:
+  1. agent interprets the question
+  2. lists hotspot candidates
+  3. inspects an object — identifies it as a roof
+  4. requests thermal evidence — high intensity detected
+  5. compares against neighbors — hotter than 83% of nearby roofs
+  6. scores the hotspot
 
 Time:
 
-- 20 to 30 seconds
+- 15 to 25 seconds
 
 Goal:
 
-- prove visible reasoning and tool use
+- prove visible reasoning and tool use driven by the question
 
 ---
 
@@ -115,11 +113,13 @@ Goal:
 
 What you say:
 
-> Not every hotspot matters. The agent filters out expected or low-value ones.
+> Not every hotspot matters. The agent found a road with expected heat and dismissed it.
 
 What you show:
 
-- one hotspot marked `discarded` or `low priority`
+- chain of thought step: agent inspects road pavement
+- chain of thought step: agent checks thermal — consistent with nearby roads
+- chain of thought step: agent discards — "expected road heat profile"
 
 Time:
 
@@ -128,55 +128,21 @@ Time:
 Goal:
 
 - prove discernment, not just detection
-
-This is one of the strongest agentic signals in the whole demo.
-
-Make the rejection reason visible.
-
-Examples:
-
-- expected road heat pattern
-- not hotter than nearby comparable roofs
-- low confidence after evidence gathering
-- incomplete source coverage for escalation
+- the rejection reason is visible in the chain of thought
 
 ---
 
-### Step 5: Show Prioritization
+### Step 5: See the Answer
 
 What you say:
 
-> Then the system ranks the remaining hotspots by actionability and confidence.
+> The agent has finished investigating. Here is what it recommends.
 
 What you show:
 
-- Top 3 ranked hotspots
-- severity
-- anomaly
-- confidence
-
-Time:
-
-- 10 to 15 seconds
-
-Goal:
-
-- prove decision quality, not just analysis
-
----
-
-### Step 6: Land the Recommendation
-
-What you say:
-
-> This is the first thing you should fix.
-
-What you show:
-
-- final recommendation card
-- hotspot type
-- why it matters
-- recommended intervention
+- agent's final answer in the conversation
+- Top 3 ranked hotspots with severity, anomaly, confidence
+- recommendation card: what to fix, why, what action to take
 
 Example:
 
@@ -195,16 +161,39 @@ Goal:
 
 ---
 
+### Step 6: Ask a Follow-Up
+
+What you say:
+
+> Now we dig deeper. We ask: "How confident are you about that roof?"
+
+What you show:
+
+- user types follow-up prompt
+- agent reasons over prior findings and source coverage
+- returns a focused answer about confidence factors
+
+Time:
+
+- 10 to 15 seconds
+
+Goal:
+
+- prove the system is conversational and can build on prior investigation
+- this is a strong differentiator that most hackathon projects will not have
+
+---
+
 ## 4. Time Budget
 
 | Section | Time |
 | --- | --- |
-| Setup | 10s |
-| Candidate discovery | 15s |
-| Investigation | 30s |
-| Rejection | 15s |
-| Prioritization | 15s |
-| Final recommendation | 15s |
+| Setup and region load | 10s |
+| Type first question | 5s |
+| Chain of thought investigation | 25s |
+| Rejection visible | 15s |
+| Answer and recommendations | 15s |
+| Follow-up question | 15s |
 
 Total:
 
@@ -220,29 +209,29 @@ Total:
 - RGB plus thermal toggle
 - hotspot markers
 
-### Evidence Panel
+### Prompt Input
 
-- object type
-- material or surface class
-- thermal evidence used or not used
-- context evidence used or not used
-- source count or coverage indicator
-- anomaly
-- severity
-- confidence
+- text input field for the user's question
+- visible in the sidebar or bottom panel
+- send button or enter to submit
 
-### Investigation Trace
+### Chain of Thought Panel
 
-- detected object
-- requested thermal evidence
-- requested context comparison
-- inferred material
-- compared neighbors
-- discarded or escalated
+- real-time display of agent reasoning steps
+- step types: reasoning, tool_call, finding, answer
+- each step shows a summary
+- tool calls show which tool was invoked and what it returned
+- steps transition through pending -> running -> completed
 
-### Ranking Panel
+### Conversation History
 
-- Top 3 hotspots
+- shows prior prompts and answers
+- follow-up questions appear in the same thread
+- scrollable
+
+### Recommendation Display
+
+- Top 3 hotspots when applicable
 - short rationale
 - priority labels
 - anomaly, severity, and confidence values or badges
@@ -257,46 +246,40 @@ Total:
 
 Use `v0` to accelerate and polish the highest-visibility UI pieces:
 
-- hotspot sidebar
-- investigation trace timeline
+- prompt input and conversation thread
+- chain of thought timeline
 - ranking cards
-- final recommendation card
+- recommendation card
 
 The map and application logic remain custom. `v0` is used to speed up strong UI composition around the core flow.
-
-### Planner Mode
-
-After analysis completes, the UI may expose a small input for region-specific questions.
-
-Good examples:
-
-- `What should we fix first here?`
-- `Why was this hotspot discarded?`
-- `Which hotspot has the strongest anomaly?`
-
-Planner Mode should feel like a guided decision assistant over the current region, not a generic chat app.
 
 ---
 
 ## 6. What Makes This Demo Competitive
 
-### Visible Thinking
+### User-Driven Investigation
 
-The system must look like it is deciding what to do next.
+The user asks a question. The agent investigates that specific question. This is more agentic than a system that auto-runs the same pipeline every time.
+
+### Visible Chain of Thought
+
+Every reasoning step is shown. Judges can watch the agent think.
 
 ### Rejection
 
 Showing a discarded hotspot is not optional. It is one of the cleanest proofs of agency.
 
+### Conversational Depth
+
+Follow-up questions prove the system maintains context and builds on prior investigation. Most hackathon projects will not have this.
+
 ### Clear End State
 
-The demo must end with a recommendation, not a finding.
+The demo must end with an actionable answer, not a finding.
 
 ### Speed and Stability
 
 Precompute aggressively if needed. Judging rewards clarity and reliability more than live complexity.
-
-If live tool-calling is risky, precompute the outputs but still render the evidence-request steps clearly in the trace.
 
 ---
 
@@ -305,23 +288,23 @@ If live tool-calling is risky, precompute the outputs but still render the evide
 ### Primary Safety Net
 
 - one fully precomputed region
-- cached investigation outputs
+- cached chain of thought for demo prompts
 - fallback JSON responses
 
 ### Screenshot Safety Net
 
-- hotspot map screenshot
-- investigation trace screenshot
-- ranked output screenshot
+- map with hotspots screenshot
+- chain of thought screenshot
+- answer with recommendations screenshot
 
 ### Reduced Mode
 
-If the full orchestrator path breaks:
+If the full agent path breaks:
 
-- show cached investigation
+- show cached chain of thought
 - still show rejection
-- still show ranking
-- still land the recommendation
+- still show the answer
+- still show the recommendation
 
 The demo must survive partial failure.
 
@@ -336,7 +319,7 @@ The demo must survive partial failure.
 
 ### Operator
 
-- clicks through UI
+- clicks map, types prompts
 - keeps the pace tight
 
 ### Support 1
@@ -353,23 +336,31 @@ The demo must survive partial failure.
 
 ### Opening
 
-> Most tools show you heat. We built an agent that tells you what to fix first.
+> Most tools show you heat. We built an agent you can ask questions — and it investigates with visible reasoning.
 
-### During Investigation
+### When Typing the Prompt
 
-> The agent is deciding what evidence it needs next.
+> We ask: what should I fix first in this area?
+
+### During Chain of Thought
+
+> The agent is deciding what evidence it needs. Watch it reason through each step.
 
 ### During Rejection
 
-> This hotspot is real, but not worth acting on first.
+> This hotspot is real, but the agent found it is not worth acting on first. Here is why.
 
-### During Ranking
+### During Answer
 
-> Now the system prioritizes by severity, anomaly, and confidence.
+> Here is the agent's answer — with ranked recommendations and reasoning you can trace.
+
+### During Follow-Up
+
+> Now we dig deeper with a follow-up question. The agent builds on what it already found.
 
 ### Final Line
 
-> This is the first intervention we would recommend.
+> That is Urban Legend. Ask a question about urban heat. Get an answer you can act on.
 
 ---
 
@@ -378,9 +369,10 @@ The demo must survive partial failure.
 - opening with technical model details
 - overexplaining infrastructure
 - skipping the rejection step
-- ending on analysis instead of action
+- ending on analysis instead of an answer
 - relying on live inference without fallback
-- forcing a v0-generated layout that hurts map legibility or trace clarity
+- not showing the follow-up question (it is a strong differentiator)
+- forcing a v0-generated layout that hurts chain of thought legibility
 
 ---
 
@@ -388,11 +380,10 @@ The demo must survive partial failure.
 
 If time is short, preserve this sequence at all costs:
 
-- hotspot candidates
-- evidence-request step
-- investigation trace
-- rejected hotspot
-- Top 3 ranking
-- final recommendation
+- user asks a question
+- chain of thought streams with visible tool calls
+- at least one hotspot rejected
+- answer with ranked recommendations
+- one follow-up question
 
 That is the proof of agentic behavior.
