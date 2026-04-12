@@ -293,7 +293,36 @@ Use this only for development. It exposes:
 - ranking formula and anomaly threshold
 - source-aware confidence context
 
-## 9. Suggested Frontend Flow
+## 9. Planner Mode Question
+
+Use this after an analysis already exists.
+
+```http
+POST /analysis/{region_id}/questions
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "question": "What should we fix first here?"
+}
+```
+
+Example response:
+
+```json
+{
+  "region_id": "region_ab12cd34",
+  "question": "What should we fix first here?",
+  "answer": "You should prioritize hs_03 first. It is a hvac_mechanical hotspot with anomaly 0.67, severity 0.81, confidence 0.79, and the recommended action is hvac inspection.",
+  "referenced_hotspot_ids": ["hs_03"],
+  "planner_mode": "analysis_qa"
+}
+```
+
+## 10. Suggested Frontend Flow
 
 1. Load `GET /demo/regions` or let the user click on the map.
 2. Optionally use `GET /demo/example-analysis-request` for a ready-made request body.
@@ -302,8 +331,9 @@ Use this only for development. It exposes:
 5. Poll `GET /analysis/{region_id}` every 800 to 1200 ms.
 6. Poll `GET /analysis/{region_id}/events` if a separate trace feed is useful.
 7. Fetch `GET /analysis/{region_id}/hotspots/{hotspot_id}` when the user clicks a hotspot.
+8. Once analysis exists, optionally call `POST /analysis/{region_id}/questions` for Planner Mode.
 
-## 10. Minimal cURL Examples
+## 11. Minimal cURL Examples
 
 Create analysis:
 
@@ -329,4 +359,12 @@ Get debug view:
 
 ```bash
 curl "http://localhost:8000/analysis/region_ab12cd34/debug"
+```
+
+Ask planner question:
+
+```bash
+curl -X POST "http://localhost:8000/analysis/region_ab12cd34/questions" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\":\"What should we fix first here?\"}"
 ```

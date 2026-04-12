@@ -230,3 +230,15 @@ class DebugAnalysisView(BaseModel):
     ranking_formula: str
     anomaly_threshold: float
     hotspots: list[DebugHotspotView]
+
+
+class PlannerQuestionRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+class PlannerQuestionResponse(BaseModel):
+    region_id: str
+    question: str
+    answer: str
+    referenced_hotspot_ids: list[str] = Field(default_factory=list)
+    planner_mode: str = "analysis_qa"

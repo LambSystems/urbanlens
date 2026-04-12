@@ -29,6 +29,7 @@ Do not wait for real ML or real scoring.
    - trace timeline
    - ranking cards
    - recommendation card
+8. Add a small Planner Mode input after analysis is complete.
 
 ## Inputs Expected from Backend
 
@@ -53,6 +54,17 @@ Use the exact field names from [contracts.md](C:/Users/akuma/repos/thermalgen/do
 - discarded hotspot state
 - Top 3 ranking
 - final recommendation
+- Planner Mode input for region-specific questions after generation
+
+## Planner Mode UI Rule
+
+This is not free-form chat.
+
+Treat it as:
+
+- one small prompt box
+- appears after analysis exists
+- answers questions about the current region only
 
 ## Success Condition
 
