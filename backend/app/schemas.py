@@ -40,8 +40,10 @@ class HotspotType(str, Enum):
 
 class TraceKind(str, Enum):
     candidate_detected = "candidate_detected"
+    generate_thermal_overlay = "generate_thermal_overlay"
     inspect_object = "inspect_object"
     request_thermal_evidence = "request_thermal_evidence"
+    analyze_heat_risk = "analyze_heat_risk"
     infer_surface = "infer_surface"
     compare_neighbors = "compare_neighbors"
     check_consistency = "check_consistency"
@@ -317,3 +319,15 @@ class PlannerQuestionResponse(BaseModel):
     answer: str
     referenced_hotspot_ids: list[str] = Field(default_factory=list)
     planner_mode: str = "analysis_qa"
+
+
+class VoiceBriefingRequest(BaseModel):
+    question: str | None = Field(default=None, max_length=500)
+    voice_id: str | None = Field(default=None, max_length=200)
+
+
+class VoiceBriefingResponse(BaseModel):
+    region_id: str
+    audio_url: str | None = None
+    summary_text: str
+    provider: str

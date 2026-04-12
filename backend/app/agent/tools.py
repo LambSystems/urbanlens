@@ -24,6 +24,11 @@ TOOL_REGISTRY: dict[str, dict] = {
         "module": "thermal.evidence",
         "function": "extract_hotspot_thermal",
     },
+    "analyze_heat_risk": {
+        "description": "Estimate heat risk drivers from visible locality cues and hotspot context",
+        "module": "heat_risk",
+        "function": "analyze_heat_risk",
+    },
 
     # ── Heat Risk Profiler ────────────────────────────────────────────────────
     "analyze_heat_risk": {
