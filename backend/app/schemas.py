@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -98,6 +99,8 @@ class AnalysisRegion(BaseModel):
     region_id: str
     center: LatLng
     radius_m: int = Field(default=120, ge=1)
+    bounds: SourceBounds | None = None
+    area_km2: float | None = None
     available_source_count: int = 0
     coverage_score: float | None = None
     maps_fallback_count: int = 0
@@ -127,9 +130,11 @@ class TraceStep(BaseModel):
     hotspot_id: str
     kind: TraceKind
     status: TraceStepStatus
+    timestamp_ms: int | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     summary: str
+    details: dict[str, Any] = Field(default_factory=dict)
     evidence: TraceEvidence = Field(default_factory=TraceEvidence)
 
 
@@ -139,7 +144,10 @@ class HotspotCandidate(BaseModel):
     bbox: BoundingBox
     centroid: LatLng
     hotspot_type: HotspotType
+    display_name: str | None = None
     status: HotspotStatus
+    surface_temperature_c: float | None = None
+    ambient_delta_c: float | None = None
     source_count: int = 0
     coverage_score: float | None = None
     anomaly_score: float | None = None
@@ -148,6 +156,11 @@ class HotspotCandidate(BaseModel):
     final_rank_score: float | None = None
     discard_reason: str | None = None
     recommended_action: str | None = None
+    evidence_urls: list[str] = Field(default_factory=list)
+    priority_rank: int | None = None
+    is_top_ranked: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     why: list[str] = Field(default_factory=list)
     trace: list[TraceStep] = Field(default_factory=list)
 
@@ -192,6 +205,8 @@ class AnalysisResult(BaseModel):
     status: AnalysisStatus
     hotspots: list[HotspotCandidate]
     top_hotspots: list[RankedHotspot]
+    top_hotspot_id: str | None = None
+    discarded_hotspot_ids: list[str] = Field(default_factory=list)
 
 
 class AnalysisResponse(BaseModel):
@@ -210,7 +225,9 @@ class AnalysisEvent(BaseModel):
     step_id: str
     kind: TraceKind
     status: TraceStepStatus
+    timestamp_ms: int | None = None
     summary: str
+    details: dict[str, Any] = Field(default_factory=dict)
     scheduled_offset_ms: int
 
 
