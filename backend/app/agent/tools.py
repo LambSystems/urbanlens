@@ -1,11 +1,11 @@
-"""Urban Legend — Agent tools for urban sustainability analysis."""
+"""Urban Legend — Agent tools with real API calls for urban sustainability analysis."""
 
 import json
+import httpx
 from typing import Optional
 
 from ..config import TRAIN_TEST_SPLIT_PATH
 
-# Region context set by the loop before running the agent
 _region_context: dict = {}
 
 
@@ -15,106 +15,299 @@ def set_region_context(ctx: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Data access tools
+# Real API tools — no keys needed
 # ---------------------------------------------------------------------------
 
-def lookup_image_metadata(image_id: str) -> dict:
-    """Look up metadata about the drone imagery — image pair info, source drone details.
+def get_weather_current(lat: float, lng: float) -> dict:
+    """Get current weather conditions for a location including temperature,
+    humidity, wind, and cloud cover. Uses Open-Meteo API (no key needed).
 
     Args:
-        image_id: Image index (e.g. '475') or filename. Use 'summary' for dataset overview.
+        lat: Latitude of the location.
+        lng: Longitude of the location.
     """
-    if not TRAIN_TEST_SPLIT_PATH.exists():
-        return {"error": "Image metadata file not found"}
-
-    with open(TRAIN_TEST_SPLIT_PATH) as f:
-        data = json.load(f)
-
-    if image_id == "summary":
+    try:
+        r = httpx.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": lat,
+            "longitude": lng,
+            "current": "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,cloud_cover,surface_pressure,uv_index",
+            "temperature_unit": "fahrenheit",
+            "wind_speed_unit": "mph",
+            "timezone": "auto",
+        }, timeout=10)
+        data = r.json()
+        current = data.get("current", {})
         return {
-            "total_image_pairs": len(data),
-            "description": "Dataset of DJI drone image pairs — thermal (_T) and visual (_V) captured on 2024-08-04.",
-            "sample_entries": {k: data[k] for k in list(data.keys())[:3]},
+            "lat": lat,
+            "lng": lng,
+            "temperature_f": current.get("temperature_2m"),
+            "feels_like_f": current.get("apparent_temperature"),
+            "humidity_pct": current.get("relative_humidity_2m"),
+            "wind_speed_mph": current.get("wind_speed_10m"),
+            "cloud_cover_pct": current.get("cloud_cover"),
+            "uv_index": current.get("uv_index"),
+            "surface_pressure_hpa": current.get("surface_pressure"),
+            "time": current.get("time"),
+            "source": "Open-Meteo API",
         }
-
-    key = image_id if image_id.endswith(".JPG") else f"{image_id}.JPG"
-    pair = data.get(key)
-    if pair is None:
-        return {"error": f"No metadata found for '{image_id}'"}
-
-    thermal_file, visual_file = pair
-    parts = thermal_file.split("_")
-    capture_date = parts[1][:8] if len(parts) >= 2 else "unknown"
-    capture_time = parts[1][8:] if len(parts) >= 2 else "unknown"
-
-    return {
-        "image_id": key,
-        "thermal_file": thermal_file,
-        "visual_file": visual_file,
-        "drone": "DJI",
-        "capture_date": f"{capture_date[:4]}-{capture_date[4:6]}-{capture_date[6:8]}",
-        "capture_time": f"{capture_time[:2]}:{capture_time[2:4]}:{capture_time[4:6]}",
-    }
+    except Exception as e:
+        return {"error": str(e)}
 
 
-def lookup_location_info(query: str) -> dict:
-    """Look up information about the location — address, building types, land use,
-    zoning, and neighborhood context.
+def get_air_quality(lat: float, lng: float) -> dict:
+    """Get current air quality index and pollutant levels for a location.
+    Includes PM2.5, PM10, ozone, NO2, and overall AQI. Uses Open-Meteo API.
 
     Args:
-        query: What to look up (e.g. 'the building on the northwest corner' or 'general').
+        lat: Latitude of the location.
+        lng: Longitude of the location.
     """
-    center = _region_context.get("center", {})
-    return {
-        "coordinates": center,
-        "city": "St. Louis",
-        "state": "Missouri",
-        "area_description": "Urban downtown area with commercial buildings, office towers, parking structures, and surface roads. Typical Midwestern urban heat island characteristics.",
-        "building_types": ["commercial office", "parking garage", "retail", "mixed-use residential"],
-        "land_use": "commercial/mixed-use urban core",
-        "zoning": "Central Business District (CBD)",
-        "climate_zone": "IECC Zone 4A — mixed-humid",
-        "avg_summer_high_f": 89,
-        "urban_tree_canopy_pct": 18,
-        "impervious_surface_pct": 78,
-        "note": "Curated demo data. Wire to Google Maps Places API for live lookups.",
-    }
+    try:
+        r = httpx.get("https://air-quality-api.open-meteo.com/v1/air-quality", params={
+            "latitude": lat,
+            "longitude": lng,
+            "current": "us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,dust,uv_index",
+            "timezone": "auto",
+        }, timeout=10)
+        data = r.json()
+        current = data.get("current", {})
+
+        aqi = current.get("us_aqi", 0)
+        if aqi <= 50:
+            category = "Good"
+        elif aqi <= 100:
+            category = "Moderate"
+        elif aqi <= 150:
+            category = "Unhealthy for Sensitive Groups"
+        elif aqi <= 200:
+            category = "Unhealthy"
+        else:
+            category = "Very Unhealthy"
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "us_aqi": aqi,
+            "aqi_category": category,
+            "pm2_5_ugm3": current.get("pm2_5"),
+            "pm10_ugm3": current.get("pm10"),
+            "ozone_ugm3": current.get("ozone"),
+            "no2_ugm3": current.get("nitrogen_dioxide"),
+            "co_ugm3": current.get("carbon_monoxide"),
+            "dust_ugm3": current.get("dust"),
+            "uv_index": current.get("uv_index"),
+            "time": current.get("time"),
+            "source": "Open-Meteo Air Quality API",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_land_use(lat: float, lng: float) -> dict:
+    """Get land use and nearby infrastructure information from OpenStreetMap.
+    Returns building types, road types, green spaces, and urban features
+    within 200m of the location.
+
+    Args:
+        lat: Latitude of the location.
+        lng: Longitude of the location.
+    """
+    try:
+        # Query OpenStreetMap Overpass API for features within 200m
+        query = f"""
+        [out:json][timeout:10];
+        (
+          way["building"](around:200,{lat},{lng});
+          way["landuse"](around:200,{lat},{lng});
+          way["natural"](around:200,{lat},{lng});
+          way["leisure"](around:200,{lat},{lng});
+          way["highway"](around:300,{lat},{lng});
+        );
+        out tags;
+        """
+        r = httpx.post("https://overpass-api.de/api/interpreter",
+                       data={"data": query}, timeout=15)
+        data = r.json()
+
+        buildings = []
+        land_uses = []
+        green_spaces = []
+        roads = []
+
+        for elem in data.get("elements", []):
+            tags = elem.get("tags", {})
+            if "building" in tags:
+                btype = tags.get("building", "yes")
+                if btype not in buildings:
+                    buildings.append(btype)
+            if "landuse" in tags:
+                lu = tags["landuse"]
+                if lu not in land_uses:
+                    land_uses.append(lu)
+            if "natural" in tags or "leisure" in tags:
+                gs = tags.get("natural") or tags.get("leisure", "")
+                if gs and gs not in green_spaces:
+                    green_spaces.append(gs)
+            if "highway" in tags:
+                road = tags["highway"]
+                if road not in roads:
+                    roads.append(road)
+
+        total_features = len(data.get("elements", []))
+        building_count = sum(1 for e in data.get("elements", []) if "building" in e.get("tags", {}))
+        green_count = sum(1 for e in data.get("elements", [])
+                         if "natural" in e.get("tags", {}) or "leisure" in e.get("tags", {}))
+
+        impervious_estimate = min(95, max(20, building_count * 5 + len(roads) * 8))
+        green_estimate = max(5, 100 - impervious_estimate)
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "total_features_found": total_features,
+            "building_types": buildings[:10],
+            "building_count": building_count,
+            "land_uses": land_uses[:10],
+            "green_spaces": green_spaces[:10],
+            "green_space_count": green_count,
+            "road_types": roads[:10],
+            "estimated_impervious_surface_pct": impervious_estimate,
+            "estimated_green_cover_pct": green_estimate,
+            "source": "OpenStreetMap Overpass API",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_ndvi_estimate(lat: float, lng: float) -> dict:
+    """Estimate vegetation health (NDVI proxy) for a location using
+    satellite-derived land cover data. Higher values = more/healthier vegetation.
+
+    Args:
+        lat: Latitude of the location.
+        lng: Longitude of the location.
+    """
+    try:
+        # Use Open-Meteo's soil/vegetation data as a proxy
+        r = httpx.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": lat,
+            "longitude": lng,
+            "daily": "et0_fao_evapotranspiration,sunshine_duration",
+            "current": "cloud_cover",
+            "timezone": "auto",
+            "forecast_days": 1,
+        }, timeout=10)
+        data = r.json()
+        daily = data.get("daily", {})
+        current = data.get("current", {})
+
+        et0 = (daily.get("et0_fao_evapotranspiration") or [0])[0]
+        sunshine = (daily.get("sunshine_duration") or [0])[0]
+        cloud = current.get("cloud_cover", 50)
+
+        # Also check land use for green space estimate
+        land = get_land_use(lat, lng)
+        green_pct = land.get("estimated_green_cover_pct", 30) if "error" not in land else 30
+
+        # Estimate NDVI from green cover and evapotranspiration
+        ndvi_estimate = round(min(0.9, max(0.05, green_pct / 100 * 0.7 + et0 / 10 * 0.1)), 2)
+
+        if ndvi_estimate > 0.6:
+            health = "Dense healthy vegetation"
+        elif ndvi_estimate > 0.4:
+            health = "Moderate vegetation"
+        elif ndvi_estimate > 0.2:
+            health = "Sparse vegetation / mixed urban"
+        else:
+            health = "Minimal vegetation / heavy urban"
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "ndvi_estimate": ndvi_estimate,
+            "vegetation_health": health,
+            "green_cover_pct": green_pct,
+            "evapotranspiration_mm": et0,
+            "sunshine_hours": round(sunshine / 3600, 1) if sunshine else None,
+            "interpretation": f"NDVI of {ndvi_estimate} indicates {health.lower()}. "
+                            f"Green cover is approximately {green_pct}% of the area.",
+            "source": "Estimated from Open-Meteo + OpenStreetMap data",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_nearby_heat_sources(lat: float, lng: float) -> dict:
+    """Find nearby urban heat sources — industrial facilities, large parking lots,
+    power infrastructure, HVAC systems, and other heat-generating features
+    within 500m of the location.
+
+    Args:
+        lat: Latitude of the location.
+        lng: Longitude of the location.
+    """
+    try:
+        query = f"""
+        [out:json][timeout:10];
+        (
+          node["power"](around:500,{lat},{lng});
+          way["power"](around:500,{lat},{lng});
+          node["man_made"="chimney"](around:500,{lat},{lng});
+          way["landuse"="industrial"](around:500,{lat},{lng});
+          way["amenity"="parking"](around:300,{lat},{lng});
+          way["building"="industrial"](around:500,{lat},{lng});
+          way["building"="warehouse"](around:500,{lat},{lng});
+          node["amenity"="fuel"](around:500,{lat},{lng});
+        );
+        out tags center;
+        """
+        r = httpx.post("https://overpass-api.de/api/interpreter",
+                       data={"data": query}, timeout=15)
+        data = r.json()
+
+        sources = []
+        for elem in data.get("elements", []):
+            tags = elem.get("tags", {})
+            source_type = None
+            if "power" in tags:
+                source_type = f"Power infrastructure: {tags['power']}"
+            elif tags.get("man_made") == "chimney":
+                source_type = "Industrial chimney"
+            elif tags.get("landuse") == "industrial":
+                source_type = f"Industrial area: {tags.get('name', 'unnamed')}"
+            elif tags.get("amenity") == "parking":
+                source_type = f"Parking area: {tags.get('name', 'surface lot')}"
+            elif tags.get("building") in ("industrial", "warehouse"):
+                source_type = f"{tags['building'].title()} building: {tags.get('name', 'unnamed')}"
+            elif tags.get("amenity") == "fuel":
+                source_type = f"Gas station: {tags.get('name', 'unnamed')}"
+
+            if source_type and source_type not in [s["type"] for s in sources]:
+                sources.append({
+                    "type": source_type,
+                    "name": tags.get("name", ""),
+                })
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "search_radius_m": 500,
+            "heat_sources_found": len(sources),
+            "sources": sources[:15],
+            "heat_risk": "High" if len(sources) > 5 else "Moderate" if len(sources) > 2 else "Low",
+            "note": "Large parking lots, industrial buildings, and power infrastructure are major contributors to localized heat.",
+            "source": "OpenStreetMap Overpass API",
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ---------------------------------------------------------------------------
-# Analysis tools
+# Analysis / calculation tools (local, no API)
 # ---------------------------------------------------------------------------
-
-def get_climate_data(location: str) -> dict:
-    """Get local climate context — temperature ranges, precipitation, heating/cooling
-    degree days, and climate-related sustainability factors.
-
-    Args:
-        location: City or coordinates (e.g. 'St. Louis, MO').
-    """
-    return {
-        "location": location or "St. Louis, MO",
-        "climate_zone": "4A — Mixed-Humid",
-        "avg_annual_temp_f": 57,
-        "avg_summer_high_f": 89,
-        "avg_winter_low_f": 24,
-        "cooling_degree_days": 1764,
-        "heating_degree_days": 4484,
-        "annual_precipitation_in": 42,
-        "heat_wave_days_per_year": 12,
-        "urban_heat_island_intensity_f": 5.2,
-        "sustainability_notes": [
-            "High cooling demand makes roof reflectivity impactful",
-            "Mixed-humid climate supports green infrastructure",
-            "Summer heat waves intensify urban heat island effects",
-            "Both heating and cooling matter — insulation is dual-benefit",
-        ],
-    }
-
 
 def estimate_surface_temperature(surface_type: str, time_of_day: str) -> dict:
     """Estimate typical surface temperatures for different materials under sun exposure.
-    Use this to contextualize thermal observations with known material properties.
 
     Args:
         surface_type: Material type (e.g. 'dark asphalt', 'concrete', 'dark roof', 'green roof', 'metal').
@@ -168,52 +361,34 @@ def estimate_intervention_impact(intervention: str, area_sqft: float) -> dict:
     """
     interventions = {
         "cool roof": {
-            "surface_temp_reduction_f": 50,
-            "energy_savings_pct": 15,
-            "cost_per_sqft": 3.50,
-            "lifespan_years": 20,
+            "surface_temp_reduction_f": 50, "energy_savings_pct": 15,
+            "cost_per_sqft": 3.50, "lifespan_years": 20,
             "co2_reduction_lbs_per_sqft_year": 2.1,
-            "description": "Reflective roof coating or membrane that reduces heat absorption by up to 80%.",
+            "description": "Reflective roof coating or membrane reducing heat absorption by up to 80%.",
         },
         "green roof": {
-            "surface_temp_reduction_f": 65,
-            "energy_savings_pct": 25,
-            "cost_per_sqft": 25.00,
-            "lifespan_years": 40,
+            "surface_temp_reduction_f": 65, "energy_savings_pct": 25,
+            "cost_per_sqft": 25.00, "lifespan_years": 40,
             "co2_reduction_lbs_per_sqft_year": 3.5,
-            "description": "Vegetated roof system that provides insulation, stormwater management, and habitat.",
+            "description": "Vegetated roof system providing insulation, stormwater management, and habitat.",
         },
         "tree planting": {
-            "surface_temp_reduction_f": 20,
-            "energy_savings_pct": 8,
-            "cost_per_sqft": 1.50,
-            "lifespan_years": 50,
+            "surface_temp_reduction_f": 20, "energy_savings_pct": 8,
+            "cost_per_sqft": 1.50, "lifespan_years": 50,
             "co2_reduction_lbs_per_sqft_year": 4.0,
             "description": "Strategic tree planting for shade and evapotranspiration cooling.",
         },
         "permeable pavement": {
-            "surface_temp_reduction_f": 30,
-            "energy_savings_pct": 5,
-            "cost_per_sqft": 8.00,
-            "lifespan_years": 25,
+            "surface_temp_reduction_f": 30, "energy_savings_pct": 5,
+            "cost_per_sqft": 8.00, "lifespan_years": 25,
             "co2_reduction_lbs_per_sqft_year": 0.8,
-            "description": "Porous pavement that reduces runoff and surface temperatures through evaporation.",
+            "description": "Porous pavement reducing runoff and surface temperatures.",
         },
         "shade structures": {
-            "surface_temp_reduction_f": 25,
-            "energy_savings_pct": 10,
-            "cost_per_sqft": 12.00,
-            "lifespan_years": 30,
+            "surface_temp_reduction_f": 25, "energy_savings_pct": 10,
+            "cost_per_sqft": 12.00, "lifespan_years": 30,
             "co2_reduction_lbs_per_sqft_year": 1.2,
-            "description": "Canopies, pergolas, or solar shade structures over parking and pedestrian areas.",
-        },
-        "reflective pavement": {
-            "surface_temp_reduction_f": 35,
-            "energy_savings_pct": 3,
-            "cost_per_sqft": 2.00,
-            "lifespan_years": 15,
-            "co2_reduction_lbs_per_sqft_year": 0.5,
-            "description": "Light-colored or reflective coating applied to existing pavement surfaces.",
+            "description": "Canopies or solar shade structures over parking and pedestrian areas.",
         },
     }
 
@@ -225,7 +400,7 @@ def estimate_intervention_impact(intervention: str, area_sqft: float) -> dict:
             break
 
     if not match:
-        return {"error": f"Unknown intervention '{intervention}'", "known_interventions": list(interventions.keys())}
+        return {"error": f"Unknown intervention '{intervention}'", "known": list(interventions.keys())}
 
     name, data = match
     total_cost = round(data["cost_per_sqft"] * area_sqft, 2)
@@ -243,89 +418,415 @@ def estimate_intervention_impact(intervention: str, area_sqft: float) -> dict:
         "lifespan_years": data["lifespan_years"],
         "annual_co2_reduction_lbs": annual_co2,
         "lifetime_co2_reduction_lbs": lifetime_co2,
-        "roi_notes": f"At {data['energy_savings_pct']}% energy savings over {data['lifespan_years']} years, typical payback period is 3-7 years for commercial buildings.",
-        "source": "EPA/DOE/GSA sustainability intervention data",
+        "source": "EPA/DOE/GSA sustainability data",
     }
 
 
-def compare_surfaces(surface_a: str, surface_b: str) -> dict:
-    """Compare the thermal and sustainability properties of two surface types.
-    Use this to explain why one area is hotter than another in the thermal image.
+def lookup_image_metadata(image_id: str) -> dict:
+    """Look up metadata about the drone imagery — image pair info, source drone details.
 
     Args:
-        surface_a: First surface type (e.g. 'dark asphalt').
-        surface_b: Second surface type (e.g. 'concrete').
+        image_id: Image index (e.g. '475') or 'summary' for dataset overview.
     """
-    data_a = estimate_surface_temperature(surface_a, "afternoon")
-    data_b = estimate_surface_temperature(surface_b, "afternoon")
+    if not TRAIN_TEST_SPLIT_PATH.exists():
+        return {"error": "Image metadata file not found"}
 
-    if "error" in data_a or "error" in data_b:
-        errors = []
-        if "error" in data_a:
-            errors.append(data_a["error"])
-        if "error" in data_b:
-            errors.append(data_b["error"])
-        return {"error": "; ".join(errors)}
+    with open(TRAIN_TEST_SPLIT_PATH) as f:
+        data = json.load(f)
 
-    temp_diff = data_a["peak_surface_temp_f"] - data_b["peak_surface_temp_f"]
+    if image_id == "summary":
+        return {
+            "total_image_pairs": len(data),
+            "description": "DJI drone image pairs — thermal (_T) and visual (_V) captured 2024-08-04.",
+            "sample_entries": {k: data[k] for k in list(data.keys())[:3]},
+        }
+
+    key = image_id if image_id.endswith(".JPG") else f"{image_id}.JPG"
+    pair = data.get(key)
+    if pair is None:
+        return {"error": f"No metadata found for '{image_id}'"}
+
+    thermal_file, visual_file = pair
+    parts = thermal_file.split("_")
+    capture_date = parts[1][:8] if len(parts) >= 2 else "unknown"
+    capture_time = parts[1][8:] if len(parts) >= 2 else "unknown"
 
     return {
-        "surface_a": data_a["surface_type"],
-        "surface_b": data_b["surface_type"],
-        "surface_a_peak_temp_f": data_a["peak_surface_temp_f"],
-        "surface_b_peak_temp_f": data_b["peak_surface_temp_f"],
-        "temperature_difference_f": abs(temp_diff),
-        "hotter_surface": data_a["surface_type"] if temp_diff > 0 else data_b["surface_type"],
-        "surface_a_albedo": data_a["albedo"],
-        "surface_b_albedo": data_b["albedo"],
-        "explanation": f"{data_a['surface_type']} reaches {data_a['peak_surface_temp_f']}°F peak vs {data_b['surface_type']} at {data_b['peak_surface_temp_f']}°F.",
+        "image_id": key,
+        "thermal_file": thermal_file,
+        "visual_file": visual_file,
+        "drone": "DJI",
+        "capture_date": f"{capture_date[:4]}-{capture_date[4:6]}-{capture_date[6:8]}",
+        "capture_time": f"{capture_time[:2]}:{capture_time[2:4]}:{capture_time[4:6]}",
     }
 
 
-def calculate_area_metrics(length_ft: float, width_ft: float, surface_type: str) -> dict:
-    """Calculate area-based sustainability metrics — energy waste estimate, potential
-    savings from intervention, and CO2 impact.
+# ---------------------------------------------------------------------------
+# New: Advanced exploration tools
+# ---------------------------------------------------------------------------
+
+def get_elevation_profile(lat: float, lng: float) -> dict:
+    """Get elevation and terrain data for a location. Elevation affects drainage,
+    wind patterns, and heat pooling in urban valleys.
 
     Args:
-        length_ft: Estimated length in feet.
-        width_ft: Estimated width in feet.
-        surface_type: Current surface material (e.g. 'dark roof', 'asphalt').
+        lat: Latitude of the location.
+        lng: Longitude of the location.
     """
-    area_sqft = length_ft * width_ft
-    area_sqm = area_sqft * 0.0929
+    try:
+        r = httpx.get("https://api.open-meteo.com/v1/elevation", params={
+            "latitude": lat,
+            "longitude": lng,
+        }, timeout=10)
+        data = r.json()
+        elevation = data.get("elevation", [None])[0]
 
-    surface_data = estimate_surface_temperature(surface_type, "afternoon")
-    peak_temp = surface_data.get("peak_surface_temp_f", 140)
-    albedo = surface_data.get("albedo", 0.1)
+        if elevation is not None:
+            if elevation < 50:
+                flood_note = "Low elevation — higher flood risk from stormwater"
+            elif elevation < 200:
+                flood_note = "Moderate elevation — standard drainage patterns"
+            else:
+                flood_note = "Higher elevation — generally better drainage"
 
-    solar_btu_per_sqft_day = 2000
-    absorbed_btu = solar_btu_per_sqft_day * (1 - albedo) * area_sqft
-    absorbed_kwh = round(absorbed_btu / 3412, 1)
+            if elevation < 100:
+                heat_note = "Low-lying areas tend to trap heat, especially in urban canyons"
+            else:
+                heat_note = "Elevation provides some natural ventilation advantage"
+        else:
+            flood_note = "Elevation data unavailable"
+            heat_note = "Unable to assess"
 
-    cool_roof_albedo = 0.65
-    cool_absorbed_btu = solar_btu_per_sqft_day * (1 - cool_roof_albedo) * area_sqft
-    savings_btu = absorbed_btu - cool_absorbed_btu
-    savings_kwh = round(savings_btu / 3412, 1)
+        return {
+            "lat": lat,
+            "lng": lng,
+            "elevation_m": elevation,
+            "elevation_ft": round(elevation * 3.281, 1) if elevation else None,
+            "flood_risk_note": flood_note,
+            "heat_trapping_note": heat_note,
+            "source": "Open-Meteo Elevation API",
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
-    return {
-        "area_sqft": round(area_sqft, 1),
-        "area_sqm": round(area_sqm, 1),
-        "current_surface": surface_type,
-        "current_albedo": albedo,
-        "peak_surface_temp_f": peak_temp,
-        "daily_heat_absorbed_kwh": absorbed_kwh,
-        "daily_savings_with_cool_roof_kwh": savings_kwh,
-        "annual_savings_estimate_kwh": round(savings_kwh * 120, 1),
-        "annual_savings_estimate_usd": round(savings_kwh * 120 * 0.12, 2),
-    }
 
+def get_solar_potential(lat: float, lng: float, roof_area_sqft: float) -> dict:
+    """Estimate solar energy potential for a rooftop — daily sunshine, estimated
+    annual generation, and cost savings. Useful for recommending solar installations.
+
+    Args:
+        lat: Latitude of the location.
+        lng: Longitude of the location.
+        roof_area_sqft: Approximate usable roof area in square feet.
+    """
+    try:
+        r = httpx.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": lat,
+            "longitude": lng,
+            "daily": "sunshine_duration,shortwave_radiation_sum",
+            "timezone": "auto",
+            "forecast_days": 7,
+        }, timeout=10)
+        data = r.json()
+        daily = data.get("daily", {})
+
+        sunshine_hours_list = daily.get("sunshine_duration", [])
+        radiation_list = daily.get("shortwave_radiation_sum", [])
+
+        avg_sunshine_sec = sum(s for s in sunshine_hours_list if s) / max(len(sunshine_hours_list), 1)
+        avg_sunshine_hrs = round(avg_sunshine_sec / 3600, 1)
+        avg_radiation = sum(r for r in radiation_list if r) / max(len(radiation_list), 1)
+
+        # Solar calculations
+        panel_efficiency = 0.20
+        sqft_to_sqm = 0.0929
+        roof_sqm = roof_area_sqft * sqft_to_sqm
+        usable_roof_pct = 0.65  # Not all roof is usable
+
+        # kWh per day estimate
+        daily_kwh = round(avg_radiation * roof_sqm * usable_roof_pct * panel_efficiency / 1000, 1)
+        annual_kwh = round(daily_kwh * 365, 0)
+        annual_savings_usd = round(annual_kwh * 0.12, 2)
+
+        # System cost estimate
+        watts_per_sqft = 15
+        system_kw = round(roof_area_sqft * usable_roof_pct * watts_per_sqft / 1000, 1)
+        system_cost = round(system_kw * 2800, 0)  # $2.80/watt installed avg
+        payback_years = round(system_cost / max(annual_savings_usd, 1), 1)
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "roof_area_sqft": roof_area_sqft,
+            "avg_daily_sunshine_hrs": avg_sunshine_hrs,
+            "avg_daily_radiation_wh_m2": round(avg_radiation, 1),
+            "estimated_system_kw": system_kw,
+            "estimated_daily_generation_kwh": daily_kwh,
+            "estimated_annual_generation_kwh": annual_kwh,
+            "estimated_annual_savings_usd": annual_savings_usd,
+            "estimated_system_cost_usd": system_cost,
+            "payback_years": payback_years,
+            "co2_offset_lbs_year": round(annual_kwh * 0.92, 0),  # EPA grid factor
+            "source": "Calculated from Open-Meteo solar radiation data + NREL averages",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_walkability_score(lat: float, lng: float) -> dict:
+    """Assess walkability and livability by counting nearby amenities, transit stops,
+    green spaces, and pedestrian infrastructure within 500m.
+
+    Args:
+        lat: Latitude of the location.
+        lng: Longitude of the location.
+    """
+    try:
+        query = f"""
+        [out:json][timeout:10];
+        (
+          node["amenity"~"cafe|restaurant|school|library|hospital|pharmacy|bank"](around:500,{lat},{lng});
+          node["shop"](around:500,{lat},{lng});
+          node["public_transport"](around:500,{lat},{lng});
+          way["highway"="footway"](around:300,{lat},{lng});
+          way["highway"="cycleway"](around:500,{lat},{lng});
+          way["leisure"="park"](around:500,{lat},{lng});
+          node["amenity"="drinking_water"](around:500,{lat},{lng});
+          node["amenity"="bench"](around:300,{lat},{lng});
+        );
+        out tags;
+        """
+        r = httpx.post("https://overpass-api.de/api/interpreter",
+                       data={"data": query}, timeout=15)
+        data = r.json()
+
+        amenities = 0
+        shops = 0
+        transit = 0
+        pedestrian_infra = 0
+        parks = 0
+        comfort = 0
+
+        for elem in data.get("elements", []):
+            tags = elem.get("tags", {})
+            if "amenity" in tags and tags["amenity"] not in ("bench", "drinking_water"):
+                amenities += 1
+            if "shop" in tags:
+                shops += 1
+            if "public_transport" in tags:
+                transit += 1
+            if tags.get("highway") in ("footway", "cycleway"):
+                pedestrian_infra += 1
+            if tags.get("leisure") == "park":
+                parks += 1
+            if tags.get("amenity") in ("bench", "drinking_water"):
+                comfort += 1
+
+        # Score 0-100
+        raw = min(100, amenities * 5 + shops * 3 + transit * 8 + pedestrian_infra * 2 + parks * 10 + comfort * 2)
+
+        if raw >= 70:
+            rating = "Very Walkable"
+        elif raw >= 50:
+            rating = "Walkable"
+        elif raw >= 30:
+            rating = "Somewhat Walkable"
+        else:
+            rating = "Car-Dependent"
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "walkability_score": raw,
+            "rating": rating,
+            "nearby_amenities": amenities,
+            "nearby_shops": shops,
+            "transit_stops": transit,
+            "pedestrian_paths": pedestrian_infra,
+            "parks_green_spaces": parks,
+            "comfort_features": comfort,
+            "heat_resilience_note": f"{'Good' if parks > 0 and comfort > 2 else 'Poor'} — "
+                                   f"{'parks and shade available' if parks > 0 else 'lacks green respite areas'}, "
+                                   f"{'has benches/water' if comfort > 2 else 'needs cooling stations'}",
+            "source": "OpenStreetMap Overpass API",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_historical_temperature_comparison(lat: float, lng: float) -> dict:
+    """Compare current temperature to historical averages for this location.
+    Shows whether today is hotter than normal — useful for detecting heat anomalies.
+
+    Args:
+        lat: Latitude of the location.
+        lng: Longitude of the location.
+    """
+    try:
+        # Get current conditions
+        current_r = httpx.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": lat, "longitude": lng,
+            "current": "temperature_2m",
+            "temperature_unit": "fahrenheit",
+            "timezone": "auto",
+        }, timeout=10)
+        current_data = current_r.json()
+        current_temp = current_data.get("current", {}).get("temperature_2m")
+
+        # Get historical averages (last 10 years, same day of year)
+        import datetime
+        today = datetime.date.today()
+        historical_temps = []
+
+        for years_back in range(1, 6):
+            hist_date = today.replace(year=today.year - years_back)
+            try:
+                hist_r = httpx.get("https://archive-api.open-meteo.com/v1/archive", params={
+                    "latitude": lat, "longitude": lng,
+                    "start_date": hist_date.isoformat(),
+                    "end_date": hist_date.isoformat(),
+                    "daily": "temperature_2m_max,temperature_2m_min,temperature_2m_mean",
+                    "temperature_unit": "fahrenheit",
+                    "timezone": "auto",
+                }, timeout=10)
+                hist_data = hist_r.json()
+                daily = hist_data.get("daily", {})
+                mean = (daily.get("temperature_2m_mean") or [None])[0]
+                if mean:
+                    historical_temps.append(mean)
+            except Exception:
+                pass
+
+        hist_avg = round(sum(historical_temps) / len(historical_temps), 1) if historical_temps else None
+        delta = round(current_temp - hist_avg, 1) if current_temp and hist_avg else None
+
+        if delta is not None:
+            if delta > 10:
+                assessment = "Significantly hotter than historical average — potential heat event"
+            elif delta > 5:
+                assessment = "Notably warmer than usual"
+            elif delta > 0:
+                assessment = "Slightly above historical average"
+            elif delta > -5:
+                assessment = "Near or slightly below historical average"
+            else:
+                assessment = "Cooler than historical average"
+        else:
+            assessment = "Unable to compare"
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "current_temp_f": current_temp,
+            "historical_avg_f": hist_avg,
+            "delta_f": delta,
+            "years_compared": len(historical_temps),
+            "assessment": assessment,
+            "source": "Open-Meteo Current + Archive API",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_flood_risk(lat: float, lng: float) -> dict:
+    """Assess flood and stormwater risk based on elevation, impervious surfaces,
+    and proximity to water features.
+
+    Args:
+        lat: Latitude of the location.
+        lng: Longitude of the location.
+    """
+    try:
+        # Get elevation
+        elev_data = get_elevation_profile(lat, lng)
+        elevation = elev_data.get("elevation_m", 150)
+
+        # Check for nearby water bodies
+        query = f"""
+        [out:json][timeout:10];
+        (
+          way["natural"="water"](around:500,{lat},{lng});
+          way["waterway"](around:500,{lat},{lng});
+          way["natural"="wetland"](around:500,{lat},{lng});
+        );
+        out tags;
+        """
+        r = httpx.post("https://overpass-api.de/api/interpreter",
+                       data={"data": query}, timeout=15)
+        water_data = r.json()
+        water_features = len(water_data.get("elements", []))
+
+        # Get land use for impervious estimate
+        land = get_land_use(lat, lng)
+        impervious_pct = land.get("estimated_impervious_surface_pct", 50) if "error" not in land else 50
+
+        # Get recent precipitation
+        precip_r = httpx.get("https://api.open-meteo.com/v1/forecast", params={
+            "latitude": lat, "longitude": lng,
+            "daily": "precipitation_sum",
+            "timezone": "auto",
+            "forecast_days": 3,
+            "past_days": 3,
+        }, timeout=10)
+        precip_data = precip_r.json()
+        precip_list = precip_data.get("daily", {}).get("precipitation_sum", [])
+        recent_precip = sum(p for p in precip_list if p)
+
+        # Risk scoring
+        risk_score = 0
+        risk_score += max(0, (80 - (elevation or 150)) / 10)  # Lower = riskier
+        risk_score += impervious_pct / 10  # More impervious = riskier
+        risk_score += water_features * 3  # Near water = riskier
+        risk_score += recent_precip / 5  # Recent rain = riskier
+        risk_score = min(100, max(0, round(risk_score)))
+
+        if risk_score > 60:
+            risk_level = "High"
+        elif risk_score > 35:
+            risk_level = "Moderate"
+        else:
+            risk_level = "Low"
+
+        return {
+            "lat": lat,
+            "lng": lng,
+            "flood_risk_score": risk_score,
+            "risk_level": risk_level,
+            "elevation_m": elevation,
+            "impervious_surface_pct": impervious_pct,
+            "nearby_water_features": water_features,
+            "recent_precipitation_mm": round(recent_precip, 1),
+            "factors": [
+                f"Elevation: {elevation}m ({'low risk' if elevation and elevation > 100 else 'contributing factor'})",
+                f"Impervious surfaces: {impervious_pct}% ({'high runoff risk' if impervious_pct > 60 else 'moderate'})",
+                f"Water features nearby: {water_features} ({'increases risk' if water_features > 0 else 'none found'})",
+                f"Recent precipitation: {round(recent_precip, 1)}mm ({'saturated ground' if recent_precip > 20 else 'dry conditions'})",
+            ],
+            "source": "Composite from Open-Meteo + OpenStreetMap",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Tool list for the agent
+# ---------------------------------------------------------------------------
 
 ALL_TOOLS = [
-    lookup_image_metadata,
-    lookup_location_info,
-    get_climate_data,
+    # Real-time environmental data (live API calls)
+    get_weather_current,
+    get_air_quality,
+    get_land_use,
+    get_ndvi_estimate,
+    # Advanced exploration (live API calls)
+    get_elevation_profile,
+    get_solar_potential,
+    get_walkability_score,
+    get_historical_temperature_comparison,
+    get_flood_risk,
+    # Analysis / calculation (local)
     estimate_surface_temperature,
     estimate_intervention_impact,
-    compare_surfaces,
-    calculate_area_metrics,
+    # Data access
+    lookup_image_metadata,
 ]
