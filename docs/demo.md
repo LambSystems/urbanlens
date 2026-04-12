@@ -264,6 +264,18 @@ Use `v0` to accelerate and polish the highest-visibility UI pieces:
 
 The map and application logic remain custom. `v0` is used to speed up strong UI composition around the core flow.
 
+### Planner Mode
+
+After analysis completes, the UI may expose a small input for region-specific questions.
+
+Good examples:
+
+- `What should we fix first here?`
+- `Why was this hotspot discarded?`
+- `Which hotspot has the strongest anomaly?`
+
+Planner Mode should feel like a guided decision assistant over the current region, not a generic chat app.
+
 ---
 
 ## 6. What Makes This Demo Competitive

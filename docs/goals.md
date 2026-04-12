@@ -150,6 +150,7 @@ These increase winning odds but should never destabilize the core.
 - polished explanation layer
 - a stable schema contract shared by backend and frontend
 - v0 used as a UI accelerator for the demo shell and the highest-visibility result panels
+- Planner Mode for asking focused questions over an already analyzed region
 
 ---
 

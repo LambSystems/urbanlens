@@ -13,6 +13,7 @@ It is the source of truth for:
 - ranking and discard heuristics
 - caching behavior
 - backend/frontend data contracts
+- planner mode behavior
 - the UI boundaries where `v0` can be used safely
 
 ---
@@ -517,6 +518,49 @@ Recommended endpoints:
   fetch hotspot details for the sidebar
 - `GET /analysis/{region_id}/events`
   fetch trace progress, or replace with polling on the main analysis payload
+- `POST /analysis/{region_id}/questions`
+  ask structured questions about an already analyzed region
+
+## 10.1 Planner Mode
+
+Planner Mode is a question layer over an existing analysis result.
+
+It is not a general-purpose chat assistant and it should not be the primary entrypoint to the product.
+
+Planner Mode exists to answer questions like:
+
+- `What should we fix first here?`
+- `Why is hs_01 ranked first?`
+- `Why was hs_02 discarded?`
+- `Which hotspot has the strongest anomaly?`
+- `What action is recommended for roof-related hotspots?`
+
+Rules:
+
+- Planner Mode only runs after an analysis region already exists
+- it should answer from structured analysis outputs first
+- an LLM may be used to improve wording, but not to invent new evidence
+- the response should cite hotspot ids, ranking, scores, discard reasons, and recommendations when possible
+
+Recommended request shape:
+
+```json
+{
+  "question": "What should we fix first here?"
+}
+```
+
+Recommended response shape:
+
+```json
+{
+  "region_id": "stl_001",
+  "question": "What should we fix first here?",
+  "answer": "You should prioritize hs_03 first. It is a hvac_mechanical hotspot with strong anomaly and severity, and the recommended action is hvac inspection.",
+  "referenced_hotspot_ids": ["hs_03"],
+  "planner_mode": "analysis_qa"
+}
+```
 
 ---
 

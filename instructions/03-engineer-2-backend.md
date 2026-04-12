@@ -35,6 +35,7 @@ Your first win is:
    - `GET /analysis/{region_id}`
    - `GET /analysis/{region_id}/hotspots/{hotspot_id}`
    - `GET /analysis/{region_id}/events` or equivalent
+   - `POST /analysis/{region_id}/questions`
 4. Return a fully mocked but contract-valid payload.
 5. Implement hotspot states:
    - `candidate`
@@ -99,6 +100,7 @@ To Engineer 1 you provide:
 - stable API
 - stable field names
 - stable trace steps
+- a Planner Mode endpoint for analysis-specific questions
 
 ## Success Condition
 

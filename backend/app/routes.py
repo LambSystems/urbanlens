@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from .example_payloads import EXAMPLE_ANALYSIS_REQUEST
+from .agent.planner import answer_region_question
 from .orchestrator import DEMO_REGION_PRESETS
 from .schemas import (
     AnalysisEvent,
@@ -10,6 +11,8 @@ from .schemas import (
     CreateAnalysisRequest,
     DebugAnalysisView,
     HotspotCandidate,
+    PlannerQuestionRequest,
+    PlannerQuestionResponse,
 )
 from .store import store
 
@@ -62,3 +65,12 @@ def get_demo_regions() -> dict[str, list[dict]]:
 @router.get("/demo/example-analysis-request")
 def get_example_analysis_request() -> dict:
     return EXAMPLE_ANALYSIS_REQUEST.model_dump()
+
+
+@router.post("/analysis/{region_id}/questions", response_model=PlannerQuestionResponse)
+def ask_region_question(region_id: str, payload: PlannerQuestionRequest) -> PlannerQuestionResponse:
+    try:
+        analysis = store.get_analysis(region_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Analysis region not found.") from exc
+    return answer_region_question(analysis, payload.question)
