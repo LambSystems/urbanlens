@@ -1,60 +1,63 @@
 # First 4 Hours
 
-This is the execution order for the team.
+This is the execution order for the current pivot.
 
 ## Hour 0 to 1
 
 All together for 10-15 minutes:
 
-- freeze shared contract
-- freeze one demo region
-- freeze one example prompt and expected answer
-- freeze chain of thought step format
+- freeze the product framing
+- freeze the capture payload from frontend
+- freeze the two-tool story:
+  - `ThermalGen`
+  - `Heat Risk Profiler`
+- freeze one golden demo question
 
 Then split:
 
-- Engineer 1 builds UI shell with prompt input and chain of thought panel
-- Engineer 2 builds session API and mocked chain of thought response
-- Engineer 3 builds hotspot evidence fixtures
-- Engineer 4 builds scoring logic
+- Engineer 1 builds capture UX and upload flow
+- Engineer 2 stabilizes capture endpoints and analysis resource flow
+- Engineer 3 defines ThermalGen + Heat Risk Profiler outputs
+- Engineer 4 defines ranking and recommendation outputs
 
 ## Hour 1 to 2
 
-- Engineer 2 exposes real session endpoints with mocked chain of thought
-- Engineer 1 connects to backend — renders prompt input, chain of thought, and answers
-- Engineer 3 improves evidence quality, wires thermal tool
-- Engineer 4 plugs scoring into tool dispatch
+- Engineer 1 connects frontend capture to backend
+- Engineer 2 stores captures and returns stable analysis payloads
+- Engineer 3 returns real or fixture tool outputs
+- Engineer 4 plugs scoring into the orchestrator output
 
 Goal:
 
-- full product renders from API with chain of thought visible
+- one selected locality can become one valid analysis
 
 ## Hour 2 to 3
 
-- Wire Gemini into the agent loop — real tool calling
-- Chain of thought streams from agent decisions, not mocked sequences
-- Add follow-up question support
-- Validate schema consistency
+- make the trace visibly show `ThermalGen`
+- make the trace visibly show the supporting tool
+- connect follow-up questions over the same analysis
+- keep provider logic behind `LLMProvider`
 
 Goal:
 
-- user types a prompt, agent investigates live with visible chain of thought
+- the product already feels agentic and not mono-tool
 
 ## Hour 3 to 4
 
-- Replace mocked tool internals with real evidence
-- Polish chain of thought summaries
-- Improve ranking explanations
-- Stabilize one demo region with one primary prompt and one follow-up
+- polish the recommendation
+- tighten discard logic
+- stabilize one golden region and one golden question
+- prepare fallback assets
 
 Goal:
 
-- one full region works end-to-end with real investigation
+- one strong, replayable demo path
 
 ## Rule
 
-Integrate early.
+Do not build more tools just to look broad.
 
-Do not wait for "real" implementations before wiring the system together.
+Make the two-tool story feel intentional:
 
-The mocked chain of thought should look exactly like the real one — same step types, same field names, same streaming behavior. The only difference is where the data comes from.
+- `ThermalGen` is the standout superpower
+- the supporting tool proves the agent is a broader investigation system

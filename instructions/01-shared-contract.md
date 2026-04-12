@@ -6,119 +6,68 @@ Everyone should follow these exact decisions.
 
 ## Core Flow
 
-- map click defines an `analysis region`
-- system loads data context: satellite imagery, thermal overlay, source records, metadata
-- user types a prompt (question or intent)
-- agent interprets the prompt and decides what tools to call
-- agent investigates with visible chain of thought
-- agent returns a structured answer with evidence and recommendations
-- user can ask follow-up questions in the same session
+- user selects a locality in Google Maps
+- frontend captures region metadata plus screenshot/crop
+- backend stores the capture and creates an `analysis`
+- user asks a question or triggers the default investigation path
+- agent decides what tools to call
+- agent investigates with visible trace
+- agent returns a grounded answer and, when useful, ranked findings
+- user can ask follow-up questions over the same analysis
 
-## Conversation Model
+## Product Rule
 
-- `session_id` persists across a region + conversation
-- each prompt is a new message in the session
-- the agent sees full conversation history for follow-ups
-- the region data context is loaded once and reused
+The product is the agent.
 
-## Hotspot Taxonomy
+`ThermalGen` is the standout tool inside the product.
 
-- `roof`
-- `road_pavement`
-- `parking_lot`
-- `hvac_mechanical`
-- `vegetation_loss`
-- `other`
+## Main Tool Set
 
-## Chain of Thought Step Types
-
-- `reasoning` — agent's internal reasoning (text)
-- `tool_call` — agent invoked a tool (name + summary)
-- `finding` — agent concluded something about a specific item
-- `answer` — agent's final response
-
-## Tool Vocabulary
-
-- `inspect_object`
+- `generate_thermal_overlay`
 - `request_thermal_evidence`
+- `analyze_heat_risk`
+- `inspect_object`
 - `infer_surface`
-- `compare_neighbors`
-- `check_consistency`
-- `score_hotspot`
+- `compare_findings`
+- `score_hotspots`
 - `discard_hotspot`
-- `finalize_hotspot`
-- `list_hotspot_candidates`
-- `get_region_summary`
-- `lookup_location`
+- `finalize_recommendation`
 
-## Chain of Thought Rules
+## Trace Rule
 
-- every investigation starts with the agent interpreting the user's prompt
-- tool calls must be motivated by the question
-- each step has a visible summary
-- the chain of thought ends with a structured answer
-- streamed to the frontend step by step
+- trace vocabulary is stable
+- investigation path may vary by question
+- `ThermalGen` should be visibly called in the golden path
+- at least one supporting tool should also be visibly called
 
-## Ranking Heuristic
+## API Rule
 
-- anomaly filters
-- severity orders
-- confidence modulates
-
-Confidence should also reflect source coverage quality.
-
-Gate:
-
-```text
-if anomaly_score < anomaly_threshold:
-    discard
-```
-
-Ranking:
-
-```text
-final_rank_score = severity_score * confidence_score
-```
-
-## Caching
-
-- cache is allowed
-- visible reasoning must remain
-- frontend should play back cached chain of thought progressively
-- region caches may include pre-resolved drone source sets for known demo regions
-
-## API Surface
-
-- `POST /session`
-- `POST /session/{session_id}/prompt`
-- `GET /session/{session_id}/chain-of-thought`
-- `GET /session/{session_id}/messages`
-- `GET /session/{session_id}/hotspots/{hotspot_id}`
-
-Legacy (still supported):
+Canonical endpoints:
 
 - `POST /analysis`
+- `POST /analysis/from-capture`
+- `POST /analysis/from-capture-upload`
 - `GET /analysis/{region_id}`
-- `GET /analysis/{region_id}/hotspots/{hotspot_id}`
 - `GET /analysis/{region_id}/events`
+- `GET /analysis/{region_id}/hotspots/{hotspot_id}`
+- `POST /analysis/{region_id}/questions`
+
+## LLM Rule
+
+- use `LLMProvider`
+- default to Anthropic for demo reliability
+- do not hardcode Gemini-only assumptions into the product
 
 ## UI Rule
 
 The map is the anchor.
 
-`v0` may be used for:
+Planner Mode is a question layer over an existing analysis, not the entry point.
 
-- sidebar shell
-- prompt input
-- chain of thought timeline
+`v0` may help with:
+
+- sidebar
+- trace timeline
 - ranking cards
 - recommendation card
-- conversation thread
-
-`v0` may not redefine:
-
-- schemas
-- backend logic
-- scoring
-- chain of thought semantics
-- map interaction contract
+- follow-up question UI
