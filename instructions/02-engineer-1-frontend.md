@@ -5,8 +5,9 @@ Owner:
 
 - React + TypeScript app shell
 - Google Maps integration
+- prompt input and conversation UI
+- chain of thought display panel
 - sidebar UX
-- trace rendering
 - ranking and recommendation UI
 - v0-assisted component polish
 
@@ -20,52 +21,45 @@ Do not wait for real ML or real scoring.
 
 1. Set up app shell and Google Maps container.
 2. Support click-to-select analysis region visually.
-3. Build sidebar skeleton.
-4. Build trace timeline skeleton.
-5. Build Top 3 ranking cards.
-6. Build recommendation card.
-7. Use `v0` to accelerate:
-   - sidebar layout
-   - trace timeline
+3. Build prompt input field (text input + send).
+4. Build chain of thought panel skeleton — shows steps streaming in.
+5. Build conversation thread — shows prior prompts + answers.
+6. Build Top 3 ranking cards.
+7. Build recommendation card.
+8. Use `v0` to accelerate:
+   - prompt input + conversation thread
+   - chain of thought timeline
    - ranking cards
    - recommendation card
-8. Add a small Planner Mode input after analysis is complete.
 
 ## Inputs Expected from Backend
 
-- `AnalysisRegion`
-- `HotspotCandidate`
-- `TraceStep`
-- `AnalysisResult`
+- `AnalysisRegion` (region loaded)
+- `ChainOfThoughtStep` (streamed during investigation)
+- `InvestigationResponse` (final answer + hotspots + recommendations)
+- `HotspotCandidate` (hotspot details)
 
-Use the exact field names from [contracts.md](C:/Users/akuma/repos/thermalgen/docs/contracts.md).
+Use the exact field names from [contracts.md](../docs/contracts.md).
 
 ## Must Show
 
 - analysis region around click
-- 3-5 hotspot markers
+- prompt input field
+- chain of thought panel with step types:
+  - `reasoning` — text reasoning
+  - `tool_call` — tool name + summary
+  - `finding` — conclusion about a hotspot
+  - `answer` — final response
+- step status transitions: `pending -> running -> completed`
+- conversation history (prompt + answer pairs)
+- hotspot markers on map
 - selected hotspot detail
 - evidence-used badges
 - source coverage indicator when available
-- trace playback states:
-  - `pending`
-  - `running`
-  - `completed`
 - discarded hotspot state
 - Top 3 ranking
 - final recommendation
-- Planner Mode input for region-specific questions after generation
-
-## Planner Mode UI Rule
-
-This is not free-form chat.
-
-Treat it as:
-
-- one small prompt box
-- appears after analysis exists
-- answers questions about the current region only
 
 ## Success Condition
 
-If backend returns a valid mock payload, the app should already look like the final product.
+If backend returns a valid mock payload, the app should already look like the final product — with visible chain of thought and conversation working.

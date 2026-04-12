@@ -1,19 +1,25 @@
 # Shared Contract
 
-Source of truth is [contracts.md](C:/Users/akuma/repos/thermalgen/docs/contracts.md).
+Source of truth is [contracts.md](../docs/contracts.md).
 
 Everyone should follow these exact decisions.
 
-## Analysis Model
+## Core Flow
 
 - map click defines an `analysis region`
-- backend retrieves available drone imagery intersecting that region
-- backend normalizes scattered evidence before hotspot reasoning
-- region returns `3-5` hotspot candidates
-- hotspots are investigated individually
-- final output is a ranked list of survivors
-- source metadata may be partial
-- Google Maps may enrich missing metadata, but not replace evidence
+- system loads data context: satellite imagery, thermal overlay, source records, metadata
+- user types a prompt (question or intent)
+- agent interprets the prompt and decides what tools to call
+- agent investigates with visible chain of thought
+- agent returns a structured answer with evidence and recommendations
+- user can ask follow-up questions in the same session
+
+## Conversation Model
+
+- `session_id` persists across a region + conversation
+- each prompt is a new message in the session
+- the agent sees full conversation history for follow-ups
+- the region data context is loaded once and reused
 
 ## Hotspot Taxonomy
 
@@ -24,9 +30,15 @@ Everyone should follow these exact decisions.
 - `vegetation_loss`
 - `other`
 
-## Trace Vocabulary
+## Chain of Thought Step Types
 
-- `candidate_detected`
+- `reasoning` — agent's internal reasoning (text)
+- `tool_call` — agent invoked a tool (name + summary)
+- `finding` — agent concluded something about a specific item
+- `answer` — agent's final response
+
+## Tool Vocabulary
+
 - `inspect_object`
 - `request_thermal_evidence`
 - `infer_surface`
@@ -35,14 +47,17 @@ Everyone should follow these exact decisions.
 - `score_hotspot`
 - `discard_hotspot`
 - `finalize_hotspot`
+- `list_hotspot_candidates`
+- `get_region_summary`
+- `lookup_location`
 
-## Trace Rules
+## Chain of Thought Rules
 
-- every hotspot starts with `candidate_detected`
-- every hotspot passes through `inspect_object`
-- every hotspot must request at least one extra evidence source
-- `discard_hotspot` and `finalize_hotspot` are terminal
-- route varies by hotspot type
+- every investigation starts with the agent interpreting the user's prompt
+- tool calls must be motivated by the question
+- each step has a visible summary
+- the chain of thought ends with a structured answer
+- streamed to the frontend step by step
 
 ## Ranking Heuristic
 
@@ -69,15 +84,23 @@ final_rank_score = severity_score * confidence_score
 
 - cache is allowed
 - visible reasoning must remain
-- frontend should play back cached evidence as a 5-15 second investigation trace
+- frontend should play back cached chain of thought progressively
 - region caches may include pre-resolved drone source sets for known demo regions
 
 ## API Surface
 
+- `POST /session`
+- `POST /session/{session_id}/prompt`
+- `GET /session/{session_id}/chain-of-thought`
+- `GET /session/{session_id}/messages`
+- `GET /session/{session_id}/hotspots/{hotspot_id}`
+
+Legacy (still supported):
+
 - `POST /analysis`
 - `GET /analysis/{region_id}`
 - `GET /analysis/{region_id}/hotspots/{hotspot_id}`
-- `GET /analysis/{region_id}/events` or equivalent polling
+- `GET /analysis/{region_id}/events`
 
 ## UI Rule
 
@@ -86,13 +109,16 @@ The map is the anchor.
 `v0` may be used for:
 
 - sidebar shell
-- trace timeline
+- prompt input
+- chain of thought timeline
 - ranking cards
 - recommendation card
+- conversation thread
 
 `v0` may not redefine:
 
 - schemas
 - backend logic
 - scoring
+- chain of thought semantics
 - map interaction contract
