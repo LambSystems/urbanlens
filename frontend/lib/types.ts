@@ -125,3 +125,18 @@ export interface AnalysisProgress {
   progress: number; // 0-100
   message: string;
 }
+
+export interface ChainOfThoughtStep {
+  step_id: string;
+  step_type: 'tool_call' | 'reasoning' | 'answer';
+  tool_name?: string | null;
+  status: string;
+  summary: string;
+  evidence?: Record<string, unknown> | null;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  chainOfThought?: ChainOfThoughtStep[];
+}

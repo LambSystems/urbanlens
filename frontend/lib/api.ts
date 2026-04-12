@@ -4,7 +4,7 @@
  * Typed against backend/app/schemas.py - all field names match the Python schema.
  * Use `mapHotspot()` to convert a BackendHotspot into the frontend Hotspot type.
  */
-import type { Hotspot, HotspotType, Recommendation, TraceAction, TraceStep } from './types';
+import type { ChainOfThoughtStep, Hotspot, HotspotType, Recommendation, TraceAction, TraceStep } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -199,6 +199,22 @@ export interface BackendDemoRegion {
   radius_m: number;
 }
 
+// Session / investigate API (mirrors session_routes.py + schemas.py)
+
+export interface SessionResponse {
+  session_id: string;
+  center: BackendLatLng;
+  radius_m: number;
+  status: string;
+}
+
+export interface InvestigationResponse {
+  session_id: string;
+  prompt: string;
+  chain_of_thought: ChainOfThoughtStep[];
+  answer: string;
+}
+
 // API functions
 
 export async function createAnalysis(
@@ -316,6 +332,34 @@ export async function inferThermalFromMapBlob(
     body: blob,
   });
   if (!res.ok) throw new Error(`POST /thermal/infer/upload failed: ${res.status}`);
+  return res.json();
+}
+
+/** POST /session — create a new investigation session for a lat/lng region */
+export async function createSession(
+  center: BackendLatLng,
+  radius_m: number,
+): Promise<SessionResponse> {
+  const res = await fetch(`${API_BASE}/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ center, radius_m }),
+  });
+  if (!res.ok) throw new Error(`POST /session failed: ${res.status}`);
+  return res.json();
+}
+
+/** POST /session/{id}/prompt — send a prompt and get back answer + chain of thought */
+export async function sendSessionPrompt(
+  sessionId: string,
+  prompt: string,
+): Promise<InvestigationResponse> {
+  const res = await fetch(`${API_BASE}/session/${sessionId}/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) throw new Error(`POST /session/${sessionId}/prompt failed: ${res.status}`);
   return res.json();
 }
 

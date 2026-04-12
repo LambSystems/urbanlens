@@ -431,9 +431,59 @@ function MdSpan({ text }: { text: string }) {
   );
 }
 
+function ChainOfThoughtExpander({ steps }: { steps: NonNullable<import('@/lib/types').ChatMessage['chainOfThought']> }) {
+  const [open, setOpen] = useState(false);
+  const toolCalls = steps.filter(s => s.step_type === 'tool_call');
+  const label = toolCalls.length
+    ? `${steps.length} steps · tools: ${toolCalls.map(s => s.tool_name).filter(Boolean).join(', ')}`
+    : `${steps.length} steps`;
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span className={cn('transition-transform', open && 'rotate-90')}>▶</span>
+        Chain of thought · {label}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1.5 border-l-2 border-border pl-3">
+          {steps.map((step) => (
+            <div key={step.step_id} className="space-y-1">
+              {step.step_type === 'tool_call' && (
+                <div className="flex items-start gap-1.5">
+                  <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground shrink-0">
+                    🔧 {step.tool_name ?? 'tool'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground leading-relaxed">{step.summary}</span>
+                </div>
+              )}
+              {step.step_type === 'reasoning' && (
+                <p className="text-[10px] text-muted-foreground/70 leading-relaxed italic">
+                  💭 {step.summary.slice(0, 200)}{step.summary.length > 200 ? '…' : ''}
+                </p>
+              )}
+              {step.step_type === 'answer' && (
+                <p className="text-[10px] text-green-500/80">✓ Final answer generated</p>
+              )}
+              {step.evidence && Object.keys(step.evidence).length > 0 && (
+                <pre className="text-[9px] bg-muted/50 rounded p-1.5 overflow-x-auto text-muted-foreground">
+                  {JSON.stringify(step.evidence, null, 2).slice(0, 400)}
+                </pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlannerPanel() {
-  const { plannerAnswer, askPlannerQuestion, isPlannerLoading, regionId } = useThermal();
+  const { chatMessages, isAgentLoading, askAgent, selectedRegion } = useThermal();
   const [question, setQuestion] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const SUGGESTED = [
     'What should we inspect first here?',
@@ -442,16 +492,21 @@ function PlannerPanel() {
     'Where would cooling interventions matter most?',
   ];
 
-  const submitQuestion = useCallback(async () => {
+  // Scroll to bottom when messages arrive
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isAgentLoading]);
+
+  const submit = useCallback(async () => {
     const q = question.trim();
-    if (!q || !regionId || isPlannerLoading) return;
-    await askPlannerQuestion(q);
+    if (!q || !selectedRegion || isAgentLoading) return;
     setQuestion('');
-  }, [question, regionId, isPlannerLoading, askPlannerQuestion]);
+    await askAgent(q);
+  }, [question, selectedRegion, isAgentLoading, askAgent]);
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
-    submitQuestion();
+    submit();
   };
 
   return (
@@ -459,16 +514,14 @@ function PlannerPanel() {
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-4 space-y-4">
 
-          {/* Idle state — suggested questions */}
-          {!plannerAnswer && !isPlannerLoading && (
+          {/* Suggested questions — only when no history yet */}
+          {chatMessages.length === 0 && !isAgentLoading && (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Ask anything about this locality. The agent answers using its full analysis findings.
+                Ask anything about this region. The agent investigates using tools and remembers the conversation.
               </p>
               <div className="space-y-2">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                  Try asking
-                </p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Try asking</p>
                 {SUGGESTED.map((s) => (
                   <button
                     key={s}
@@ -482,58 +535,51 @@ function PlannerPanel() {
             </div>
           )}
 
-          {/* Agent reasoning trace while loading */}
-          {isPlannerLoading && <AgentReasoningTrace />}
-
-          {/* Answer */}
-          {plannerAnswer && !isPlannerLoading && (
+          {/* Conversation history */}
+          {chatMessages.map((msg, i) => (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              key={i}
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-3"
+              className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}
             >
-              {/* Question echo */}
-              <div className="flex items-start gap-2">
-                <div className="shrink-0 h-6 w-6 rounded-full bg-muted flex items-center justify-center">
-                  <MessageSquare className="h-3 w-3 text-muted-foreground" />
+              {msg.role === 'assistant' && (
+                <div className="shrink-0 h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
+                  <Bot className="h-3.5 w-3.5 text-primary" />
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed pt-0.5 italic">
-                  {plannerAnswer.question}
-                </p>
-              </div>
+              )}
 
-              {/* Answer card */}
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Bot className="h-4 w-4 text-primary shrink-0" />
-                  <p className="text-sm font-semibold text-foreground">
-                    {plannerAnswer.answer_title || 'Agent Response'}
-                  </p>
+              <div className={cn(
+                'max-w-[85%] space-y-1',
+                msg.role === 'user' ? 'items-end' : 'items-start',
+              )}>
+                <div className={cn(
+                  'rounded-xl px-3 py-2 text-xs leading-relaxed',
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground rounded-br-sm'
+                    : 'bg-muted/60 text-foreground rounded-bl-sm',
+                )}>
+                  <MdSpan text={msg.content} />
                 </div>
 
-                {plannerAnswer.answer_sections && plannerAnswer.answer_sections.length > 0 ? (
-                  <ul className="space-y-2">
-                    {plannerAnswer.answer_sections.map((section, i) => (
-                      <motion.li
-                        key={i}
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.08 }}
-                        className="flex items-start gap-2 text-xs text-foreground/85 leading-relaxed"
-                      >
-                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
-                        <MdSpan text={section} />
-                      </motion.li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-foreground/85 leading-relaxed">
-                    <MdSpan text={plannerAnswer.answer} />
-                  </p>
+                {/* Real chain of thought for assistant messages */}
+                {msg.role === 'assistant' && msg.chainOfThought && msg.chainOfThought.length > 0 && (
+                  <ChainOfThoughtExpander steps={msg.chainOfThought} />
                 )}
               </div>
+
+              {msg.role === 'user' && (
+                <div className="shrink-0 h-6 w-6 rounded-full bg-muted flex items-center justify-center mt-0.5">
+                  <MessageSquare className="h-3 w-3 text-muted-foreground" />
+                </div>
+              )}
             </motion.div>
-          )}
+          ))}
+
+          {/* Agent reasoning trace while waiting */}
+          {isAgentLoading && <AgentReasoningTrace />}
+
+          <div ref={bottomRef} />
         </div>
       </ScrollArea>
 
@@ -547,25 +593,25 @@ function PlannerPanel() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                submitQuestion();
+                submit();
               }
             }}
             rows={2}
             className="resize-none text-xs min-h-14"
-            disabled={isPlannerLoading || !regionId}
+            disabled={isAgentLoading || !selectedRegion}
           />
           <Button
             type="submit"
             size="sm"
             className="w-full gap-2 text-xs"
-            disabled={!question.trim() || isPlannerLoading || !regionId}
+            disabled={!question.trim() || isAgentLoading || !selectedRegion}
           >
-            {isPlannerLoading ? (
+            {isAgentLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Send className="h-3.5 w-3.5" />
             )}
-            {isPlannerLoading ? 'Agent reasoning…' : 'Ask Agent'}
+            {isAgentLoading ? 'Agent reasoning…' : 'Ask Agent'}
           </Button>
         </form>
       </div>
@@ -574,7 +620,7 @@ function PlannerPanel() {
 }
 
 export function ThermalSidebar() {
-  const { sidebarOpen, setSidebarOpen, activeHotspot, selectionMode, regionDisplayName, plannerAnswer } = useThermal();
+  const { sidebarOpen, setSidebarOpen, activeHotspot, selectionMode, regionDisplayName, chatMessages } = useThermal();
   const [activeTab, setActiveTab] = useState('ranking');
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
 
@@ -726,7 +772,7 @@ export function ThermalSidebar() {
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
                   <span className="text-xs">Planner</span>
-                  {plannerAnswer && (
+                  {chatMessages.length > 0 && (
                     <span className="ml-1 h-1.5 w-1.5 rounded-full bg-green-500" />
                   )}
                 </TabsTrigger>

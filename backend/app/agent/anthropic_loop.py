@@ -97,10 +97,25 @@ def _load_image_base64(path: str, max_bytes: int = 4_900_000) -> tuple[str, str]
 
 
 def _dispatch_tool(name: str, args: dict) -> str:
-    """Call one of our tool functions by name."""
+    """Call one of our tool functions by name.
+
+    Coerces arguments to their annotated types so Claude's JSON output
+    (which may send integers as floats or strings) doesn't cause slice errors.
+    """
+    import inspect
     for func in ALL_TOOLS:
         if func.__name__ == name:
-            result = func(**args)
+            sig = inspect.signature(func)
+            coerced: dict = {}
+            for k, v in args.items():
+                param = sig.parameters.get(k)
+                if param and param.annotation is not inspect.Parameter.empty:
+                    try:
+                        v = param.annotation(v)
+                    except (TypeError, ValueError):
+                        pass
+                coerced[k] = v
+            result = func(**coerced)
             return json.dumps(result)
     return json.dumps({"error": f"Unknown tool: {name}"})
 

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
 import type {
+  ChatMessage,
   Hotspot,
   InvestigationSession,
   TracePlaybackState,
@@ -16,13 +17,14 @@ import {
   createAnalysisFromCaptureUpload,
   getAnalysis,
   getAnalysisEvents,
-  askQuestion,
   requestVoiceBriefing,
   inferThermalFromMapBlob,
   mapHotspot,
   mapRecommendation,
+  createSession,
+  sendSessionPrompt,
 } from './api';
-import type { BackendPlannerResponse, BackendEvent, CaptureMapStatePayload, ThermalInferenceResponse } from './api';
+import type { BackendEvent, CaptureMapStatePayload, ThermalInferenceResponse } from './api';
 
 const POLL_INTERVAL_MS = 1200; // matches backend STEP_INTERVAL_MS
 
@@ -59,10 +61,11 @@ interface ThermalContextValue {
   resetPlayback: () => void;
   advanceStep: () => void;
 
-  // Planner Q&A
-  plannerAnswer: BackendPlannerResponse | null;
-  askPlannerQuestion: (question: string) => Promise<void>;
-  isPlannerLoading: boolean;
+  // Agent chat (session-based, multi-turn, real chain of thought)
+  sessionId: string | null;
+  chatMessages: ChatMessage[];
+  isAgentLoading: boolean;
+  askAgent: (question: string) => Promise<void>;
 
   // Thermal inference (model overlay)
   thermalInference: ThermalInferenceResponse | null;
@@ -129,8 +132,9 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     speed: 800,
   });
 
-  const [plannerAnswer, setPlannerAnswer] = useState<BackendPlannerResponse | null>(null);
-  const [isPlannerLoading, setIsPlannerLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isAgentLoading, setIsAgentLoading] = useState(false);
 
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const activeHotspotIdRef = useRef<string | null>(null);
@@ -219,7 +223,8 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setActiveHotspotState(null);
     setAnalysisProgress(null);
     setRegionId(null);
-    setPlannerAnswer(null);
+    setSessionId(null);
+    setChatMessages([]);
     setVoiceBriefing(null);
     setRegionDisplayName(null);
     setTraceEvents([]);
@@ -237,7 +242,8 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setActiveHotspotState(null);
     setAnalysisProgress(null);
     setRegionId(null);
-    setPlannerAnswer(null);
+    setSessionId(null);
+    setChatMessages([]);
     setVoiceBriefing(null);
     setRegionDisplayName(null);
     setTraceEvents([]);
@@ -373,20 +379,47 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     }
   }, [regionId, isVoiceBriefingLoading]);
 
-  // ── Planner Q&A ───────────────────────────────────────────────────────────
+  // ── Agent chat (session-based, multi-turn) ────────────────────────────────
 
-  const askPlannerQuestion = useCallback(
+  const askAgent = useCallback(
     async (question: string) => {
-      if (!regionId) return;
-      setIsPlannerLoading(true);
+      if (!selectedRegion || isAgentLoading) return;
+      setIsAgentLoading(true);
+
+      // Append user message immediately for responsive feel
+      setChatMessages(prev => [...prev, { role: 'user', content: question }]);
+
       try {
-        const answer = await askQuestion(regionId, question);
-        setPlannerAnswer(answer);
+        // Create a session on first message — uses the drawn region's center + radius
+        let sid = sessionId;
+        if (!sid) {
+          const sess = await createSession(
+            { lat: selectedRegion.center.lat, lng: selectedRegion.center.lng },
+            boundsToRadius(selectedRegion),
+          );
+          sid = sess.session_id;
+          setSessionId(sid);
+        }
+
+        const result = await sendSessionPrompt(sid, question);
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: result.answer,
+            chainOfThought: result.chain_of_thought,
+          },
+        ]);
+      } catch {
+        setChatMessages(prev => [
+          ...prev,
+          { role: 'assistant', content: 'Agent encountered an error. Please try again.' },
+        ]);
       } finally {
-        setIsPlannerLoading(false);
+        setIsAgentLoading(false);
       }
     },
-    [regionId],
+    [selectedRegion, sessionId, isAgentLoading],
   );
 
   return (
@@ -414,9 +447,10 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         pausePlayback,
         resetPlayback,
         advanceStep,
-        plannerAnswer,
-        askPlannerQuestion,
-        isPlannerLoading,
+        sessionId,
+        chatMessages,
+        isAgentLoading,
+        askAgent,
         thermalInference,
         isThermalInferenceLoading,
         thermalOverlayUrl: (() => {
