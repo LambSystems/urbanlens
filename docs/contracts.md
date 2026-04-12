@@ -296,6 +296,7 @@ Required abstraction:
 
 - `AnthropicProvider`
 - `GeminiProvider`
+- `FeatherlessProvider`
 - `MockProvider`
 
 Provider choice should be environment-configurable.
@@ -303,6 +304,39 @@ Provider choice should be environment-configurable.
 Recommended env:
 
 - `LLM_PROVIDER=anthropic`
+
+Recommended additional env values:
+
+- `LLM_PROVIDER=featherless`
+- `LLM_PROVIDER=gemini`
+
+Featherless must implement the same contract as the other providers.
+No branch-specific orchestration logic is allowed just for Featherless.
+
+## 10.1 Voice Briefing Contract
+
+Voice output is optional and separate from the LLM provider layer.
+
+Recommended endpoint shape:
+
+- `POST /analysis/{region_id}/voice-briefing`
+
+Recommended response:
+
+```json
+{
+  "region_id": "region_123",
+  "audio_url": "/data/captures/region_123/briefing.mp3",
+  "summary_text": "The central roof cluster is the top inspection target..."
+}
+```
+
+Rules:
+
+- generated only after an analysis exists
+- uses the final grounded answer as input
+- must not invent new evidence
+- may be disabled without affecting the core product
 
 ---
 

@@ -12,6 +12,7 @@ Owner:
 - ranking and recommendation UI
 - follow-up question UI
 - v0-assisted component polish
+- optional voice briefing playback UI
 
 ## Immediate Goal
 
@@ -47,6 +48,7 @@ The hero interaction is:
    - findings
    - recommendation
    - follow-up question UI
+7. If backend supports it, add a `Play briefing` button for ElevenLabs audio.
 
 ## UX Canon
 
@@ -115,6 +117,7 @@ Not on inventing a brand-new conversational shell.
 - that `ThermalGen` is one of those tools
 - that a second supporting tool also exists
 - that the final answer is actionable
+- that voice, if present, is a summary layer and not the core interaction
 
 Recommended visible labels:
 

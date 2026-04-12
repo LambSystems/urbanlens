@@ -94,6 +94,7 @@ Recommended providers:
 
 - `AnthropicProvider` as current default
 - `GeminiProvider` as optional or fallback
+- `FeatherlessProvider` as an open-model provider path
 - `MockProvider` for tests and demo fallback
 
 The project should not fail just because one vendor is unstable.
@@ -109,6 +110,27 @@ The LLM should not own:
 - ranking math
 - anomaly/severity/confidence calculations
 - final deterministic sorting
+
+Recommended operating rule:
+
+- `AnthropicProvider` should be the safe demo default
+- `FeatherlessProvider` should be implemented against the same interface so the team can credibly claim and test sponsor integration
+- `GeminiProvider` should remain optional until it is reliable
+
+## 4.1 Voice Output Layer
+
+Voice does not belong inside `LLMProvider`.
+
+Treat voice separately as a downstream output system.
+
+Recommended provider:
+
+- `ElevenLabs`
+
+Best use:
+
+- convert the final answer into a short decision briefing
+- keep the audio layer small and deterministic
 
 ---
 

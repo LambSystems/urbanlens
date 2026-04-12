@@ -112,6 +112,21 @@ Good follow-up:
 
 This proves context retention and legibility.
 
+### Step 7: Optional Voice Briefing
+
+If stable, finish with a short spoken summary.
+
+Show:
+
+- `Play briefing` button
+- a 10–20 second narrated summary of the result
+
+Say:
+
+> We also generate a short spoken briefing for fast decision handoff.
+
+This is a demo enhancer and prize-track integration, not the core proof of agency.
+
 ---
 
 ## 3. Demo Structure in 90–120 Seconds
@@ -123,6 +138,7 @@ This proves context retention and legibility.
 5. Show `Heat Risk Profiler`
 6. Land on recommendation
 7. Ask one follow-up
+8. Optional voice briefing
 
 That is enough.
 
@@ -164,6 +180,7 @@ By the end of the demo, judges should think:
 - the thermal tool is genuinely differentiated
 - the second tool makes the product feel broader and more useful
 - the answer is grounded in visible evidence
+- the team can package the result cleanly, including an optional spoken briefing
 
 ---
 
@@ -174,6 +191,7 @@ By the end of the demo, judges should think:
 - making the second tool feel fake or decorative
 - ending with “here is a heatmap”
 - using too many tools and making the trace unreadable
+- letting voice become the focus instead of the agent investigation
 
 ---
 

@@ -168,14 +168,19 @@ We are optimizing for one polished vertical slice.
 - `Google Maps API` for interaction and locality capture
 - `Python + FastAPI` backend
 - `React + TypeScript` frontend
-- `Anthropic` as the reliable default LLM right now
-- `Gemini` supported behind an `LLMProvider` abstraction if it stabilizes
+- `LLMProvider` abstraction over:
+  - `Anthropic` as the reliable default right now
+  - `Gemini` if it stabilizes
+  - `Featherless` as an open-model provider path and prize-track integration
 - `ThermalGen` as the custom thermal evidence tool
+- `ElevenLabs` for optional voice briefing in the demo layer
 - `v0` for selected UI surfaces only
 
-Important rule:
+Important rules:
 
-`LLMProvider` should be provider-neutral. The system must not depend on one flaky provider to demo successfully.
+- `LLMProvider` must be provider-neutral. The system must not depend on one flaky provider to demo successfully.
+- `ElevenLabs` is a demo/output layer, not the reasoning core.
+- `Featherless` should plug into the same orchestrator contract, not fork the product.
 
 ---
 

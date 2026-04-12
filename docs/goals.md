@@ -170,7 +170,14 @@ Current recommendation:
 
 - `Anthropic` as default for demo reliability
 - `Gemini` as optional or fallback provider if it stabilizes
+- `Featherless` as an additional provider path for open models and prize eligibility
 - deterministic scoring and ranking wherever possible
+
+Practical team rule:
+
+- the product must work with Anthropic alone
+- Featherless should integrate through the same provider interface
+- Gemini should not block the demo
 
 The agent should use the LLM for:
 
@@ -185,6 +192,18 @@ The LLM should not own:
 - geometry
 - hard-coded discard logic
 
+## 7.1 ElevenLabs Strategy
+
+`ElevenLabs` should be treated as a demo enhancement layer, not a core dependency.
+
+Best use:
+
+- short spoken briefing of the final result
+- one-click `Play briefing` after analysis completes
+
+Do not make voice a required step of the product loop.
+The product must still win visually and functionally without audio.
+
 ---
 
 ## 8. Team Plan
@@ -195,6 +214,7 @@ The LLM should not own:
 - screenshot packaging
 - sidebar and trace UI
 - analysis and follow-up interaction flow
+- optional voice briefing playback UI
 
 ### Engineer 2
 
@@ -202,6 +222,7 @@ The LLM should not own:
 - storage of image plus metadata
 - orchestrator and tool routing
 - LLM provider abstraction
+- optional ElevenLabs backend endpoint for generated voice briefings
 
 ### Engineer 3
 
@@ -215,6 +236,7 @@ The LLM should not own:
 - ranking
 - discard logic
 - confidence and rationale
+- test that outputs stay grounded across different LLM providers
 
 ---
 

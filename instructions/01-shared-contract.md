@@ -61,7 +61,14 @@ Treat it as exploratory unless the team explicitly decides to switch.
 
 - use `LLMProvider`
 - default to Anthropic for demo reliability
+- support Featherless through the same interface
 - do not hardcode Gemini-only assumptions into the product
+
+## Voice Rule
+
+- `ElevenLabs` is optional and downstream
+- voice should read grounded analysis output
+- voice must never become the primary product interaction
 
 ## UI Rule
 

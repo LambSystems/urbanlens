@@ -12,6 +12,7 @@ Owner:
 - tool routing and dispatch
 - `LLMProvider` abstraction
 - cache/playback bridge
+- optional voice briefing endpoint
 
 ## Immediate Goal
 
@@ -60,6 +61,7 @@ Use `LLMProvider` with:
 
 - `AnthropicProvider` as default for reliability
 - `GeminiProvider` as optional
+- `FeatherlessProvider` as optional and prize-relevant
 - `MockProvider` for fallback/testing
 
 Use the LLM mainly for:
@@ -69,6 +71,22 @@ Use the LLM mainly for:
 - follow-up questions
 
 Keep ranking math deterministic.
+
+## Voice Rule
+
+If time allows, add a backend endpoint for ElevenLabs-generated voice briefings.
+
+Recommended shape:
+
+- `POST /analysis/{region_id}/voice-briefing`
+
+This endpoint should:
+
+- read the final grounded answer
+- generate short audio
+- return a file URL or bytes response
+
+It must remain optional and downstream of the main analysis flow.
 
 ## Required Endpoints
 

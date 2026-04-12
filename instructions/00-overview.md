@@ -50,12 +50,15 @@ If work does not strengthen that flow, cut it.
 
 ## Stack
 
-- `Anthropic` as default LLM right now
-- `Gemini` supported through `LLMProvider` if it stabilizes
+- `LLMProvider` over:
+  - `Anthropic` as default LLM right now
+  - `Gemini` if it stabilizes
+  - `Featherless` for open-model support and prize eligibility
 - `Google Maps API`
 - `Python + FastAPI`
 - `React + TypeScript`
 - `ThermalGen`
+- `ElevenLabs` for optional voice briefing
 - `v0` for selected UI surfaces only
 
 ---
@@ -69,5 +72,6 @@ If work does not strengthen that flow, cut it.
 - the output should be analysis-first, not chat-first
 - follow-up questions happen on top of an existing analysis
 - ranking should remain deterministic and explainable
+- voice is optional polish, not core logic
 
 Do not reopen product-scope debates during implementation unless they directly block the winning loop.

@@ -135,6 +135,14 @@ It decides:
 
 The orchestrator should stay provider-neutral through `LLMProvider`.
 
+That means the product logic should not know whether it is currently using:
+
+- `Anthropic`
+- `Gemini`
+- `Featherless`
+
+Only the provider layer should know that.
+
 ### 3.4 ThermalGen
 
 ThermalGen is the special internal tool.
@@ -193,6 +201,23 @@ Examples:
 
 Planner Mode is not the main product by itself. It is a way to deepen the investigation after the initial answer.
 
+### 3.9 Voice Briefing Layer
+
+Optional but strategically useful for demo and prize alignment.
+
+Responsibilities:
+
+- turn the final answer into a short spoken summary
+- help judges experience the result quickly
+- support a polished `Play briefing` UX in the frontend
+
+Recommended provider:
+
+- `ElevenLabs`
+
+This layer must stay downstream of analysis completion.
+It should never become a dependency for the core reasoning loop.
+
 ---
 
 ## 4. Tool Set
@@ -223,6 +248,7 @@ Use:
 
 - `Anthropic` as current reliable default
 - `Gemini` behind the same provider abstraction
+- `Featherless` behind the same provider abstraction for open-model support
 - `MockProvider` for fallback and testing
 
 `LLMProvider` should support at least:
@@ -232,6 +258,8 @@ Use:
 - tool-selection assistance
 
 This lets the demo survive vendor instability.
+
+It also lets the team pursue sponsor-prize integrations without fragmenting the architecture.
 
 ---
 
