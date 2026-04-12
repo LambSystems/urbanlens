@@ -499,6 +499,23 @@ LLM_PROVIDER=gemini
 LLM_PROVIDER=mock
 ```
 
+Relevant provider env:
+
+```text
+FEATHERLESS_API_KEY=...
+FEATHERLESS_MODEL=Qwen/Qwen2.5-7B-Instruct
+FEATHERLESS_HTTP_REFERER=https://urbanlens.local
+FEATHERLESS_X_TITLE=UrbanLens
+```
+
+Voice briefing env:
+
+```text
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+```
+
 ## 12. Suggested Frontend Flow
 
 1. Load `GET /demo/regions` or let the user click on the map.

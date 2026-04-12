@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from .routes import router
 
@@ -19,6 +21,10 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+data_dir = Path(__file__).resolve().parents[1] / "data"
+if data_dir.exists():
+    app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
 
 
 @app.get("/health")
