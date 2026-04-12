@@ -6,6 +6,8 @@ This document defines the operating contract for the MVP so all engineers can wo
 It is the source of truth for:
 
 - analysis region behavior
+- source retrieval and evidence normalization behavior
+- source record requirements and fallback enrichment
 - hotspot taxonomy
 - trace semantics
 - ranking and discard heuristics
@@ -21,11 +23,15 @@ The user does not analyze a single structure directly.
 
 A click on the map defines an `analysis region` centered around that click. The system then proposes multiple hotspot candidates inside that region.
 
+Google Maps is the interaction surface. The evidence layer underneath may consist of scattered drone imagery, cropped images, and partial metadata.
+
 Required behavior:
 
 - click on map
 - derive region center and radius
 - load or create an analysis job
+- retrieve available drone sources intersecting the region
+- normalize source evidence into an analysis-ready representation
 - detect 3 to 5 hotspot candidates
 - investigate candidates individually
 - discard or finalize each candidate
@@ -37,6 +43,71 @@ Recommended MVP fields:
 - `center.lng`
 - `radius_m`
 - `region_id`
+- `available_source_count`
+- `coverage_score`
+
+## 1.1 Source Retrieval Model
+
+The backend should assume source imagery is scattered.
+
+That means:
+
+- not every region will have perfect coverage
+- source imagery may come from multiple files or partial crops
+- confidence should reflect coverage quality
+
+For the MVP, source retrieval can be implemented as a curated mapping for known demo regions, but the contract should already model:
+
+- source count
+- coverage quality
+- whether evidence is partial
+
+## 1.2 Source Record Contract
+
+Every raw source should be able to enter the system even if metadata is incomplete.
+
+Recommended minimum source contract:
+
+- `source_id`
+- `source_type`
+  one of `drone`, `satellite`, `derived`
+- `image_path` or `image_url`
+- `lat` optional
+- `lng` optional
+- `bounds` optional
+- `timestamp` optional
+- `altitude` optional
+- `heading` optional
+- `resolution` optional
+- `metadata_quality_score`
+- `geolocation_confidence`
+
+Rule:
+
+- missing metadata should reduce confidence, not break the pipeline
+
+## 1.3 Google Maps Enrichment Fallback
+
+Google Maps may be used to enrich missing or weak metadata when the source record is incomplete.
+
+Allowed fallback uses:
+
+- reverse geocoding
+- viewport and bounds support
+- approximate place or area labeling
+- contextual metadata enrichment
+
+Not allowed:
+
+- treating Google Maps as primary thermal evidence
+- replacing missing drone evidence with fake hotspot truth
+
+Fallback order:
+
+1. source record metadata
+2. dataset-level metadata
+3. Google Maps enrichment
+4. confidence penalty if uncertainty remains
 
 ---
 
@@ -136,6 +207,7 @@ It usually fails because:
 - the heat pattern is expected for the object type
 - evidence is insufficient to justify escalation
 - confidence is too low to recommend action
+- source coverage is too incomplete to support escalation
 
 Discard labels must be evidence-backed, not decorative.
 
@@ -152,6 +224,7 @@ A top hotspot is a candidate that:
 - passes the anomaly gate
 - remains severe enough to matter
 - retains enough confidence to support a recommendation
+- is backed by adequate enough source coverage for the recommendation strength
 
 Top hotspots appear in the final ranked list and receive an intervention recommendation.
 
@@ -192,6 +265,13 @@ This preserves the intended hierarchy:
 - severity determines how urgent it is
 - confidence prevents unstable results from dominating
 
+Confidence should combine:
+
+- model or reasoning confidence
+- context consistency
+- source coverage quality
+- metadata completeness and geolocation confidence
+
 ### 5.3 Notes
 
 - anomaly is still stored and shown in UI
@@ -213,6 +293,7 @@ Stores:
 - nearby repeated analysis regions
 - region metadata
 - candidate hotspot proposals
+- source retrieval results
 
 Use case:
 
@@ -228,6 +309,7 @@ Stores per hotspot:
 - neighbor comparison
 - consistency check outputs
 - scoring outputs
+- source coverage summaries
 
 Use case:
 
@@ -280,12 +362,33 @@ These schemas are intentionally compact and stable.
   "region_id": "stl_001",
   "center": {"lat": 38.6270, "lng": -90.1994},
   "radius_m": 120,
+  "available_source_count": 6,
+  "coverage_score": 0.81,
   "status": "running",
   "summary": {
     "candidate_count": 5,
     "discarded_count": 2,
     "finalized_count": 3
   }
+}
+```
+
+### 8.1.1 SourceRecord
+
+```json
+{
+  "source_id": "drone_img_001",
+  "source_type": "drone",
+  "image_path": "data/demo/drone_img_001.png",
+  "lat": 38.6271,
+  "lng": -90.1992,
+  "bounds": null,
+  "timestamp": null,
+  "altitude": 110.0,
+  "heading": null,
+  "resolution": 0.12,
+  "metadata_quality_score": 0.72,
+  "geolocation_confidence": 0.68
 }
 ```
 
@@ -299,6 +402,8 @@ These schemas are intentionally compact and stable.
   "centroid": {"lat": 38.6271, "lng": -90.1991},
   "hotspot_type": "roof",
   "status": "investigating",
+  "source_count": 3,
+  "coverage_score": 0.79,
   "anomaly_score": 0.82,
   "severity_score": 0.76,
   "confidence_score": 0.71,
@@ -322,7 +427,8 @@ These schemas are intentionally compact and stable.
   "summary": "Hotter than 83% of nearby comparable roofs",
   "evidence": {
     "neighbor_count": 12,
-    "relative_percentile": 0.83
+    "relative_percentile": 0.83,
+    "coverage_score": 0.79
   }
 }
 ```
@@ -420,6 +526,9 @@ If anything is ambiguous during implementation, preserve these first:
 
 - fixed trace vocabulary
 - semivariable trace routes
+- region-level source retrieval before hotspot reasoning
+- partial metadata is acceptable
+- Google Maps enrichment is fallback-only
 - anomaly as gate
 - severity for ordering
 - confidence for modulation

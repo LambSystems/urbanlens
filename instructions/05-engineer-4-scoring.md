@@ -10,6 +10,7 @@ Owner:
 - confidence scoring
 - discard logic
 - final ranking logic
+- coverage-aware confidence logic
 
 ## Immediate Goal
 
@@ -29,6 +30,10 @@ Turn hotspot evidence into stable, explainable ranking decisions.
 - anomaly filters
 - severity orders
 - confidence modulates
+
+Confidence should include source coverage quality, not just model certainty.
+
+Confidence should also be penalized when metadata quality or geolocation certainty is weak.
 
 Gate:
 
@@ -51,6 +56,7 @@ final_rank_score = severity_score * confidence_score
 - `final_rank_score`
 - `discard_reason` when applicable
 - `why` explanation bullets
+- lower confidence when source coverage is partial or weak
 
 ## Example Discard Reasons
 

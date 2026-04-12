@@ -26,6 +26,8 @@ Stakeholders can often see that an area is hot, but they still cannot answer:
 
 Existing tools usually provide analysis, not decisions.
 
+In our build, Google Maps is the interaction layer, not the source of truth. The actual evidence comes from scattered drone imagery and related metadata that must first be retrieved and normalized for the selected region.
+
 ---
 
 ## Why This Is Agentic
@@ -37,6 +39,7 @@ It behaves like an agent by:
 - selecting which hotspot to inspect next
 - deciding what evidence it still needs
 - calling tools to gather that evidence
+- retrieving and normalizing available drone sources for the selected region
 - comparing against context
 - rejecting expected or weak candidates
 - escalating strong candidates into ranked interventions
@@ -48,11 +51,12 @@ The key behavior is not just detection. It is decision-making under uncertainty.
 ## Core Demo Loop
 
 1. User selects a region on the map
-2. System proposes 3 to 5 candidate hotspots
-3. Agent investigates a hotspot using structured tools
-4. Agent discards low-value or expected hotspots
-5. System ranks the remaining hotspots
-6. System recommends the top intervention
+2. System retrieves and normalizes available drone evidence for that region
+3. System proposes 3 to 5 candidate hotspots
+4. Agent investigates a hotspot using structured tools
+5. Agent discards low-value or expected hotspots
+6. System ranks the remaining hotspots
+7. System recommends the top intervention
 
 This sequence is the product.
 
@@ -67,6 +71,7 @@ We are optimizing for one polished, judge-friendly experience rather than a broa
 - one stable demo region
 - RGB map layer plus thermal overlay
 - analysis region centered around the user click
+- region-level source retrieval over scattered drone imagery
 - 3 to 5 visible hotspot candidates
 - investigation trace for at least 1 hotspot
 - explicit tool-selection step in the investigation trace
@@ -84,6 +89,7 @@ We are optimizing for one polished, judge-friendly experience rather than a broa
 - cached session replay for the demo
 - shared schema contract between backend and frontend
 - v0-assisted UI generation and polish for the sidebar, trace timeline, ranking cards, and recommendation panel
+- coverage-aware confidence that reflects incomplete source availability
 
 ### Explicitly Cut
 
@@ -99,6 +105,10 @@ We are optimizing for one polished, judge-friendly experience rather than a broa
 
 ThermalGen is built as a layered decision system:
 
+- `Source Retrieval Layer`
+  finds drone images and metadata intersecting the selected region
+- `Evidence Normalization Layer`
+  turns scattered imagery into analysis-ready region evidence
 - `Thermal Generation Module`
   already prebuilt; treated as an evidence tool the agent can invoke
 - `Candidate Discovery`

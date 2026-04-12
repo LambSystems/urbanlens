@@ -9,6 +9,8 @@ Owner:
 - trace lifecycle
 - cache/playback bridge
 - analysis endpoints
+- region-level source retrieval and normalization
+- fallback metadata enrichment path
 
 ## Immediate Goal
 
@@ -40,6 +42,8 @@ Your first win is:
    - `evidence_gathered`
    - `discarded`
    - `finalized`
+6. Model region-level source retrieval even if the first implementation is a curated mapping for demo regions.
+7. Support partial source metadata instead of assuming clean lat/lng coverage everywhere.
 
 ## Orchestrator Rules
 
@@ -75,6 +79,10 @@ That means:
 - backend may serve cached evidence
 - frontend still reveals steps progressively
 - events or polling must expose step progression cleanly
+
+Assume source imagery is scattered. The backend should treat retrieval and normalization as a layer before hotspot reasoning, even if the first pass is simplified.
+
+Google Maps may be used as a metadata enrichment fallback, not as a replacement for the evidence layer.
 
 ## Handoffs
 

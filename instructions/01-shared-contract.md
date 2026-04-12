@@ -7,9 +7,13 @@ Everyone should follow these exact decisions.
 ## Analysis Model
 
 - map click defines an `analysis region`
+- backend retrieves available drone imagery intersecting that region
+- backend normalizes scattered evidence before hotspot reasoning
 - region returns `3-5` hotspot candidates
 - hotspots are investigated individually
 - final output is a ranked list of survivors
+- source metadata may be partial
+- Google Maps may enrich missing metadata, but not replace evidence
 
 ## Hotspot Taxonomy
 
@@ -46,6 +50,8 @@ Everyone should follow these exact decisions.
 - severity orders
 - confidence modulates
 
+Confidence should also reflect source coverage quality.
+
 Gate:
 
 ```text
@@ -64,6 +70,7 @@ final_rank_score = severity_score * confidence_score
 - cache is allowed
 - visible reasoning must remain
 - frontend should play back cached evidence as a 5-15 second investigation trace
+- region caches may include pre-resolved drone source sets for known demo regions
 
 ## API Surface
 
