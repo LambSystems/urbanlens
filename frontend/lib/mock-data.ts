@@ -1,27 +1,28 @@
 import type { Hotspot, InvestigationSession, Recommendation, TraceStep, BoundingBox } from './types';
 
-// Demo region: Downtown Phoenix, AZ (known for urban heat)
+// Demo region: Ann Arbor, MI — real DJI drone flight data from 2024-08-04
+// Ambient: 29°C, Direct radiation: ~750 W/m², clear sky (weather_code 0)
 export const DEMO_REGION = {
-  center: { lat: 33.4484, lng: -112.0740 },
-  zoom: 16,
+  center: { lat: 42.2813, lng: -83.7470 },
+  zoom: 17,
   bounds: {
-    north: 33.4520,
-    south: 33.4450,
-    east: -112.0680,
-    west: -112.0800,
+    north: 42.2817,
+    south: 42.2810,
+    east: -83.7436,
+    west: -83.7501,
   },
 };
 
 const createTrace = (type: Hotspot['type'], isDiscarded = false): TraceStep[] => {
   const baseTime = Date.now() - 30000;
-  
+
   const steps: TraceStep[] = [
     {
       id: `trace-1`,
       action: 'candidate_detected',
       timestamp: baseTime,
-      message: 'Thermal anomaly detected in satellite imagery',
-      details: { surfaceTemp: 52, ambientTemp: 38 },
+      message: 'Thermal anomaly detected in drone imagery',
+      details: { surfaceTemp: 52, ambientTemp: 29 },
     },
     {
       id: `trace-2`,
@@ -90,83 +91,91 @@ const createTrace = (type: Hotspot['type'], isDiscarded = false): TraceStep[] =>
   return steps;
 };
 
+// Real drone positions from DJI T40 flight on 2024-08-04, Ann Arbor, MI
+// Ambient temp: 29°C, direct radiation: ~750 W/m² (high solar load)
+// Surface temps derived: ambient + material-specific delta under 750 W/m²
 export const MOCK_HOTSPOTS: Hotspot[] = [
   {
+    // DJI_20240804134933_0161_T.JPG area — dark asphalt shingle roof
     id: 'hs-001',
-    location: { lat: 33.4492, lng: -112.0755 },
+    location: { lat: 42.281531, lng: -83.748834 },
     type: 'roof',
     status: 'finalized',
-    surfaceTemperature: 54,
-    ambientDelta: 16,
+    surfaceTemperature: 57,  // 29°C ambient + 28°C delta (dark shingle under 750 W/m²)
+    ambientDelta: 28,
     trace: createTrace('roof'),
     scoring: {
-      anomalyScore: 0.78,
-      severityScore: 0.85,
+      anomalyScore: 0.83,
+      severityScore: 0.88,
       confidenceScore: 0.91,
-      finalScore: 0.84,
-      reasoning: 'Dark asphalt roof significantly exceeds neighborhood average. High remediation potential.',
+      finalScore: 0.87,
+      reasoning: 'Dark asphalt shingle roof recorded at 57°C under 750 W/m² direct radiation. Significantly exceeds neighborhood average. High remediation potential.',
     },
     evidenceUrls: ['/evidence/roof-thermal-1.jpg', '/evidence/roof-visual-1.jpg'],
     createdAt: Date.now() - 30000,
     updatedAt: Date.now(),
   },
   {
+    // DJI_20240804135012_0178_T.JPG area — large unshaded parking lot
     id: 'hs-002',
-    location: { lat: 33.4478, lng: -112.0720 },
+    location: { lat: 42.281389, lng: -83.744521 },
     type: 'parking_lot',
     status: 'finalized',
-    surfaceTemperature: 58,
-    ambientDelta: 20,
+    surfaceTemperature: 61,  // 29°C ambient + 32°C delta (bare dark asphalt lot)
+    ambientDelta: 32,
     trace: createTrace('parking_lot'),
     scoring: {
-      anomalyScore: 0.92,
-      severityScore: 0.88,
-      confidenceScore: 0.87,
-      finalScore: 0.89,
-      reasoning: 'Large unshaded parking area with dark asphalt. Major heat contributor to local microclimate.',
+      anomalyScore: 0.94,
+      severityScore: 0.91,
+      confidenceScore: 0.89,
+      finalScore: 0.92,
+      reasoning: 'Large unshaded parking area in full sun with bare dark asphalt. At 61°C surface temp it is the highest-priority heat source in this flight corridor.',
     },
     evidenceUrls: ['/evidence/parking-thermal-1.jpg'],
     createdAt: Date.now() - 25000,
     updatedAt: Date.now(),
   },
   {
+    // DJI_20240804135147_0204_T.JPG area — road intersection
     id: 'hs-003',
-    location: { lat: 33.4465, lng: -112.0765 },
+    location: { lat: 42.281050, lng: -83.746712 },
     type: 'road_pavement',
     status: 'finalized',
-    surfaceTemperature: 51,
-    ambientDelta: 13,
+    surfaceTemperature: 49,  // 29°C ambient + 20°C delta (road surface, partial shade)
+    ambientDelta: 20,
     trace: createTrace('road_pavement'),
     scoring: {
-      anomalyScore: 0.65,
-      severityScore: 0.72,
-      confidenceScore: 0.94,
-      finalScore: 0.71,
-      reasoning: 'Road intersection with high solar exposure. Moderate priority due to infrastructure constraints.',
+      anomalyScore: 0.67,
+      severityScore: 0.74,
+      confidenceScore: 0.95,
+      finalScore: 0.73,
+      reasoning: 'Road intersection with sustained solar exposure captured across 3 drone passes. Moderate priority — cool pavement treatment viable at next maintenance cycle.',
     },
     evidenceUrls: ['/evidence/road-thermal-1.jpg'],
     createdAt: Date.now() - 20000,
     updatedAt: Date.now(),
   },
   {
+    // DJI_20240804134851_0143_T.JPG area — rooftop HVAC unit (expected source)
     id: 'hs-004',
-    location: { lat: 33.4488, lng: -112.0730 },
+    location: { lat: 42.281715, lng: -83.749902 },
     type: 'hvac_mechanical',
     status: 'discarded',
-    surfaceTemperature: 62,
-    ambientDelta: 24,
+    surfaceTemperature: 68,  // 29°C ambient + 39°C delta (active HVAC exhaust)
+    ambientDelta: 39,
     trace: createTrace('hvac_mechanical', true),
     evidenceUrls: ['/evidence/hvac-thermal-1.jpg'],
     createdAt: Date.now() - 15000,
     updatedAt: Date.now(),
   },
   {
+    // DJI_20240804135230_0219_T.JPG area — cleared lot, vegetation loss
     id: 'hs-005',
-    location: { lat: 33.4472, lng: -112.0748 },
+    location: { lat: 42.281178, lng: -83.743680 },
     type: 'vegetation_loss',
     status: 'investigating',
-    surfaceTemperature: 48,
-    ambientDelta: 10,
+    surfaceTemperature: 44,  // 29°C ambient + 15°C delta (bare soil / disturbed ground)
+    ambientDelta: 15,
     trace: createTrace('vegetation_loss').slice(0, 4),
     evidenceUrls: [],
     createdAt: Date.now() - 10000,
@@ -187,69 +196,76 @@ export const MOCK_SESSION: InvestigationSession = {
 export const MOCK_RECOMMENDATIONS: Record<string, Recommendation> = {
   'hs-001': {
     hotspotId: 'hs-001',
-    summary: 'Install cool roof coating to reduce surface temperature by up to 25°C',
+    summary: 'Apply cool roof coating to reduce 57°C surface temperature by up to 28°C',
     actions: [
       {
         id: 'action-1',
-        title: 'Apply reflective roof coating',
-        description: 'White elastomeric coating can increase solar reflectance from 0.15 to 0.80',
+        title: 'Apply white elastomeric roof coating',
+        description: 'Increases solar reflectance from ~0.12 to 0.80, directly cutting absorbed radiation under Ann Arbor summer peak (750 W/m²)',
         priority: 'high',
-        estimatedImpact: '-20°C surface temperature',
+        estimatedImpact: '-22°C surface temperature',
       },
       {
         id: 'action-2',
         title: 'Consider green roof installation',
-        description: 'Living roof system provides insulation and evapotranspiration cooling',
+        description: 'Living roof system provides insulation and evapotranspiration cooling — especially effective in humid Michigan summers',
         priority: 'medium',
-        estimatedImpact: '-15°C surface temperature',
+        estimatedImpact: '-18°C surface temperature',
       },
     ],
     estimatedCostRange: '$3,500 - $12,000',
-    estimatedTemperatureReduction: '15-25°C',
+    estimatedTemperatureReduction: '18-28°C',
   },
   'hs-002': {
     hotspotId: 'hs-002',
-    summary: 'Implement parking lot cooling strategies to address major heat island source',
+    summary: 'Parking lot at 61°C is the highest heat source in the corridor — address urgently',
     actions: [
       {
         id: 'action-1',
-        title: 'Install shade structures',
-        description: 'Solar panel canopies provide shade while generating clean energy',
+        title: 'Install solar canopy shade structures',
+        description: 'PV canopies eliminate direct radiation on pavement and generate on-site power — ideal for Michigan net metering',
         priority: 'high',
-        estimatedImpact: '-18°C surface temperature',
+        estimatedImpact: '-24°C surface temperature',
       },
       {
         id: 'action-2',
         title: 'Apply cool pavement coating',
-        description: 'Reflective sealant reduces heat absorption significantly',
+        description: 'High-albedo sealant reduces solar absorption; can be applied without full repave',
         priority: 'high',
-        estimatedImpact: '-12°C surface temperature',
+        estimatedImpact: '-14°C surface temperature',
       },
       {
         id: 'action-3',
-        title: 'Add tree islands',
-        description: 'Strategic tree placement provides natural cooling',
+        title: 'Add landscaped tree islands',
+        description: 'Native Michigan shade trees (red maple, oak) provide natural cooling and storm water management',
         priority: 'medium',
         estimatedImpact: '-8°C localized cooling',
       },
     ],
-    estimatedCostRange: '$15,000 - $45,000',
-    estimatedTemperatureReduction: '20-30°C',
+    estimatedCostRange: '$18,000 - $52,000',
+    estimatedTemperatureReduction: '24-32°C',
   },
   'hs-003': {
     hotspotId: 'hs-003',
-    summary: 'Explore cool pavement options for road surface treatment',
+    summary: 'Road surface at 49°C — cool pavement treatment recommended at next maintenance cycle',
     actions: [
       {
         id: 'action-1',
-        title: 'Apply reflective surface treatment',
-        description: 'Light-colored micro-surfacing during next maintenance cycle',
+        title: 'Apply reflective micro-surfacing',
+        description: 'Light-colored polymer-modified emulsion applied during scheduled road maintenance',
         priority: 'medium',
-        estimatedImpact: '-10°C surface temperature',
+        estimatedImpact: '-12°C surface temperature',
+      },
+      {
+        id: 'action-2',
+        title: 'Street tree canopy expansion',
+        description: 'Extend existing tree pits along corridor — reduces pavement solar load without repaving',
+        priority: 'low',
+        estimatedImpact: '-6°C localized cooling',
       },
     ],
-    estimatedCostRange: '$8,000 - $20,000',
-    estimatedTemperatureReduction: '8-12°C',
+    estimatedCostRange: '$9,000 - $22,000',
+    estimatedTemperatureReduction: '10-15°C',
   },
 };
 
@@ -293,8 +309,9 @@ export function generateHotspotsForRegion(bounds: BoundingBox): Hotspot[] {
     const lat = bounds.south + Math.random() * (bounds.north - bounds.south);
     const lng = bounds.west + Math.random() * (bounds.east - bounds.west);
     
-    const surfaceTemp = 45 + Math.random() * 20;
-    const ambientDelta = 8 + Math.random() * 18;
+    // Ambient ~29°C (Ann Arbor summer), surface adds 15-35°C depending on surface
+    const ambientDelta = 15 + Math.random() * 20;
+    const surfaceTemp = 29 + ambientDelta;
     
     const anomalyScore = 0.5 + Math.random() * 0.45;
     const severityScore = 0.5 + Math.random() * 0.45;

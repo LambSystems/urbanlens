@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Rectangle, DrawingManager } from '@react-google-maps/api';
 import { useThermal } from '@/lib/thermal-context';
 import { DEMO_REGION } from '@/lib/mock-data';
+import { DRONE_POINTS, DRONE_CLUSTERS } from '@/lib/drone-points';
 import type { Hotspot, BoundingBox, SelectedRegion } from '@/lib/types';
 
 const libraries: ('drawing' | 'geometry')[] = ['drawing', 'geometry'];
@@ -301,6 +302,44 @@ export function ThermalMap() {
           }}
         />
       )}
+
+      {/* Drone flight cluster bounding boxes */}
+      {DRONE_CLUSTERS.map((cluster, i) => (
+        <Rectangle
+          key={`cluster-${i}`}
+          bounds={{
+            north: cluster.north,
+            south: cluster.south,
+            east: cluster.east,
+            west: cluster.west,
+          }}
+          options={{
+            fillColor: '#38bdf8',
+            fillOpacity: 0.06,
+            strokeColor: '#38bdf8',
+            strokeOpacity: 0.45,
+            strokeWeight: 1,
+          }}
+        />
+      ))}
+
+      {/* Individual drone GPS point markers */}
+      {DRONE_POINTS.map((pt, i) => (
+        <Circle
+          key={`drone-${i}`}
+          center={pt}
+          radius={4}
+          options={{
+            fillColor: '#38bdf8',
+            fillOpacity: 0.55,
+            strokeColor: '#38bdf8',
+            strokeOpacity: 0.8,
+            strokeWeight: 1,
+            clickable: false,
+            zIndex: 1,
+          }}
+        />
+      ))}
 
       {/* Hotspot markers and circles */}
       {hotspots.map((hotspot) => {
