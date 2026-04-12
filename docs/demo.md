@@ -250,6 +250,17 @@ Total:
 - why it matters
 - what to do next
 
+### v0 UI Scope
+
+Use `v0` to accelerate and polish the highest-visibility UI pieces:
+
+- hotspot sidebar
+- investigation trace timeline
+- ranking cards
+- final recommendation card
+
+The map and application logic remain custom. `v0` is used to speed up strong UI composition around the core flow.
+
 ---
 
 ## 6. What Makes This Demo Competitive
@@ -354,6 +365,7 @@ The demo must survive partial failure.
 - skipping the rejection step
 - ending on analysis instead of action
 - relying on live inference without fallback
+- forcing a v0-generated layout that hurts map legibility or trace clarity
 
 ---
 

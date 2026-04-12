@@ -25,6 +25,10 @@ ThermalGen should feel like a decision-making product, not a research prototype.
 
 To win `Best in Agentic AI`, the project needs to make four things obvious very quickly.
 
+Secondary objective:
+
+> make the UI strong enough to also compete for `Best Design using v0` without compromising the core agentic slice
+
 ### 2.1 Real Agent Behavior
 
 The system must visibly:
@@ -142,6 +146,7 @@ These increase winning odds but should never destabilize the core.
 - session replay for investigation trace
 - polished explanation layer
 - a stable schema contract shared by backend and frontend
+- v0 used as a UI accelerator for the demo shell and the highest-visibility result panels
 
 ---
 
@@ -220,6 +225,7 @@ It should avoid overclaiming precise physical truth.
 - ranking panel
 - recommendation card
 - demo mode and fallback states
+- integrate and adapt v0-generated UI building blocks
 
 ### Engineer 2: Backend and Orchestrator
 
@@ -269,6 +275,8 @@ Top 3 ranked recommendations with explanations.
 ### Milestone 5
 
 Polish, fallback path, demo rehearsal, and Devpost assets.
+
+This is also the point where the team should explicitly capture and document where `v0` was used so the submission can credibly target the design prize.
 
 ---
 

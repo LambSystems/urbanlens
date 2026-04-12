@@ -5,6 +5,8 @@ ThermalGen is an agentic urban heat investigation system built for the `Best in 
 
 Most tools stop at showing heat maps. ThermalGen goes one step further: it investigates candidate hotspots, decides what evidence it still needs, discards weak ones, prioritizes the strongest ones, and recommends what to fix first.
 
+The project is also positioned to make a credible run at `Best Design using v0` by using `v0` to accelerate and polish the most visible UI surfaces around the core agentic flow.
+
 The project is intentionally scoped around a single winning demo slice:
 
 `select region -> detect hotspots -> investigate -> discard -> prioritize -> recommend`
@@ -81,6 +83,7 @@ We are optimizing for one polished, judge-friendly experience rather than a broa
 - planner prompt like `What should we fix first in this area?`
 - cached session replay for the demo
 - shared schema contract between backend and frontend
+- v0-assisted UI generation and polish for the sidebar, trace timeline, ranking cards, and recommendation panel
 
 ### Explicitly Cut
 

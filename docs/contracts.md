@@ -11,6 +11,7 @@ It is the source of truth for:
 - ranking and discard heuristics
 - caching behavior
 - backend/frontend data contracts
+- the UI boundaries where `v0` can be used safely
 
 ---
 
@@ -351,7 +352,52 @@ These schemas are intentionally compact and stable.
 
 ---
 
-## 9. API Surface
+## 9. v0 Implementation Boundary
+
+`v0` should be used to accelerate visual implementation, not to define application logic.
+
+Safe `v0` scope:
+
+- sidebar shell
+- hotspot detail panel
+- investigation trace timeline
+- Top 3 ranking cards
+- final recommendation card
+- loading and empty states
+
+Not `v0` scope:
+
+- backend orchestration logic
+- hotspot scoring rules
+- trace semantics
+- map event handling contract
+- caching logic
+
+Implementation approach:
+
+1. Define schema and UI state contracts first in this document.
+2. Use `v0` prompts to generate UI components against those fixed contracts.
+3. Adapt the generated React/TypeScript output into the app without renaming schema fields to fit the UI.
+4. Prefer `v0` for component structure, styling, and layout polish.
+5. Keep the Google Maps container and analysis state management under direct engineer control.
+
+Suggested `v0` prompt targets:
+
+- a right sidebar for hotspot analysis with status badges and evidence sections
+- a vertical trace timeline with running, completed, discarded, and finalized states
+- ranked hotspot cards with anomaly, severity, and confidence badges
+- a recommendation card for the top hotspot with action, rationale, and confidence
+
+Success criteria for `v0` usage:
+
+- the UI is visibly cleaner and more legible than a hand-built default dashboard
+- the map remains the visual anchor
+- the trace and recommendation are understandable in under 10 seconds
+- generated components integrate cleanly with React and TypeScript
+
+---
+
+## 10. API Surface
 
 Keep the backend surface small.
 
@@ -368,7 +414,7 @@ Recommended endpoints:
 
 ---
 
-## 10. Implementation Rule
+## 11. Implementation Rule
 
 If anything is ambiguous during implementation, preserve these first:
 
