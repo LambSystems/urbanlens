@@ -155,6 +155,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
   // Thermal inference state
   const [thermalInference, setThermalInference] = useState<ThermalInferenceResponse | null>(null);
   const [isThermalInferenceLoading, setIsThermalInferenceLoading] = useState(false);
+  const [analysisThermalPreviewUrl, setAnalysisThermalPreviewUrl] = useState<string | null>(null);
 
   // Voice briefing state
   const [voiceBriefing, setVoiceBriefing] = useState<{ url: string | null; text: string } | null>(null);
@@ -175,6 +176,9 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
       setHotspots(mapped);
       if (data.region.display_name) setRegionDisplayName(data.region.display_name);
       if (data.region.thermal_preview_url || data.region.thermal_image_url) {
+        const rawUrl = data.region.thermal_preview_url ?? data.region.thermal_image_url ?? null;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+        setAnalysisThermalPreviewUrl(rawUrl?.startsWith('/') ? `${apiBase}${rawUrl}` : rawUrl);
         setThermalInference({
           source: data.region.thermal_source ?? 'hybrid_thermal',
           source_image_path: data.region.source_image_path ?? null,
@@ -252,6 +256,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setRegionDisplayName(null);
     setTraceEvents([]);
     setThermalInference(null);
+    setAnalysisThermalPreviewUrl(null);
     captureRef.current = null;
     activeHotspotIdRef.current = null;
   }, [stopPolling]);
@@ -270,6 +275,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setRegionDisplayName(null);
     setTraceEvents([]);
     setThermalInference(null);
+    setAnalysisThermalPreviewUrl(null);
     captureRef.current = null;
     activeHotspotIdRef.current = null;
   }, [stopPolling]);
@@ -441,7 +447,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         thermalInference,
         isThermalInferenceLoading,
         thermalOverlayUrl: (() => {
-          const url = thermalInference?.thermal_preview_url ?? null;
+          const url = thermalInference?.thermal_preview_url ?? analysisThermalPreviewUrl ?? null;
           if (!url) return null;
           const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
           return url.startsWith('/') ? `${API_BASE}${url}` : url;
