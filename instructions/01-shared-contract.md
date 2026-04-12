@@ -52,6 +52,11 @@ Canonical endpoints:
 - `GET /analysis/{region_id}/hotspots/{hotspot_id}`
 - `POST /analysis/{region_id}/questions`
 
+Experimental branches may contain a `session` API.
+
+For the current product and frontend integration, that API is not canonical.
+Treat it as exploratory unless the team explicitly decides to switch.
+
 ## LLM Rule
 
 - use `LLMProvider`
