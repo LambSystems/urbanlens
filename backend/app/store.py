@@ -110,7 +110,7 @@ class InMemoryAnalysisStore:
         if proposed and thermal_data.get("hotspot_regions"):
             # Real model output — build hotspots from actual thermal candidates
             analysis, events = build_analysis_from_candidates(
-                proposed, thermal_data, metadata.region.center, radius_m, region_id
+                proposed, thermal_data, metadata.region.center, radius_m, region_id, image_path=image_path
             )
         else:
             # Fallback — use HOTSPOT_LIBRARY with center offsets
