@@ -3,7 +3,7 @@ from __future__ import annotations
 from ..schemas import HotspotType
 
 
-_STUB_CLASSIFICATIONS: dict[HotspotType, dict] = {
+_RULE_BASED_CLASSIFICATIONS: dict[HotspotType, dict] = {
     HotspotType.roof: {"object_label": "roof", "object_confidence": 0.88},
     HotspotType.road_pavement: {"object_label": "road", "object_confidence": 0.91},
     HotspotType.hvac_mechanical: {"object_label": "rooftop_hvac", "object_confidence": 0.83},
@@ -15,4 +15,4 @@ _STUB_CLASSIFICATIONS: dict[HotspotType, dict] = {
 
 def classify_object(hotspot_type: HotspotType, image_path: str | None = None) -> dict:
     del image_path
-    return _STUB_CLASSIFICATIONS.get(hotspot_type, {"object_label": "unknown", "object_confidence": 0.40})
+    return _RULE_BASED_CLASSIFICATIONS.get(hotspot_type, {"object_label": "unknown", "object_confidence": 0.40})

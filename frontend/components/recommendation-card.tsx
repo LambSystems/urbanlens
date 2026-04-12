@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useThermal } from '@/lib/thermal-context';
-import { getHotspotTypeLabel } from '@/lib/mock-data';
+import { getHotspotTypeLabel } from '@/lib/hotspot-labels';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

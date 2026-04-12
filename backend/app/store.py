@@ -1,22 +1,24 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 import json
 from collections import defaultdict
 from copy import deepcopy
 from datetime import UTC, datetime
+from pathlib import Path
 from threading import Lock
 from uuid import uuid4
 
 from .capture_pipeline import (
     build_satellite_capture_source_record,
     ensure_capture_dir,
+    inspect_image_file,
     save_capture_image,
     generate_thermal_overlay_from_capture,
     propose_hotspots_from_capture,
     radius_m_from_bounds,
 )
-from .orchestrator import STEP_INTERVAL_MS, build_analysis, build_analysis_from_candidates
+from .orchestrator import STEP_INTERVAL_MS, build_analysis_from_candidates
 from .schemas import (
     AnalysisEvent,
     AnalysisResponse,
@@ -40,7 +42,7 @@ class InMemoryAnalysisStore:
 
     def create_analysis(self, payload: CreateAnalysisRequest) -> AnalysisResponse:
         region_id = f"region_{uuid4().hex[:8]}"
-        analysis, events = build_analysis(payload.center, payload.radius_m, region_id)
+        analysis, events = build_analysis_from_candidates([], {}, payload.center, payload.radius_m, region_id)
 
         with self._lock:
             self._analyses[region_id] = analysis
@@ -53,11 +55,14 @@ class InMemoryAnalysisStore:
         region_id = f"region_{uuid4().hex[:8]}"
         image_bytes = base64.b64decode(payload.capture.image_base64)
         image_path = save_capture_image(region_id, image_bytes, suffix=".png")
+        image_info = inspect_image_file(image_path)
         metadata_path = self._write_capture_metadata(
             region_id,
             payload.region.model_dump(by_alias=True),
             payload.map.model_dump(by_alias=True),
             payload.viewport.model_dump(),
+            payload.image_bounds.model_dump() if payload.image_bounds else None,
+            image_info,
         )
         del metadata_path
         return self._create_analysis_from_capture_core(
@@ -66,6 +71,7 @@ class InMemoryAnalysisStore:
                 region=payload.region,
                 map=payload.map,
                 viewport=payload.viewport,
+                image_bounds=payload.image_bounds,
             ),
             image_path=image_path,
         )
@@ -78,11 +84,14 @@ class InMemoryAnalysisStore:
     ) -> AnalysisResponse:
         region_id = f"region_{uuid4().hex[:8]}"
         image_path = save_capture_image(region_id, image_bytes, suffix=image_suffix)
+        image_info = inspect_image_file(image_path)
         metadata_path = self._write_capture_metadata(
             region_id,
             metadata.region.model_dump(by_alias=True),
             metadata.map.model_dump(by_alias=True),
             metadata.viewport.model_dump(),
+            metadata.image_bounds.model_dump() if metadata.image_bounds else None,
+            image_info,
         )
         del metadata_path
         return self._create_analysis_from_capture_core(
@@ -98,36 +107,46 @@ class InMemoryAnalysisStore:
         image_path: str,
     ) -> AnalysisResponse:
         radius_m = radius_m_from_bounds(metadata.region.bounds)
+        image_bounds = metadata.image_bounds or metadata.region.bounds
         thermal_result = generate_thermal_overlay_from_capture(
             satellite_image_path=image_path,
             center=metadata.region.center,
-            bounds=metadata.region.bounds,
+            bounds=image_bounds,
             zoom=int(metadata.map.zoom),
         )
         proposed = propose_hotspots_from_capture(metadata.region.center, radius_m, thermal_result)
         thermal_data = thermal_result.get("thermal_data", {})
 
-        if proposed and thermal_data.get("hotspot_regions"):
-            # Real model output — build hotspots from actual thermal candidates
-            analysis, events = build_analysis_from_candidates(
-                proposed, thermal_data, metadata.region.center, radius_m, region_id
-            )
-        else:
-            # Fallback — use HOTSPOT_LIBRARY with center offsets
-            analysis, events = build_analysis(metadata.region.center, radius_m, region_id)
+        analysis, events = build_analysis_from_candidates(
+            proposed, thermal_data, metadata.region.center, radius_m, region_id
+        )
 
         analysis.region.bounds = metadata.region.bounds
         analysis.region.area_km2 = metadata.region.area_km2
         # Store thermal overlay URLs on the region so frontend can render GroundOverlay
         analysis.region.thermal_image_url = thermal_result.get("thermal_image_url")
+        analysis.region.thermal_image_path = thermal_result.get("thermal_image_path")
+        analysis.region.thermal_image_width = thermal_result.get("thermal_image_width")
+        analysis.region.thermal_image_height = thermal_result.get("thermal_image_height")
         analysis.region.thermal_preview_url = thermal_result.get("thermal_preview_url")
+        analysis.region.thermal_preview_path = thermal_result.get("thermal_preview_path")
+        analysis.region.thermal_preview_width = thermal_result.get("thermal_preview_width")
+        analysis.region.thermal_preview_height = thermal_result.get("thermal_preview_height")
         analysis.region.thermal_source = thermal_result.get("source", "unknown")
+        analysis.region.source_image_path = thermal_result.get("source_image_path")
+        analysis.region.source_image_url = f"/captures/{region_id}/{Path(image_path).name}"
+        analysis.region.source_image_width = thermal_result.get("source_image_width")
+        analysis.region.source_image_height = thermal_result.get("source_image_height")
+        analysis.region.source_image_file_size_bytes = thermal_result.get("source_image_file_size_bytes")
+        analysis.region.aligned_rgb_path = thermal_result.get("aligned_rgb_path")
+        analysis.region.aligned_rgb_width = thermal_result.get("aligned_rgb_width")
+        analysis.region.aligned_rgb_height = thermal_result.get("aligned_rgb_height")
         analysis.region.source_records.insert(
             0,
             build_satellite_capture_source_record(
                 region_id=region_id,
                 center=metadata.region.center,
-                bounds=metadata.region.bounds,
+                bounds=image_bounds,
                 map_state=metadata.map,
                 image_path=image_path,
             )
@@ -143,11 +162,27 @@ class InMemoryAnalysisStore:
         return self.get_analysis(region_id)
 
     @staticmethod
-    def _write_capture_metadata(region_id: str, region: dict, map_state: dict, viewport: dict) -> str:
+    def _write_capture_metadata(
+        region_id: str,
+        region: dict,
+        map_state: dict,
+        viewport: dict,
+        image_bounds: dict | None,
+        image: dict,
+    ) -> str:
         capture_dir = ensure_capture_dir(region_id)
         metadata_path = capture_dir / "metadata.json"
         metadata_path.write_text(
-            json.dumps({"region": region, "map": map_state, "viewport": viewport}, indent=2),
+            json.dumps(
+                {
+                    "region": region,
+                    "map": map_state,
+                    "viewport": viewport,
+                    "image_bounds": image_bounds,
+                    "source_image": image,
+                },
+                indent=2,
+            ),
             encoding="utf-8",
         )
         return str(metadata_path)

@@ -45,14 +45,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=replace_with_google_maps_browser_key
 ```
 
-Backend optional toggles:
-
-```text
-THERMALGEN_ENABLE_LIVE_THERMAL=0
-THERMALGEN_DEMO_IMAGE=
-```
-
-Leave `THERMALGEN_ENABLE_LIVE_THERMAL=0` for fast demos. Set it to `1` when you want `POST /analysis` to run one local hybrid thermal inference and attach the generated thermal preview URL to hotspot evidence.
+HybridThermalGen now runs from the uploaded map capture in `POST /analysis/from-capture-upload`. No local demo image toggle or dataset folder is required.
 
 ## Local Models
 
@@ -143,7 +136,7 @@ Generated thermal files are served by FastAPI from:
 
 ```text
 /thermal-assets/...
+/captures/...
 ```
 
-The current agent/orchestrator can attach hybrid thermal preview evidence when `THERMALGEN_ENABLE_LIVE_THERMAL=1`. With the toggle off, the API stays fast and uses the existing static demo hotspot flow while the agentic layer is being completed.
-
+Frontend capture analysis writes the source image, metadata, aligned RGB, grayscale thermal output, and orange preview under `backend/data/captures/{region_id}/`.

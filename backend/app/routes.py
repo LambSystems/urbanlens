@@ -9,8 +9,6 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from pydantic import ValidationError
 
 from .agent.planner import answer_region_question
-from .example_payloads import EXAMPLE_ANALYSIS_REQUEST
-from .orchestrator import DEMO_REGION_PRESETS
 from .schemas import (
     AnalysisEvent,
     AnalysisResponse,
@@ -112,16 +110,6 @@ def get_analysis_debug(region_id: str) -> DebugAnalysisView:
         return store.get_debug_view(region_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Analysis region not found.") from exc
-
-
-@router.get("/demo/regions")
-def get_demo_regions() -> dict[str, list[dict]]:
-    return {"regions": DEMO_REGION_PRESETS}
-
-
-@router.get("/demo/example-analysis-request")
-def get_example_analysis_request() -> dict:
-    return EXAMPLE_ANALYSIS_REQUEST.model_dump()
 
 
 @router.post("/thermal/infer/upload", response_model=ThermalInferenceResponse)

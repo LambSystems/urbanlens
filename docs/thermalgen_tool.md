@@ -37,6 +37,8 @@ uses_metadata: false
 
 Location, prompt, bounds, and Google Maps context should still be passed as `metadata`; the agent uses that context after thermal generation.
 
+Hotspot markers are anchored to the brightest pixel inside each connected hot region in the model output. Ranking uses `brightness_score`, which is weighted toward peak brightness while still considering mean brightness and area to reduce single-pixel noise.
+
 ## Runtime Preprocessing
 
 No dataset preprocessing is required for the app workflow. Each inference request still performs the small image prep the checkpoint needs:
@@ -52,7 +54,7 @@ input RGB image
 -> save autocontrasted orange preview PNG
 ```
 
-Generated intermediate/output files are written under `backend/data/hybrid_thermal/` and ignored by Git. Teammates do not need to run manifest building, train/test splitting, AlphaEarth export, or batch prealignment for the app.
+Direct tool calls write intermediate/output files under `backend/data/hybrid_thermal/`. The normal frontend capture flow writes per-analysis files under `backend/data/captures/{region_id}/`. Both locations are ignored by Git. Teammates do not need to run manifest building, train/test splitting, AlphaEarth export, or batch prealignment for the app.
 
 ## Backend API
 

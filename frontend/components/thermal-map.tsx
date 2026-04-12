@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, Rectangle, DrawingManager } from '@react-google-maps/api';
 import { useThermal } from '@/lib/thermal-context';
-import { DEMO_REGION } from '@/lib/mock-data';
 import type { Hotspot, BoundingBox, SelectedRegion } from '@/lib/types';
 
 const libraries: ('drawing' | 'geometry')[] = ['drawing', 'geometry'];
@@ -12,6 +11,11 @@ const mapContainerStyle = {
   width: '100%',
   height: '100%',
 };
+
+const THERMAL_CAPTURE_WIDTH = 640;
+const THERMAL_CAPTURE_HEIGHT = 512;
+const DEFAULT_MAP_CENTER = { lat: 42.2813, lng: -83.7470 };
+const DEFAULT_MAP_ZOOM = 17;
 
 
 function getMarkerColor(hotspot: Hotspot): string {
@@ -26,19 +30,20 @@ function getMarkerColor(hotspot: Hotspot): string {
 }
 
 /**
- * Returns the geographic bounds of a Static Maps image.
- * size=640x640 centered on `center` at `zoom`.
- * The model resizes to 640×512, so the overlay covers the full 640×640 area
- * (GroundOverlay will stretch the 640×512 image back to fill it).
+ * Returns the geographic bounds of the Static Maps capture.
+ * The capture uses the same 640x512 frame ThermalGen expects, so source,
+ * thermal preview, and GroundOverlay all share one geometry.
  */
 function staticMapImageBounds(
   center: { lat: number; lng: number },
   zoom: number,
+  width = THERMAL_CAPTURE_WIDTH,
+  height = THERMAL_CAPTURE_HEIGHT,
 ): { north: number; south: number; east: number; west: number } {
   const cosLat = Math.cos((center.lat * Math.PI) / 180);
   const mPerPx = (156_543.03392 * cosLat) / Math.pow(2, zoom);
-  const halfHM = 320 * mPerPx; // 640/2 pixels
-  const halfWM = 320 * mPerPx;
+  const halfHM = (height / 2) * mPerPx;
+  const halfWM = (width / 2) * mPerPx;
   const halfLatDeg = halfHM / 111_000;
   const halfLngDeg = halfWM / (111_000 * Math.max(cosLat, 1e-6));
   return {
@@ -70,7 +75,7 @@ function ThermalGroundOverlay({
     const map = mapRef.current;
     if (!map || !imageUrl) return;
     const overlay = new google.maps.GroundOverlay(imageUrl, bounds, {
-      opacity: 0.55,
+      opacity: 0.82,
       clickable: false,
     });
     overlay.setMap(map);
@@ -107,7 +112,7 @@ export function ThermalMap() {
     libraries,
   });
 
-  const center = useMemo(() => DEMO_REGION.center, []);
+  const center = useMemo(() => DEFAULT_MAP_CENTER, []);
 
   const mapOptions: google.maps.MapOptions = useMemo(() => ({
     mapTypeId: 'hybrid',
@@ -157,30 +162,32 @@ export function ThermalMap() {
       const ne = bounds.getNorthEast();
       const sw = bounds.getSouthWest();
 
-      const selectedBounds: BoundingBox = {
+      const drawnBounds: BoundingBox = {
         north: ne.lat(),
         south: sw.lat(),
         east: ne.lng(),
         west: sw.lng(),
       };
 
-      const region: SelectedRegion = {
-        bounds: selectedBounds,
-        center: {
-          lat: (ne.lat() + sw.lat()) / 2,
-          lng: (ne.lng() + sw.lng()) / 2,
-        },
-        areaKm2: calculateArea(selectedBounds),
-      };
-
-      setSelectedRegion(region);
-      setSelectionMode('selected');
-
       const map = mapRef.current;
       const viewport = map?.getBounds();
       const vne = viewport?.getNorthEast();
       const vsw = viewport?.getSouthWest();
       const zoom = map?.getZoom() ?? 17;
+      const drawnCenter = {
+        lat: (drawnBounds.north + drawnBounds.south) / 2,
+        lng: (drawnBounds.east + drawnBounds.west) / 2,
+      };
+      const imageBounds = staticMapImageBounds(drawnCenter, zoom);
+
+      const region: SelectedRegion = {
+        bounds: imageBounds,
+        center: drawnCenter,
+        areaKm2: calculateArea(imageBounds),
+      };
+
+      setSelectedRegion(region);
+      setSelectionMode('selected');
 
       const mapState = {
         zoom,
@@ -200,7 +207,7 @@ export function ThermalMap() {
         `https://maps.googleapis.com/maps/api/staticmap` +
         `?center=${region.center.lat},${region.center.lng}` +
         `&zoom=${zoom}` +
-        `&size=640x640` +
+        `&size=${THERMAL_CAPTURE_WIDTH}x${THERMAL_CAPTURE_HEIGHT}` +
         `&maptype=satellite` +
         `&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''}`;
 
@@ -214,7 +221,6 @@ export function ThermalMap() {
         }))
         .then(dataUrl => {
           const imageBase64 = dataUrl.split(',')[1];
-          const imageBounds = staticMapImageBounds(region.center, zoom);
           setCapture({ imageBase64, mapState, viewport: viewportBounds, imageBounds });
         })
         .catch(err => {
@@ -231,6 +237,7 @@ export function ThermalMap() {
         editable: false,
         draggable: false,
       });
+      rect.setBounds(imageBounds);
     }
 
     // Turn off drawing mode
@@ -296,7 +303,7 @@ export function ThermalMap() {
     <GoogleMap
       mapContainerStyle={mapContainerStyle}
       center={center}
-      zoom={DEMO_REGION.zoom}
+      zoom={DEFAULT_MAP_ZOOM}
       options={mapOptions}
       onClick={handleMapClick}
       onLoad={onMapLoad}
@@ -318,7 +325,7 @@ export function ThermalMap() {
         }}
       />
 
-      {/* Thermal heatmap ground overlay — uses real Static Maps image bounds */}
+      {/* Thermal heatmap ground overlay - uses real Static Maps image bounds */}
       {showThermal && thermalOverlayUrl && thermalOverlayBounds && selectionMode === 'complete' && (
         <ThermalGroundOverlay
           mapRef={mapRef}
@@ -368,7 +375,7 @@ export function ThermalMap() {
       })}
     </GoogleMap>
 
-    {/* Thermal / Normal toggle — only shown when overlay is available */}
+    {/* Thermal / Normal toggle - only shown when overlay is available */}
     {thermalOverlayUrl && thermalOverlayBounds && selectionMode === 'complete' && (
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
         <div className="flex items-center rounded-full bg-black/70 backdrop-blur-sm border border-white/10 p-1 gap-1 shadow-xl">
@@ -380,7 +387,7 @@ export function ThermalMap() {
                 : 'text-white/60 hover:text-white/90'
             }`}
           >
-            🌡 Thermal
+            Thermal
           </button>
           <button
             onClick={() => setShowThermal(false)}
@@ -390,7 +397,7 @@ export function ThermalMap() {
                 : 'text-white/60 hover:text-white/90'
             }`}
           >
-            🛰 Satellite
+            Satellite
           </button>
         </div>
       </div>

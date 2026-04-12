@@ -1,11 +1,8 @@
 from __future__ import annotations
-
-import json
 from datetime import datetime
 from threading import Lock
 from uuid import uuid4
 
-from .config import RGB_IMAGE_PATH, THERMAL_IMAGE_PATH, TRAIN_TEST_SPLIT_PATH
 from .schemas import (
     ChainOfThoughtStep,
     LatLng,
@@ -25,23 +22,12 @@ class InMemorySessionStore:
     def create_session(self, center: LatLng, radius_m: int) -> Session:
         session_id = f"sess_{uuid4().hex[:8]}"
 
-        # Load image metadata
-        image_metadata = {}
-        if TRAIN_TEST_SPLIT_PATH.exists():
-            with open(TRAIN_TEST_SPLIT_PATH) as f:
-                image_metadata = json.load(f)
-
         context = {
             "center": {"lat": center.lat, "lng": center.lng},
             "radius_m": radius_m,
-            "rgb_image_path": str(RGB_IMAGE_PATH),
-            "thermal_image_path": str(THERMAL_IMAGE_PATH),
-            "image_metadata": {
-                "rgb_file": "475.JPG",
-                "thermal_file": "475 (1).JPG",
-                "source_pair": image_metadata.get("475.JPG", []),
-                "total_image_pairs": len(image_metadata),
-            },
+            "rgb_image_path": None,
+            "thermal_image_path": None,
+            "image_metadata": {},
         }
 
         session = Session(

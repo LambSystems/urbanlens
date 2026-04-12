@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import UTC, datetime
 from math import cos, pi
@@ -34,145 +34,7 @@ from .schemas import (
 )
 
 
-HOTSPOT_LIBRARY: list[dict] = [
-    {
-        "hotspot_id": "hs_01",
-        "hotspot_type": HotspotType.roof,
-        "surface_temperature_c": 54.0,
-        "ambient_delta_c": 16.0,
-        "source_count": 4,
-        "coverage_score": 0.86,
-        "object_label": "roof",
-        "object_confidence": 0.92,
-        "material_type": "dark_roof",
-        "material_confidence": 0.82,
-        "evidence_urls": ["/evidence/hs_01-thermal.jpg", "/evidence/hs_01-visual.jpg"],
-        "bbox": BoundingBox(x=112, y=78, w=64, h=48),
-        "centroid_offset": (0.0007, 0.0005),
-        "trace": [
-            (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
-            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
-            (TraceKind.inspect_object, "Object inspection suggests a roof structure."),
-            (TraceKind.request_thermal_evidence, "Requested thermal evidence for roof heat concentration."),
-            (TraceKind.analyze_heat_risk, "Heat risk profile suggests a large exposed roof with low nearby shade."),
-            (TraceKind.infer_surface, "Surface inference suggests a dark roof membrane."),
-            (TraceKind.compare_neighbors, "Hotter than 83% of nearby comparable roofs."),
-            (TraceKind.check_consistency, "Signal remains consistent across nearby roof crops."),
-            (TraceKind.score_hotspot, "Scored hotspot after anomaly, severity, and confidence checks."),
-            (TraceKind.finalize_hotspot, "Hotspot passed anomaly gate and was finalized for ranking."),
-        ],
-        "anomaly_score": 0.82,
-        "severity_score": 0.76,
-        "confidence_score": 0.71,
-        "recommended_action": "cool-roof retrofit",
-        "why": [
-            "high relative anomaly vs nearby roofs",
-            "large exposed dark surface",
-            "high-confidence thermal evidence",
-        ],
-    },
-    {
-        "hotspot_id": "hs_02",
-        "hotspot_type": HotspotType.road_pavement,
-        "surface_temperature_c": 51.0,
-        "ambient_delta_c": 13.0,
-        "source_count": 2,
-        "coverage_score": 0.64,
-        "object_label": "road",
-        "object_confidence": 0.91,
-        "material_type": "asphalt",
-        "material_confidence": 0.86,
-        "evidence_urls": ["/evidence/hs_02-thermal.jpg"],
-        "bbox": BoundingBox(x=214, y=166, w=86, h=30),
-        "centroid_offset": (-0.0003, 0.0008),
-        "trace": [
-            (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
-            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
-            (TraceKind.inspect_object, "Object inspection suggests a road or pavement segment."),
-            (TraceKind.request_thermal_evidence, "Requested thermal evidence for pavement heat profile."),
-            (TraceKind.analyze_heat_risk, "Heat risk profile suggests mostly expected paved-surface heat."),
-            (TraceKind.compare_neighbors, "Heat is consistent with nearby roads and paved surfaces."),
-            (TraceKind.score_hotspot, "Scored hotspot and found anomaly too low to escalate."),
-            (TraceKind.discard_hotspot, "Discarded because the heat pattern is expected locally."),
-        ],
-        "anomaly_score": 0.18,
-        "severity_score": 0.58,
-        "confidence_score": 0.84,
-        "discard_reason": "expected road heat profile",
-        "why": [
-            "heat pattern matches nearby paved surfaces",
-            "low structural anomaly despite visible heat",
-        ],
-    },
-    {
-        "hotspot_id": "hs_03",
-        "hotspot_type": HotspotType.hvac_mechanical,
-        "surface_temperature_c": 58.0,
-        "ambient_delta_c": 20.0,
-        "source_count": 2,
-        "coverage_score": 0.72,
-        "object_label": "rooftop_hvac",
-        "object_confidence": 0.83,
-        "material_type": "metal_equipment",
-        "material_confidence": 0.71,
-        "evidence_urls": ["/evidence/hs_03-thermal.jpg"],
-        "bbox": BoundingBox(x=298, y=104, w=38, h=40),
-        "centroid_offset": (0.0004, -0.0004),
-        "trace": [
-            (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
-            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
-            (TraceKind.inspect_object, "Object inspection suggests rooftop HVAC equipment."),
-            (TraceKind.request_thermal_evidence, "Requested thermal evidence for localized heat release."),
-            (TraceKind.analyze_heat_risk, "Heat risk profile highlights concentrated rooftop equipment exposure."),
-            (TraceKind.infer_surface, "Thermal pattern is concentrated around mechanical equipment."),
-            (TraceKind.score_hotspot, "Scored hotspot after evidence gathering."),
-            (TraceKind.finalize_hotspot, "Finalized as a high-priority mechanical inspection candidate."),
-        ],
-        "anomaly_score": 0.67,
-        "severity_score": 0.81,
-        "confidence_score": 0.79,
-        "recommended_action": "hvac inspection",
-        "why": [
-            "localized mechanical heat concentration",
-            "clear hotspot boundary with strong confidence",
-        ],
-    },
-    {
-        "hotspot_id": "hs_04",
-        "hotspot_type": HotspotType.parking_lot,
-        "surface_temperature_c": 57.0,
-        "ambient_delta_c": 19.0,
-        "source_count": 4,
-        "coverage_score": 0.68,
-        "object_label": "parking_lot",
-        "object_confidence": 0.84,
-        "material_type": "asphalt",
-        "material_confidence": 0.76,
-        "evidence_urls": ["/evidence/hs_04-thermal.jpg"],
-        "bbox": BoundingBox(x=354, y=208, w=92, h=58),
-        "centroid_offset": (-0.0006, -0.0007),
-        "trace": [
-            (TraceKind.candidate_detected, "Candidate hotspot detected in analysis region."),
-            (TraceKind.generate_thermal_overlay, "Generated thermal overlay from captured locality imagery."),
-            (TraceKind.inspect_object, "Object inspection suggests a parking lot surface."),
-            (TraceKind.request_thermal_evidence, "Requested thermal evidence for surface heat intensity."),
-            (TraceKind.analyze_heat_risk, "Heat risk profile highlights high paved exposure and limited shade."),
-            (TraceKind.compare_neighbors, "Hotter than nearby paved surfaces with limited shade."),
-            (TraceKind.score_hotspot, "Scored hotspot after context comparison."),
-            (TraceKind.finalize_hotspot, "Finalized as a mitigation candidate after passing anomaly gate."),
-        ],
-        "anomaly_score": 0.56,
-        "severity_score": 0.66,
-        "confidence_score": 0.75,
-        "recommended_action": "shade and pavement mitigation",
-        "why": [
-            "low-shade paved area with meaningful heat buildup",
-            "hotter than comparable nearby paved areas",
-        ],
-    },
-]
-
-# ── Candidate-to-seed helpers (used when real model output is available) ─────
+# Candidate-to-seed helpers used when real model output is available.
 
 _TYPE_MATERIAL: dict[HotspotType, tuple[str, str]] = {
     HotspotType.roof:           ("roof",         "dark_roof"),
@@ -211,7 +73,7 @@ _TYPE_TRACE_STEPS: dict[HotspotType, list[tuple[TraceKind, str]]] = {
         (TraceKind.infer_surface,            "Surface inference suggests a dark roof membrane."),
         (TraceKind.compare_neighbors,        "Surface is hotter than comparable nearby rooftop areas."),
         (TraceKind.score_hotspot,            "Scored after anomaly, severity, and confidence analysis."),
-        (TraceKind.finalize_hotspot,         "Passed anomaly gate — finalized for priority ranking."),
+        (TraceKind.finalize_hotspot,         "Passed anomaly gate - finalized for priority ranking."),
     ],
     HotspotType.parking_lot: [
         (TraceKind.candidate_detected,       "Candidate hotspot detected from thermal model output."),
@@ -240,8 +102,8 @@ _TYPE_TRACE_STEPS: dict[HotspotType, list[tuple[TraceKind, str]]] = {
         (TraceKind.request_thermal_evidence, "Thermal evidence requested for pavement heat profile."),
         (TraceKind.analyze_heat_risk,        "Heat risk profile suggests expected paved-surface heat."),
         (TraceKind.compare_neighbors,        "Heat is consistent with nearby roads and paved surfaces."),
-        (TraceKind.score_hotspot,            "Scored hotspot — anomaly below threshold for escalation."),
-        (TraceKind.discard_hotspot,          "Discarded — heat pattern matches expected road baseline."),
+        (TraceKind.score_hotspot,            "Scored hotspot - anomaly below threshold for escalation."),
+        (TraceKind.discard_hotspot,          "Discarded - heat pattern matches expected road baseline."),
     ],
     HotspotType.vegetation_loss: [
         (TraceKind.candidate_detected,       "Candidate hotspot detected from thermal model output."),
@@ -250,12 +112,12 @@ _TYPE_TRACE_STEPS: dict[HotspotType, list[tuple[TraceKind, str]]] = {
         (TraceKind.request_thermal_evidence, "Thermal evidence requested for surface heat from vegetation loss."),
         (TraceKind.analyze_heat_risk,        "Heat risk profile highlights reduced canopy and evapotranspiration."),
         (TraceKind.score_hotspot,            "Scored hotspot after heat risk analysis."),
-        (TraceKind.finalize_hotspot,         "Finalized — vegetation loss area contributing to urban heat island."),
+        (TraceKind.finalize_hotspot,         "Finalized - vegetation loss area contributing to urban heat island."),
     ],
     HotspotType.other: [
         (TraceKind.candidate_detected,       "Candidate hotspot detected from thermal model output."),
         (TraceKind.generate_thermal_overlay, "Thermal overlay generated from captured locality imagery."),
-        (TraceKind.inspect_object,           "Object inspection inconclusive — unclassified surface type."),
+        (TraceKind.inspect_object,           "Object inspection inconclusive - unclassified surface type."),
         (TraceKind.score_hotspot,            "Scored hotspot with limited surface evidence."),
         (TraceKind.finalize_hotspot,         "Finalized for general site inspection recommendation."),
     ],
@@ -263,7 +125,7 @@ _TYPE_TRACE_STEPS: dict[HotspotType, list[tuple[TraceKind, str]]] = {
 
 
 def _why_for_candidate(htype: HotspotType, intensity: float, surface_temp: float) -> list[str]:
-    reasons = [f"thermal model detected elevated surface temperature ({surface_temp:.1f}°C)"]
+    reasons = [f"thermal model detected elevated surface temperature ({surface_temp:.1f} C)"]
     if intensity >= 0.75:
         reasons.append("high relative thermal intensity vs surrounding area")
     elif intensity >= 0.55:
@@ -450,11 +312,6 @@ def build_analysis_from_candidates(
 STEP_INTERVAL_MS = 1200
 RANKING_FORMULA = "final_rank_score = severity_score * confidence_score after anomaly gate"
 
-DEMO_REGION_PRESETS: list[dict] = [
-    {"label": "downtown_core", "lat": 38.6270, "lng": -90.1994, "radius_m": 120},
-    {"label": "industrial_corridor", "lat": 38.6155, "lng": -90.2152, "radius_m": 140},
-    {"label": "campus_zone", "lat": 38.6483, "lng": -90.3108, "radius_m": 110},
-]
 
 HOTSPOT_LABELS: dict[HotspotType, str] = {
     HotspotType.roof: "Building Roof",
@@ -578,19 +435,6 @@ def _trace_details(seed: dict, kind: TraceKind, evidence: TraceEvidence) -> dict
     return details
 
 
-def build_perception_evidence(seed: dict) -> PerceptionEvidence:
-    return PerceptionEvidence(
-        hotspot_id=seed["hotspot_id"],
-        hotspot_type=seed["hotspot_type"],
-        object_label=seed["object_label"],
-        object_confidence=seed["object_confidence"],
-        source_count=seed["source_count"],
-        coverage_score=seed["coverage_score"],
-        material_type=seed["material_type"],
-        material_confidence=seed["material_confidence"],
-    )
-
-
 def build_scoring_result(seed: dict) -> ScoringResult:
     anomaly_score = compute_anomaly_score(
         thermal_intensity=seed["anomaly_score"],
@@ -667,117 +511,34 @@ def _build_trace(seed: dict) -> tuple[list[TraceStep], list[AnalysisEvent]]:
     return trace, events
 
 
-def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[AnalysisResponse, list[AnalysisEvent]]:
-    hotspots: list[HotspotCandidate] = []
-    all_events: list[AnalysisEvent] = []
-    now = datetime.now(UTC)
-    source_records = retrieve_sources_for_region(center, radius_m)
-    region_coverage_score = estimate_region_coverage_score(source_records)
-    enrichment_summary = summarize_enrichment_coverage(source_records, center)
-    bounds = _region_bounds(center, radius_m)
-    area_km2 = _area_km2(bounds)
-
-    for seed in HOTSPOT_LIBRARY:
-        trace, events = _build_trace(seed)
-        for event in events:
-            event.region_id = region_id
-        scoring = build_scoring_result(seed)
-        final_rank_score = scoring.final_rank_score
-        status = HotspotStatus.investigating
-
-        if not passes_anomaly_gate(scoring.anomaly_score):
-            status = HotspotStatus.discarded
-        elif trace[-1].kind == TraceKind.finalize_hotspot:
-            status = HotspotStatus.finalized
-
-        hotspot = HotspotCandidate(
-            hotspot_id=seed["hotspot_id"],
-            region_id=region_id,
-            bbox=seed["bbox"],
-            centroid=LatLng(
-                lat=round(center.lat + seed["centroid_offset"][0], 6),
-                lng=round(center.lng + seed["centroid_offset"][1], 6),
-            ),
-            hotspot_type=seed["hotspot_type"],
-            display_name=HOTSPOT_LABELS[seed["hotspot_type"]],
-            status_label=HOTSPOT_STATUS_LABELS[status],
-            sidebar_summary=_sidebar_summary_for_seed(seed, status),
-            evidence_highlights=seed["why"],
-            tool_signals=_tool_signals_for_seed(seed),
-            status=status,
-            surface_temperature_c=seed["surface_temperature_c"],
-            ambient_delta_c=seed["ambient_delta_c"],
-            source_count=seed["source_count"],
-            coverage_score=seed["coverage_score"],
-            anomaly_score=scoring.anomaly_score,
-            severity_score=scoring.severity_score,
-            confidence_score=scoring.confidence_score,
-            final_rank_score=final_rank_score,
-            discard_reason=scoring.discard_reason,
-            recommended_action=seed.get("recommended_action"),
-            evidence_urls=seed.get("evidence_urls", []),
-            created_at=now,
-            updated_at=now,
-            why=scoring.why,
-            trace=trace,
-        )
-        hotspots.append(hotspot)
-        all_events.extend(events)
-
-    top_ranked = rank_hotspots(hotspots, top_n=3)
-    top_rank_lookup = {ranked.hotspot_id: ranked.priority_rank for ranked in top_ranked}
-    for hotspot in hotspots:
-        if hotspot.hotspot_id in top_rank_lookup:
-            hotspot.priority_rank = top_rank_lookup[hotspot.hotspot_id]
-            hotspot.is_top_ranked = True
-
-    summary = AnalysisSummary(
-        candidate_count=len(hotspots),
-        discarded_count=sum(1 for hotspot in hotspots if hotspot.status == HotspotStatus.discarded),
-        finalized_count=sum(1 for hotspot in hotspots if hotspot.status == HotspotStatus.finalized),
-    )
-
-    response = AnalysisResponse(
-        region=AnalysisRegion(
-            region_id=region_id,
-            display_name=_region_display_name(center),
-            center=center,
-            radius_m=radius_m,
-            bounds=bounds,
-            area_km2=area_km2,
-            available_source_count=len(source_records),
-            coverage_score=region_coverage_score,
-            maps_fallback_count=int(enrichment_summary["maps_fallback_count"]),
-            enrichment_confidence_avg=float(enrichment_summary["enrichment_confidence_avg"]),
-            source_records=source_records,
-            status=AnalysisStatus.running,
-            summary=summary,
-        ),
-        result=AnalysisResult(
-            region_id=region_id,
-            status=AnalysisStatus.running,
-            hotspots=hotspots,
-            top_hotspots=top_ranked,
-            top_hotspot_id=top_ranked[0].hotspot_id if top_ranked else None,
-            discarded_hotspot_ids=[hotspot.hotspot_id for hotspot in hotspots if hotspot.status == HotspotStatus.discarded],
-        ),
-    )
-    return response, all_events
-
 
 def build_debug_view(analysis: AnalysisResponse) -> DebugAnalysisView:
     hotspots: list[DebugHotspotView] = []
-    hotspot_lookup = {seed["hotspot_id"]: seed for seed in HOTSPOT_LIBRARY}
 
     for hotspot in analysis.result.hotspots:
-        seed = hotspot_lookup[hotspot.hotspot_id]
         hotspots.append(
             DebugHotspotView(
                 hotspot_id=hotspot.hotspot_id,
                 hotspot_type=hotspot.hotspot_type,
                 status=hotspot.status,
-                perception=build_perception_evidence(seed),
-                scoring=build_scoring_result(seed),
+                perception=PerceptionEvidence(
+                    hotspot_id=hotspot.hotspot_id,
+                    hotspot_type=hotspot.hotspot_type,
+                    object_label=hotspot.display_name or hotspot.hotspot_type.value,
+                    object_confidence=hotspot.confidence_score or 0.0,
+                    source_count=hotspot.source_count,
+                    coverage_score=hotspot.coverage_score,
+                ),
+                scoring=ScoringResult(
+                    hotspot_id=hotspot.hotspot_id,
+                    anomaly_score=hotspot.anomaly_score or 0.0,
+                    severity_score=hotspot.severity_score or 0.0,
+                    confidence_score=hotspot.confidence_score or 0.0,
+                    coverage_score=hotspot.coverage_score,
+                    final_rank_score=hotspot.final_rank_score,
+                    discard_reason=hotspot.discard_reason,
+                    why=hotspot.why,
+                ),
                 trace_kinds=[step.kind for step in hotspot.trace],
             )
         )

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from typing import Optional
 
 import httpx
 
 from ..capture_pipeline import generate_thermal_overlay_from_capture, propose_hotspots_from_capture
-from ..config import TRAIN_TEST_SPLIT_PATH
 from ..heat_risk import analyze_heat_risk as compute_heat_risk
 from ..schemas import HotspotType, LatLng, SourceBounds
 
@@ -396,31 +394,6 @@ def estimate_intervention_impact(intervention: str, area_sqft: float) -> dict:
     }
 
 
-def lookup_image_metadata(image_id: str) -> dict:
-    """Look up metadata about bundled demo imagery."""
-    if not TRAIN_TEST_SPLIT_PATH.exists():
-        return {"error": "Image metadata file not found"}
-    with open(TRAIN_TEST_SPLIT_PATH, encoding="utf-8") as file:
-        data = json.load(file)
-    if image_id == "summary":
-        return {
-            "total_image_pairs": len(data),
-            "description": "DJI drone image pairs with thermal and visual captures.",
-            "sample_entries": {k: data[k] for k in list(data.keys())[:3]},
-        }
-    key = image_id if image_id.endswith(".JPG") else f"{image_id}.JPG"
-    pair = data.get(key)
-    if pair is None:
-        return {"error": f"No metadata found for '{image_id}'"}
-    thermal_file, visual_file = pair
-    return {
-        "image_id": key,
-        "thermal_file": thermal_file,
-        "visual_file": visual_file,
-        "drone": "DJI",
-    }
-
-
 def get_elevation_profile(lat: float, lng: float) -> dict:
     """Get elevation and terrain context for a location."""
     try:
@@ -566,5 +539,4 @@ ALL_TOOLS = [
     get_flood_risk,
     estimate_surface_temperature,
     estimate_intervention_impact,
-    lookup_image_metadata,
 ]

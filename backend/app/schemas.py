@@ -112,9 +112,21 @@ class AnalysisRegion(BaseModel):
     enrichment_confidence_avg: float | None = None
     thermal_image_path: str | None = None
     thermal_image_url: str | None = None
+    thermal_image_width: int | None = None
+    thermal_image_height: int | None = None
     thermal_preview_path: str | None = None
     thermal_preview_url: str | None = None
+    thermal_preview_width: int | None = None
+    thermal_preview_height: int | None = None
     thermal_source: str | None = None
+    source_image_path: str | None = None
+    source_image_url: str | None = None
+    source_image_width: int | None = None
+    source_image_height: int | None = None
+    source_image_file_size_bytes: int | None = None
+    aligned_rgb_path: str | None = None
+    aligned_rgb_width: int | None = None
+    aligned_rgb_height: int | None = None
     source_records: list[SourceRecord] = Field(default_factory=list)
     status: AnalysisStatus
     summary: AnalysisSummary
@@ -284,13 +296,19 @@ class CreateAnalysisFromCaptureRequest(BaseModel):
     region: CaptureRegion
     map: CaptureMapState
     viewport: SourceBounds
+    image_bounds: SourceBounds | None = Field(default=None, alias="imageBounds")
     capture: CaptureImagePayload
+
+    model_config = {"populate_by_name": True}
 
 
 class CreateAnalysisFromCaptureMetadataRequest(BaseModel):
     region: CaptureRegion
     map: CaptureMapState
     viewport: SourceBounds
+    image_bounds: SourceBounds | None = Field(default=None, alias="imageBounds")
+
+    model_config = {"populate_by_name": True}
 
 
 class PlannerQuestionRequest(BaseModel):
@@ -424,11 +442,20 @@ class ThermalInferenceRequest(BaseModel):
 class ThermalInferenceResponse(BaseModel):
     source: str
     source_image_path: str | None = None
+    source_image_width: int | None = None
+    source_image_height: int | None = None
+    source_image_file_size_bytes: int | None = None
     aligned_rgb_path: str | None = None
+    aligned_rgb_width: int | None = None
+    aligned_rgb_height: int | None = None
     thermal_image_path: str | None = None
     thermal_image_url: str | None = None
+    thermal_image_width: int | None = None
+    thermal_image_height: int | None = None
     thermal_preview_path: str | None = None
     thermal_preview_url: str | None = None
+    thermal_preview_width: int | None = None
+    thermal_preview_height: int | None = None
     checkpoint_path: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     model_input: dict[str, Any] = Field(default_factory=dict)

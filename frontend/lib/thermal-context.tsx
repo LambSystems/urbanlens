@@ -10,7 +10,6 @@ import type {
   AnalysisProgress,
   Recommendation,
 } from './types';
-import { MOCK_SESSION } from './mock-data';
 import {
   createAnalysis,
   createAnalysisFromCaptureUpload,
@@ -18,7 +17,6 @@ import {
   getAnalysisEvents,
   askQuestion,
   requestVoiceBriefing,
-  inferThermalFromMapBlob,
   mapHotspot,
   mapRecommendation,
 } from './api';
@@ -110,7 +108,14 @@ function derivedStepIndex(hotspot: Hotspot): number {
 }
 
 export function ThermalProvider({ children }: { children: ReactNode }) {
-  const [session] = useState<InvestigationSession>(MOCK_SESSION);
+  const [session] = useState<InvestigationSession>({
+    id: 'local-session',
+    regionBounds: { north: 0, south: 0, east: 0, west: 0 },
+    hotspots: [],
+    activeHotspotId: null,
+    status: 'idle',
+    startedAt: Date.now(),
+  });
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [recommendations, setRecommendations] = useState<Record<string, Recommendation>>({});
   const [regionDisplayName, setRegionDisplayName] = useState<string | null>(null);
@@ -155,7 +160,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
   const [voiceBriefing, setVoiceBriefing] = useState<{ url: string | null; text: string } | null>(null);
   const [isVoiceBriefingLoading, setIsVoiceBriefingLoading] = useState(false);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // Helpers
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -169,6 +174,29 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
       const mapped = data.result.hotspots.map(mapHotspot);
       setHotspots(mapped);
       if (data.region.display_name) setRegionDisplayName(data.region.display_name);
+      if (data.region.thermal_preview_url || data.region.thermal_image_url) {
+        setThermalInference({
+          source: data.region.thermal_source ?? 'hybrid_thermal',
+          source_image_path: data.region.source_image_path ?? null,
+          source_image_width: data.region.source_image_width ?? null,
+          source_image_height: data.region.source_image_height ?? null,
+          source_image_file_size_bytes: data.region.source_image_file_size_bytes ?? null,
+          aligned_rgb_path: data.region.aligned_rgb_path ?? null,
+          aligned_rgb_width: data.region.aligned_rgb_width ?? null,
+          aligned_rgb_height: data.region.aligned_rgb_height ?? null,
+          thermal_image_path: data.region.thermal_image_path ?? null,
+          thermal_image_url: data.region.thermal_image_url ?? null,
+          thermal_image_width: data.region.thermal_image_width ?? null,
+          thermal_image_height: data.region.thermal_image_height ?? null,
+          thermal_preview_path: data.region.thermal_preview_path ?? null,
+          thermal_preview_url: data.region.thermal_preview_url ?? null,
+          thermal_preview_width: data.region.thermal_preview_width ?? null,
+          thermal_preview_height: data.region.thermal_preview_height ?? null,
+          metadata: {},
+          model_input: {},
+          thermal_data: {},
+        });
+      }
 
       // Build recommendations for finalized hotspots
       const recs: Record<string, Recommendation> = {};
@@ -196,7 +224,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
       setAnalysisProgress({
         phase: 'scoring',
         progress,
-        message: `Investigating ${candidate_count} candidates — ${done} resolved`,
+        message: `Investigating ${candidate_count} candidates - ${done} resolved`,
       });
 
       if (data.result.status === 'completed') {
@@ -208,7 +236,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     [stopPolling],
   );
 
-  // ── Region selection ──────────────────────────────────────────────────────
+  // Region selection
 
   const startDrawing = useCallback(() => {
     stopPolling();
@@ -246,7 +274,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     activeHotspotIdRef.current = null;
   }, [stopPolling]);
 
-  // ── Analysis ──────────────────────────────────────────────────────────────
+  // Analysis
 
   const startAnalysis = useCallback(() => {
     if (!selectedRegion) return;
@@ -255,30 +283,20 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setHotspots([]);
     setRecommendations({});
     setVoiceBriefing(null);
-    setAnalysisProgress({ phase: 'satellite', progress: 0, message: 'Capturing satellite image…' });
+    setAnalysisProgress({ phase: 'satellite', progress: 0, message: 'Capturing satellite image...' });
 
     const center = { lat: selectedRegion.center.lat, lng: selectedRegion.center.lng };
     const radius_m = boundsToRadius(selectedRegion);
     const cap = captureRef.current;
 
-    // Fire thermal inference in parallel when we have a captured image
-    if (cap?.imageBase64) {
-      setIsThermalInferenceLoading(true);
-      const byteChars = atob(cap.imageBase64);
-      const byteArr = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([byteArr], { type: 'image/png' });
-      inferThermalFromMapBlob(blob, { lat: center.lat, lng: center.lng, radius_m })
-        .then((res) => setThermalInference(res))
-        .catch(() => { /* non-fatal — analysis continues without overlay */ })
-        .finally(() => setIsThermalInferenceLoading(false));
-    }
+    setIsThermalInferenceLoading(Boolean(cap));
 
     const doRequest = cap
       ? createAnalysisFromCaptureUpload(
           { bounds: selectedRegion.bounds, center, areaKm2: selectedRegion.areaKm2 },
           cap.mapState,
           cap.viewport,
+          cap.imageBounds,
           cap.imageBase64,
         )
       : createAnalysis(center, radius_m);
@@ -299,17 +317,20 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
             applyBackendResponse(updated);
             setTraceEvents(events);
           } catch {
-            // network hiccup — keep polling
+            // Network hiccup - keep polling.
           }
         }, POLL_INTERVAL_MS);
       })
       .catch(() => {
         setSelectionMode('idle');
         setAnalysisProgress(null);
+      })
+      .finally(() => {
+        setIsThermalInferenceLoading(false);
       });
   }, [selectedRegion, stopPolling, applyBackendResponse]);
 
-  // ── Active hotspot ────────────────────────────────────────────────────────
+  // Active hotspot
 
   const setActiveHotspot = useCallback((hotspot: Hotspot | null) => {
     setActiveHotspotState(hotspot);
@@ -322,7 +343,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // ── Trace playback ────────────────────────────────────────────────────────
+  // Trace playback
 
   const startPlayback = useCallback(() => {
     setPlayback(prev => ({
@@ -350,7 +371,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     });
   }, [activeHotspot]);
 
-  // ── Voice briefing ────────────────────────────────────────────────────────
+  // Voice briefing
 
   const playVoiceBriefing = useCallback(async () => {
     if (!regionId || isVoiceBriefingLoading) return;
@@ -366,14 +387,14 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
       setVoiceBriefing({ url: resolvedUrl, text: res.summary_text });
       if (resolvedUrl) {
         const audio = new Audio(resolvedUrl);
-        audio.play().catch(() => {/* autoplay blocked — UI shows text fallback */});
+        audio.play().catch(() => {/* Autoplay blocked - UI shows text fallback. */});
       }
     } finally {
       setIsVoiceBriefingLoading(false);
     }
   }, [regionId, isVoiceBriefingLoading]);
 
-  // ── Planner Q&A ───────────────────────────────────────────────────────────
+  // Planner Q&A
 
   const askPlannerQuestion = useCallback(
     async (question: string) => {

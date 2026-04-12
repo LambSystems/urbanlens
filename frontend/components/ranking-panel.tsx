@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { 
+import {
   Building2, 
   Car, 
   Trees, 
@@ -14,7 +14,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useThermal } from '@/lib/thermal-context';
-import { getHotspotTypeLabel } from '@/lib/mock-data';
+import { getHotspotTypeLabel } from '@/lib/hotspot-labels';
 import type { Hotspot, HotspotType } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';

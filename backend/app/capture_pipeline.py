@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from math import cos, pi
 from pathlib import Path
 
+from PIL import Image
+
 from .perception.candidate_discovery import propose_candidates
 from .schemas import CaptureMapState, HotspotType, LatLng, SourceBounds, SourceRecord, SourceType
 from .thermal.generator import generate_thermal
@@ -30,6 +32,7 @@ def build_satellite_capture_source_record(
         source_id=f"satellite_capture_{region_id}",
         source_type=SourceType.satellite,
         image_path=image_path,
+        image_url=f"/captures/{region_id}/{Path(image_path).name}",
         lat=center.lat,
         lng=center.lng,
         bounds=bounds,
@@ -88,3 +91,16 @@ def save_capture_image(region_id: str, image_bytes: bytes, suffix: str = ".png")
     image_path = capture_dir / f"source{suffix}"
     image_path.write_bytes(image_bytes)
     return str(image_path)
+
+
+def inspect_image_file(image_path: str | Path) -> dict:
+    path = Path(image_path)
+    with Image.open(path) as image:
+        width, height = image.size
+    return {
+        "path": str(path),
+        "url": f"/captures/{path.parent.name}/{path.name}",
+        "width": width,
+        "height": height,
+        "file_size_bytes": path.stat().st_size,
+    }

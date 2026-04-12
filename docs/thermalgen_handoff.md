@@ -24,7 +24,7 @@ The thermal model is only one evidence tool in that loop. The canonical model pa
 - Checkpoint files are not pushed to Git. Share them as a small zip, for example through Google Drive.
 - One-image inference has been verified using a repo-local RGB file path.
 - Backend now also writes an autocontrasted orange preview via `thermal_preview_path`.
-- FastAPI serves generated thermal assets from `/thermal-assets/...`.
+- FastAPI serves direct ThermalGen assets from `/thermal-assets/...` and capture-analysis assets from `/captures/...`.
 - A runnable inference notebook exists at `notebooks/hybrid_thermal_inference.ipynb`.
 - Local environment and hidden-file rules are documented in `docs/local_setup.md`.
 
@@ -97,28 +97,22 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 Keep the real value in `frontend/.env`; commit only `frontend/.env.example`.
 
-The backend can attach live hybrid thermal evidence to `/analysis` responses when this local toggle is enabled:
-
-```text
-THERMALGEN_ENABLE_LIVE_THERMAL=1
-```
-
-Default is off so the demo remains fast while the agentic orchestration layer is still being finished. With the toggle on, the orchestrator runs one local RGB image through `generate_thermal`, adds region-level `thermal_image_url` / `thermal_preview_url`, and prepends the preview URL to hotspot `evidence_urls`.
-
 Current browser flow:
 
 ```text
 draw/select region in frontend
--> optionally POST /thermal/infer/upload with map/RGB image bytes
--> backend stores upload and runs ThermalGen
--> POST /analysis
--> backend creates region + hotspot trace and can attach ThermalGen evidence
+-> frontend captures a 640 x 512 map image
+-> POST /analysis/from-capture-upload with image bytes + map metadata
+-> backend stores source.png and metadata.json
+-> backend runs HybridThermalGen on the capture
+-> backend writes source_aligned.png, source_thermal.png, and source_thermal_preview.png
+-> backend creates region + hotspot trace from real thermal regions
 -> frontend polls GET /analysis/{region_id}
 -> frontend maps backend hotspots into UI hotspots
--> trace panel displays generated thermal preview only when the URL starts with /thermal-assets/
+-> map overlay displays region.thermal_preview_url using region.bounds
 ```
 
-Known placeholder paths such as `/evidence/hs_01-thermal.jpg` are legacy demo metadata. They are not real files unless someone adds static evidence assets. The UI should not render them as images.
+There is no bundled mock dataset in the product path. If the checkpoint or image is missing, ThermalGen returns no hotspot regions and reports the error instead of inventing demo hotspots.
 
 ThermalGen tool calls:
 
@@ -195,6 +189,6 @@ Expected behavior:
 
 ## Next Useful Work
 
-- Connect real thermal output to candidate discovery instead of the static hotspot library.
-- Use the existing `thermal_preview_url` consistently for map/sidebar preview.
-- Replace remaining cached demo hotspot values gradually, while keeping fallback behavior for reliability.
+- Replace rule-based object/material labels with a real detector when that teammate work is ready.
+- Pass richer Google Maps and weather metadata into the planner response once the agentic layer is finalized.
+- Add a lightweight status message in the UI when thermal inference is unavailable.

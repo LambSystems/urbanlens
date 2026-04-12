@@ -12,39 +12,13 @@ def _center_from_metadata(metadata: dict[str, Any]) -> tuple[float, float]:
     return float(metadata.get("lat", 38.6270)), float(metadata.get("lng", -90.1994))
 
 
-def _synthetic_thermal(center_lat: float, center_lng: float, error: str | None = None) -> dict:
-    thermal_data = {
-        "min_temp_c": 28.3,
-        "max_temp_c": 47.1,
-        "mean_temp_c": 34.6,
-        "hotspot_regions": [
-            {
-                "centroid": {"lat": center_lat + 0.0007, "lng": center_lng + 0.0005},
-                "intensity": 0.87,
-                "area_px": 2816,
-            },
-            {
-                "centroid": {"lat": center_lat - 0.0003, "lng": center_lng + 0.0008},
-                "intensity": 0.52,
-                "area_px": 2580,
-            },
-            {
-                "centroid": {"lat": center_lat + 0.0004, "lng": center_lng - 0.0004},
-                "intensity": 0.74,
-                "area_px": 1520,
-            },
-            {
-                "centroid": {"lat": center_lat - 0.0006, "lng": center_lng - 0.0007},
-                "intensity": 0.61,
-                "area_px": 5336,
-            },
-        ],
-    }
+def _empty_thermal_result(error: str | None = None) -> dict:
+    thermal_data: dict[str, Any] = {"hotspot_regions": []}
     if error:
-        thermal_data["fallback_reason"] = error
+        thermal_data["error"] = error
     return {
         "source_image_path": None,
-        "thermal_image_path": "data/demo/stub_thermal_overlay.png",
+        "thermal_image_path": None,
         "thermal_image_url": None,
         "thermal_preview_path": None,
         "thermal_preview_url": None,
@@ -55,7 +29,7 @@ def _synthetic_thermal(center_lat: float, center_lng: float, error: str | None =
             "uses_metadata": False,
         },
         "thermal_data": thermal_data,
-        "source": "synthetic_fallback",
+        "source": "thermal_unavailable",
     }
 
 
@@ -75,8 +49,18 @@ def _static_map_deg_per_half_pixel(center_lat: float, zoom: int, img_w: int = 64
 
 
 def _attach_geo_centroids(result: dict, center_lat: float, center_lng: float) -> dict:
-    zoom = int(result.get("metadata", {}).get("zoom") or 17)
-    half_lat, half_lng = _static_map_deg_per_half_pixel(center_lat, zoom)
+    metadata = result.get("metadata", {})
+    bounds = None
+    if all(key in metadata for key in ("north", "south", "east", "west")):
+        bounds = {
+            "north": float(metadata["north"]),
+            "south": float(metadata["south"]),
+            "east": float(metadata["east"]),
+            "west": float(metadata["west"]),
+        }
+    else:
+        zoom = int(metadata.get("zoom") or 17)
+        half_lat, half_lng = _static_map_deg_per_half_pixel(center_lat, zoom)
 
     for region in result.get("thermal_data", {}).get("hotspot_regions", []):
         centroid_px = region.get("centroid_px")
@@ -85,10 +69,16 @@ def _attach_geo_centroids(result: dict, center_lat: float, center_lng: float) ->
         # Model output is 640×512; y_norm maps [0,1] to [north, south]
         x_norm = float(centroid_px["x"]) / 640.0
         y_norm = float(centroid_px["y"]) / 512.0
-        region["centroid"] = {
-            "lat": round(center_lat + (0.5 - y_norm) * 2 * half_lat, 6),
-            "lng": round(center_lng + (x_norm - 0.5) * 2 * half_lng, 6),
-        }
+        if bounds:
+            region["centroid"] = {
+                "lat": round(bounds["north"] - y_norm * (bounds["north"] - bounds["south"]), 6),
+                "lng": round(bounds["west"] + x_norm * (bounds["east"] - bounds["west"]), 6),
+            }
+        else:
+            region["centroid"] = {
+                "lat": round(center_lat + (0.5 - y_norm) * 2 * half_lat, 6),
+                "lng": round(center_lng + (x_norm - 0.5) * 2 * half_lng, 6),
+            }
     return result
 
 
@@ -99,10 +89,7 @@ def generate_thermal(
     output_dir: str | Path | None = None,
     allow_fallback: bool = True,
 ) -> dict:
-    """Convert an RGB image file to thermal evidence using the HybridThermal model.
-
-    Falls back to synthetic data if the model cannot load or the image is missing.
-    """
+    """Convert an RGB image file to thermal evidence using the HybridThermal model."""
     metadata = metadata or {}
     center_lat, center_lng = _center_from_metadata(metadata)
     image_path = Path(image_path) if image_path else None
@@ -134,9 +121,9 @@ def generate_thermal(
         except Exception as exc:
             if not allow_fallback:
                 raise
-            return _synthetic_thermal(center_lat, center_lng, error=str(exc))
+            return _empty_thermal_result(error=str(exc))
 
     if not allow_fallback:
         raise FileNotFoundError(f"RGB image not found: {image_path}")
 
-    return _synthetic_thermal(center_lat, center_lng)
+    return _empty_thermal_result(error=f"RGB image not found: {image_path}")
