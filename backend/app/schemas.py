@@ -100,6 +100,8 @@ class AnalysisRegion(BaseModel):
     radius_m: int = Field(default=120, ge=1)
     available_source_count: int = 0
     coverage_score: float | None = None
+    maps_fallback_count: int = 0
+    enrichment_confidence_avg: float | None = None
     source_records: list[SourceRecord] = Field(default_factory=list)
     status: AnalysisStatus
     summary: AnalysisSummary

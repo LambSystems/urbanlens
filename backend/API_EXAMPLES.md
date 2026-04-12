@@ -57,7 +57,25 @@ Example response:
 }
 ```
 
-## 3. Create Analysis
+## 3. Get Example Analysis Request
+
+```http
+GET /demo/example-analysis-request
+```
+
+Example response:
+
+```json
+{
+  "center": {
+    "lat": 38.627,
+    "lng": -90.1994
+  },
+  "radius_m": 120
+}
+```
+
+## 4. Create Analysis
 
 ```http
 POST /analysis
@@ -87,6 +105,57 @@ Example response shape:
       "lng": -90.1994
     },
     "radius_m": 120,
+    "available_source_count": 3,
+    "coverage_score": 0.65,
+    "maps_fallback_count": 1,
+    "enrichment_confidence_avg": 0.77,
+    "source_records": [
+      {
+        "source_id": "drone_img_001",
+        "source_type": "drone",
+        "image_path": "data/demo/drone_img_001.png",
+        "image_url": null,
+        "lat": 38.6274,
+        "lng": -90.1991,
+        "bounds": null,
+        "timestamp": null,
+        "altitude": 110.0,
+        "heading": null,
+        "resolution": 0.12,
+        "metadata_quality_score": 0.82,
+        "geolocation_confidence": 0.78
+      },
+      {
+        "source_id": "drone_img_002",
+        "source_type": "drone",
+        "image_path": "data/demo/drone_img_002.png",
+        "image_url": null,
+        "lat": null,
+        "lng": null,
+        "bounds": null,
+        "timestamp": null,
+        "altitude": 95.0,
+        "heading": null,
+        "resolution": 0.18,
+        "metadata_quality_score": 0.48,
+        "geolocation_confidence": 0.35
+      },
+      {
+        "source_id": "derived_thermal_001",
+        "source_type": "derived",
+        "image_path": "data/demo/thermal_overlay_001.png",
+        "image_url": null,
+        "lat": 38.6272,
+        "lng": -90.1996,
+        "bounds": null,
+        "timestamp": null,
+        "altitude": null,
+        "heading": null,
+        "resolution": null,
+        "metadata_quality_score": 0.75,
+        "geolocation_confidence": 0.72
+      }
+    ],
     "status": "running",
     "summary": {
       "candidate_count": 4,
@@ -108,7 +177,7 @@ Important:
 - The first response may still be `running`
 - The frontend should poll after receiving `region_id`
 
-## 4. Poll Analysis State
+## 5. Poll Analysis State
 
 ```http
 GET /analysis/{region_id}
@@ -120,6 +189,7 @@ Use this to fetch the main product state:
 - hotspot list
 - trace step states
 - ranked hotspots
+- source and coverage context for the selected region
 
 Example:
 
@@ -127,7 +197,7 @@ Example:
 GET /analysis/region_ab12cd34
 ```
 
-## 5. Get Hotspot Detail
+## 6. Get Hotspot Detail
 
 ```http
 GET /analysis/{region_id}/hotspots/{hotspot_id}
@@ -145,7 +215,34 @@ Use this for:
 - selected hotspot inspection
 - recommendation detail
 
-## 6. Poll Trace Events
+Example hotspot detail shape:
+
+```json
+{
+  "hotspot_id": "hs_01",
+  "region_id": "region_ab12cd34",
+  "bbox": {"x": 112, "y": 78, "w": 64, "h": 48},
+  "centroid": {"lat": 38.6277, "lng": -90.1989},
+  "hotspot_type": "roof",
+  "status": "investigating",
+  "source_count": 3,
+  "coverage_score": 0.79,
+  "anomaly_score": 0.82,
+  "severity_score": 0.76,
+  "confidence_score": 0.71,
+  "final_rank_score": 0.5396,
+  "discard_reason": null,
+  "recommended_action": "cool-roof retrofit",
+  "why": [
+    "high relative anomaly vs nearby roofs",
+    "large exposed dark surface",
+    "high-confidence thermal evidence"
+  ],
+  "trace": []
+}
+```
+
+## 7. Poll Trace Events
 
 ```http
 GET /analysis/{region_id}/events
@@ -182,7 +279,7 @@ Use this for:
 - step-by-step animation
 - loading progress
 
-## 7. Debug View
+## 8. Debug View
 
 ```http
 GET /analysis/{region_id}/debug
@@ -194,17 +291,19 @@ Use this only for development. It exposes:
 - scoring and discard details
 - perception/scoring adapters
 - ranking formula and anomaly threshold
+- source-aware confidence context
 
-## Suggested Frontend Flow
+## 9. Suggested Frontend Flow
 
 1. Load `GET /demo/regions` or let the user click on the map.
-2. Call `POST /analysis`.
-3. Store `region_id`.
-4. Poll `GET /analysis/{region_id}` every 800 to 1200 ms.
-5. Poll `GET /analysis/{region_id}/events` if a separate trace feed is useful.
-6. Fetch `GET /analysis/{region_id}/hotspots/{hotspot_id}` when the user clicks a hotspot.
+2. Optionally use `GET /demo/example-analysis-request` for a ready-made request body.
+3. Call `POST /analysis`.
+4. Store `region_id`.
+5. Poll `GET /analysis/{region_id}` every 800 to 1200 ms.
+6. Poll `GET /analysis/{region_id}/events` if a separate trace feed is useful.
+7. Fetch `GET /analysis/{region_id}/hotspots/{hotspot_id}` when the user clicks a hotspot.
 
-## Minimal cURL Examples
+## 10. Minimal cURL Examples
 
 Create analysis:
 
@@ -224,4 +323,10 @@ Get events:
 
 ```bash
 curl "http://localhost:8000/analysis/region_ab12cd34/events"
+```
+
+Get debug view:
+
+```bash
+curl "http://localhost:8000/analysis/region_ab12cd34/debug"
 ```

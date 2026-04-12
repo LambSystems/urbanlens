@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from .providers.google_maps_enrichment import summarize_enrichment_coverage
+from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
 from .schemas import (
     AnalysisEvent,
     DebugAnalysisView,
@@ -18,8 +20,6 @@ from .schemas import (
     PerceptionEvidence,
     RankedHotspot,
     ScoringResult,
-    SourceRecord,
-    SourceType,
     TraceEvidence,
     TraceKind,
     TraceStep,
@@ -157,42 +157,6 @@ DEMO_REGION_PRESETS: list[dict] = [
 ]
 
 
-def build_source_records(center: LatLng) -> list[SourceRecord]:
-    return [
-        SourceRecord(
-            source_id="drone_img_001",
-            source_type=SourceType.drone,
-            image_path="data/demo/drone_img_001.png",
-            lat=round(center.lat + 0.0004, 6),
-            lng=round(center.lng + 0.0003, 6),
-            altitude=110.0,
-            resolution=0.12,
-            metadata_quality_score=0.82,
-            geolocation_confidence=0.78,
-        ),
-        SourceRecord(
-            source_id="drone_img_002",
-            source_type=SourceType.drone,
-            image_path="data/demo/drone_img_002.png",
-            lat=None,
-            lng=None,
-            altitude=95.0,
-            resolution=0.18,
-            metadata_quality_score=0.48,
-            geolocation_confidence=0.35,
-        ),
-        SourceRecord(
-            source_id="derived_thermal_001",
-            source_type=SourceType.derived,
-            image_path="data/demo/thermal_overlay_001.png",
-            lat=round(center.lat + 0.0002, 6),
-            lng=round(center.lng - 0.0002, 6),
-            metadata_quality_score=0.75,
-            geolocation_confidence=0.72,
-        ),
-    ]
-
-
 def _trace_evidence(seed: dict, kind: TraceKind) -> TraceEvidence:
     evidence = TraceEvidence()
     if kind == TraceKind.inspect_object:
@@ -291,6 +255,9 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
     hotspots: list[HotspotCandidate] = []
     top_ranked: list[RankedHotspot] = []
     all_events: list[AnalysisEvent] = []
+    source_records = retrieve_sources_for_region(center, radius_m)
+    region_coverage_score = estimate_region_coverage_score(source_records)
+    enrichment_summary = summarize_enrichment_coverage(source_records, center)
 
     for seed in HOTSPOT_LIBRARY:
         trace, events = _build_trace(seed)
@@ -359,12 +326,11 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             region_id=region_id,
             center=center,
             radius_m=radius_m,
-            available_source_count=sum(seed["source_count"] for seed in HOTSPOT_LIBRARY),
-            coverage_score=round(
-                sum(seed["coverage_score"] for seed in HOTSPOT_LIBRARY) / len(HOTSPOT_LIBRARY),
-                2,
-            ),
-            source_records=build_source_records(center),
+            available_source_count=len(source_records),
+            coverage_score=region_coverage_score,
+            maps_fallback_count=int(enrichment_summary["maps_fallback_count"]),
+            enrichment_confidence_avg=float(enrichment_summary["enrichment_confidence_avg"]),
+            source_records=source_records,
             status=AnalysisStatus.running,
             summary=summary,
         ),
