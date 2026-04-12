@@ -115,6 +115,7 @@ class InMemoryAnalysisStore:
 
             if completed_steps and hotspot.status == HotspotStatus.investigating:
                 hotspot.status = HotspotStatus.evidence_gathered
+            hotspot.updated_at = datetime.now(UTC)
 
         analysis.region.status = AnalysisStatus.completed if all_terminal else AnalysisStatus.running
         analysis.result.status = analysis.region.status

@@ -105,6 +105,13 @@ Example response shape:
       "lng": -90.1994
     },
     "radius_m": 120,
+    "bounds": {
+      "north": 38.628081,
+      "south": 38.625919,
+      "east": -90.198016,
+      "west": -90.200784
+    },
+    "area_km2": 0.058,
     "available_source_count": 3,
     "coverage_score": 0.65,
     "maps_fallback_count": 1,
@@ -167,7 +174,9 @@ Example response shape:
     "region_id": "region_ab12cd34",
     "status": "running",
     "hotspots": [],
-    "top_hotspots": []
+    "top_hotspots": [],
+    "top_hotspot_id": null,
+    "discarded_hotspot_ids": []
   }
 }
 ```
@@ -224,7 +233,10 @@ Example hotspot detail shape:
   "bbox": {"x": 112, "y": 78, "w": 64, "h": 48},
   "centroid": {"lat": 38.6277, "lng": -90.1989},
   "hotspot_type": "roof",
+  "display_name": "Building Roof",
   "status": "investigating",
+  "surface_temperature_c": 54.0,
+  "ambient_delta_c": 16.0,
   "source_count": 3,
   "coverage_score": 0.79,
   "anomaly_score": 0.82,
@@ -233,6 +245,11 @@ Example hotspot detail shape:
   "final_rank_score": 0.5396,
   "discard_reason": null,
   "recommended_action": "cool-roof retrofit",
+  "evidence_urls": ["/evidence/hs_01-thermal.jpg", "/evidence/hs_01-visual.jpg"],
+  "priority_rank": 1,
+  "is_top_ranked": true,
+  "created_at": "2026-04-11T13:10:00Z",
+  "updated_at": "2026-04-11T13:10:05Z",
   "why": [
     "high relative anomaly vs nearby roofs",
     "large exposed dark surface",
@@ -258,7 +275,9 @@ Example response shape:
     "step_id": "hs_01_step_01",
     "kind": "candidate_detected",
     "status": "completed",
+    "timestamp_ms": 0,
     "summary": "Candidate hotspot detected in analysis region.",
+    "details": {},
     "scheduled_offset_ms": 0
   },
   {
@@ -267,7 +286,14 @@ Example response shape:
     "step_id": "hs_01_step_02",
     "kind": "inspect_object",
     "status": "running",
+    "timestamp_ms": 1200,
     "summary": "Object inspection suggests a roof structure.",
+    "details": {
+      "object_confidence": 0.66,
+      "object_label": "roof",
+      "source_count": 4,
+      "coverage_score": 0.86
+    },
     "scheduled_offset_ms": 1200
   }
 ]
@@ -316,8 +342,8 @@ Example response:
 {
   "region_id": "region_ab12cd34",
   "question": "What should we fix first here?",
-  "answer": "You should prioritize hs_03 first. It is a hvac_mechanical hotspot with anomaly 0.67, severity 0.81, confidence 0.79, and the recommended action is hvac inspection.",
-  "referenced_hotspot_ids": ["hs_03"],
+  "answer": "You should prioritize hs_01 first. It is a roof hotspot with anomaly 0.83, severity 0.78, confidence 0.90, and the recommended action is cool-roof retrofit.",
+  "referenced_hotspot_ids": ["hs_01"],
   "planner_mode": "analysis_qa"
 }
 ```

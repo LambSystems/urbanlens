@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from math import cos, pi
 
 from .providers.google_maps_enrichment import summarize_enrichment_coverage
 from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
+from .scoring.anomaly import ANOMALY_THRESHOLD, compute_anomaly_score, passes_anomaly_gate
+from .scoring.confidence import compute_confidence_score
+from .scoring.ranker import compute_final_rank_score, rank_hotspots
+from .scoring.severity import compute_severity_score
 from .schemas import (
     AnalysisEvent,
     DebugAnalysisView,
@@ -32,12 +37,15 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_01",
         "hotspot_type": HotspotType.roof,
-        "source_count": 3,
-        "coverage_score": 0.79,
+        "surface_temperature_c": 54.0,
+        "ambient_delta_c": 16.0,
+        "source_count": 4,
+        "coverage_score": 0.86,
         "object_label": "roof",
-        "object_confidence": 0.88,
+        "object_confidence": 0.92,
         "material_type": "dark_roof",
-        "material_confidence": 0.74,
+        "material_confidence": 0.82,
+        "evidence_urls": ["/evidence/hs_01-thermal.jpg", "/evidence/hs_01-visual.jpg"],
         "bbox": BoundingBox(x=112, y=78, w=64, h=48),
         "centroid_offset": (0.0007, 0.0005),
         "trace": [
@@ -63,12 +71,15 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_02",
         "hotspot_type": HotspotType.road_pavement,
+        "surface_temperature_c": 51.0,
+        "ambient_delta_c": 13.0,
         "source_count": 2,
         "coverage_score": 0.64,
         "object_label": "road",
         "object_confidence": 0.91,
         "material_type": "asphalt",
         "material_confidence": 0.86,
+        "evidence_urls": ["/evidence/hs_02-thermal.jpg"],
         "bbox": BoundingBox(x=214, y=166, w=86, h=30),
         "centroid_offset": (-0.0003, 0.0008),
         "trace": [
@@ -91,12 +102,15 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_03",
         "hotspot_type": HotspotType.hvac_mechanical,
+        "surface_temperature_c": 58.0,
+        "ambient_delta_c": 20.0,
         "source_count": 2,
         "coverage_score": 0.72,
         "object_label": "rooftop_hvac",
         "object_confidence": 0.83,
         "material_type": "metal_equipment",
         "material_confidence": 0.71,
+        "evidence_urls": ["/evidence/hs_03-thermal.jpg"],
         "bbox": BoundingBox(x=298, y=104, w=38, h=40),
         "centroid_offset": (0.0004, -0.0004),
         "trace": [
@@ -119,12 +133,15 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_04",
         "hotspot_type": HotspotType.parking_lot,
+        "surface_temperature_c": 57.0,
+        "ambient_delta_c": 19.0,
         "source_count": 4,
-        "coverage_score": 0.83,
+        "coverage_score": 0.68,
         "object_label": "parking_lot",
-        "object_confidence": 0.9,
+        "object_confidence": 0.84,
         "material_type": "asphalt",
-        "material_confidence": 0.82,
+        "material_confidence": 0.76,
+        "evidence_urls": ["/evidence/hs_04-thermal.jpg"],
         "bbox": BoundingBox(x=354, y=208, w=92, h=58),
         "centroid_offset": (-0.0006, -0.0007),
         "trace": [
@@ -136,7 +153,7 @@ HOTSPOT_LIBRARY: list[dict] = [
             (TraceKind.finalize_hotspot, "Finalized as a mitigation candidate after passing anomaly gate."),
         ],
         "anomaly_score": 0.56,
-        "severity_score": 0.73,
+        "severity_score": 0.66,
         "confidence_score": 0.75,
         "recommended_action": "shade and pavement mitigation",
         "why": [
@@ -146,7 +163,6 @@ HOTSPOT_LIBRARY: list[dict] = [
     },
 ]
 
-ANOMALY_THRESHOLD = 0.25
 STEP_INTERVAL_MS = 1200
 RANKING_FORMULA = "final_rank_score = severity_score * confidence_score after anomaly gate"
 
@@ -155,6 +171,34 @@ DEMO_REGION_PRESETS: list[dict] = [
     {"label": "industrial_corridor", "lat": 38.6155, "lng": -90.2152, "radius_m": 140},
     {"label": "campus_zone", "lat": 38.6483, "lng": -90.3108, "radius_m": 110},
 ]
+
+HOTSPOT_LABELS: dict[HotspotType, str] = {
+    HotspotType.roof: "Building Roof",
+    HotspotType.road_pavement: "Road Surface",
+    HotspotType.parking_lot: "Parking Lot",
+    HotspotType.hvac_mechanical: "HVAC / Mechanical",
+    HotspotType.vegetation_loss: "Vegetation Loss",
+    HotspotType.other: "Other",
+}
+
+
+def _region_bounds(center: LatLng, radius_m: int) -> dict[str, float]:
+    lat_delta = radius_m / 111_000
+    lng_delta = radius_m / (111_000 * max(cos(center.lat * pi / 180), 0.1))
+    return {
+        "north": round(center.lat + lat_delta, 6),
+        "south": round(center.lat - lat_delta, 6),
+        "east": round(center.lng + lng_delta, 6),
+        "west": round(center.lng - lng_delta, 6),
+    }
+
+
+def _area_km2(bounds: dict[str, float]) -> float:
+    lat_diff = bounds["north"] - bounds["south"]
+    lng_diff = bounds["east"] - bounds["west"]
+    lat_km = lat_diff * 111
+    lng_km = lng_diff * 111 * cos(((bounds["north"] + bounds["south"]) / 2) * pi / 180)
+    return round(lat_km * lng_km, 3)
 
 
 def _trace_evidence(seed: dict, kind: TraceKind) -> TraceEvidence:
@@ -184,6 +228,18 @@ def _trace_evidence(seed: dict, kind: TraceKind) -> TraceEvidence:
     return evidence
 
 
+def _trace_details(seed: dict, kind: TraceKind, evidence: TraceEvidence) -> dict:
+    details = evidence.model_dump(exclude_none=True)
+    if kind == TraceKind.request_thermal_evidence:
+        details["surface_temperature_c"] = seed["surface_temperature_c"]
+        details["ambient_delta_c"] = seed["ambient_delta_c"]
+    if kind == TraceKind.discard_hotspot and seed.get("discard_reason"):
+        details["reason"] = seed["discard_reason"]
+    if kind == TraceKind.finalize_hotspot and seed.get("recommended_action"):
+        details["recommended_action"] = seed["recommended_action"]
+    return details
+
+
 def build_perception_evidence(seed: dict) -> PerceptionEvidence:
     return PerceptionEvidence(
         hotspot_id=seed["hotspot_id"],
@@ -198,15 +254,32 @@ def build_perception_evidence(seed: dict) -> PerceptionEvidence:
 
 
 def build_scoring_result(seed: dict) -> ScoringResult:
+    anomaly_score = compute_anomaly_score(
+        thermal_intensity=seed["anomaly_score"],
+        relative_percentile=seed["anomaly_score"],
+        consistency_score=min(seed["coverage_score"] + 0.1, 1.0),
+    )
+    severity_score = compute_severity_score(
+        thermal_intensity=seed["severity_score"],
+        area_px=seed["bbox"].w * seed["bbox"].h,
+        material_type=seed["material_type"],
+    )
+    confidence_score = compute_confidence_score(
+        object_confidence=seed["object_confidence"],
+        material_confidence=seed["material_confidence"],
+        coverage_score=seed["coverage_score"],
+        metadata_quality_score=round(seed["coverage_score"] + 0.15, 2),
+        consistency_score=min(seed["coverage_score"] + 0.1, 1.0),
+    )
     final_rank_score = None
     discard_reason = seed.get("discard_reason")
-    if seed["anomaly_score"] >= ANOMALY_THRESHOLD and "recommended_action" in seed:
-        final_rank_score = round(seed["severity_score"] * seed["confidence_score"], 4)
+    if passes_anomaly_gate(anomaly_score) and "recommended_action" in seed:
+        final_rank_score = compute_final_rank_score(severity_score, confidence_score)
     return ScoringResult(
         hotspot_id=seed["hotspot_id"],
-        anomaly_score=seed["anomaly_score"],
-        severity_score=seed["severity_score"],
-        confidence_score=seed["confidence_score"],
+        anomaly_score=anomaly_score,
+        severity_score=severity_score,
+        confidence_score=confidence_score,
         coverage_score=seed["coverage_score"],
         metadata_quality_score=round((seed["coverage_score"] + 0.15), 2),
         final_rank_score=final_rank_score,
@@ -221,6 +294,7 @@ def _build_trace(seed: dict) -> tuple[list[TraceStep], list[AnalysisEvent]]:
     events: list[AnalysisEvent] = []
 
     for index, (kind, summary) in enumerate(seed["trace"]):
+        evidence = _trace_evidence(seed, kind)
         started_at = now if index == 0 else None
         completed_at = now if index == 0 else None
         status = TraceStepStatus.completed if index == 0 else TraceStepStatus.pending
@@ -231,10 +305,12 @@ def _build_trace(seed: dict) -> tuple[list[TraceStep], list[AnalysisEvent]]:
                 hotspot_id=seed["hotspot_id"],
                 kind=kind,
                 status=status,
+                timestamp_ms=index * STEP_INTERVAL_MS,
                 started_at=started_at,
                 completed_at=completed_at,
                 summary=summary,
-                evidence=_trace_evidence(seed, kind),
+                details=_trace_details(seed, kind, evidence),
+                evidence=evidence,
             )
         )
         events.append(
@@ -244,7 +320,9 @@ def _build_trace(seed: dict) -> tuple[list[TraceStep], list[AnalysisEvent]]:
                 step_id=step_id,
                 kind=kind,
                 status=status,
+                timestamp_ms=index * STEP_INTERVAL_MS,
                 summary=summary,
+                details=_trace_details(seed, kind, evidence),
                 scheduled_offset_ms=index * STEP_INTERVAL_MS,
             )
         )
@@ -253,24 +331,26 @@ def _build_trace(seed: dict) -> tuple[list[TraceStep], list[AnalysisEvent]]:
 
 def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[AnalysisResponse, list[AnalysisEvent]]:
     hotspots: list[HotspotCandidate] = []
-    top_ranked: list[RankedHotspot] = []
     all_events: list[AnalysisEvent] = []
+    now = datetime.now(UTC)
     source_records = retrieve_sources_for_region(center, radius_m)
     region_coverage_score = estimate_region_coverage_score(source_records)
     enrichment_summary = summarize_enrichment_coverage(source_records, center)
+    bounds = _region_bounds(center, radius_m)
+    area_km2 = _area_km2(bounds)
 
     for seed in HOTSPOT_LIBRARY:
         trace, events = _build_trace(seed)
         for event in events:
             event.region_id = region_id
-        final_rank_score = None
+        scoring = build_scoring_result(seed)
+        final_rank_score = scoring.final_rank_score
         status = HotspotStatus.investigating
 
-        if seed["anomaly_score"] < ANOMALY_THRESHOLD:
+        if not passes_anomaly_gate(scoring.anomaly_score):
             status = HotspotStatus.discarded
         elif trace[-1].kind == TraceKind.finalize_hotspot:
             status = HotspotStatus.finalized
-            final_rank_score = round(seed["severity_score"] * seed["confidence_score"], 4)
 
         hotspot = HotspotCandidate(
             hotspot_id=seed["hotspot_id"],
@@ -281,39 +361,33 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
                 lng=round(center.lng + seed["centroid_offset"][1], 6),
             ),
             hotspot_type=seed["hotspot_type"],
+            display_name=HOTSPOT_LABELS[seed["hotspot_type"]],
             status=status,
+            surface_temperature_c=seed["surface_temperature_c"],
+            ambient_delta_c=seed["ambient_delta_c"],
             source_count=seed["source_count"],
             coverage_score=seed["coverage_score"],
-            anomaly_score=seed["anomaly_score"],
-            severity_score=seed["severity_score"],
-            confidence_score=seed["confidence_score"],
+            anomaly_score=scoring.anomaly_score,
+            severity_score=scoring.severity_score,
+            confidence_score=scoring.confidence_score,
             final_rank_score=final_rank_score,
-            discard_reason=seed.get("discard_reason"),
+            discard_reason=scoring.discard_reason,
             recommended_action=seed.get("recommended_action"),
-            why=seed["why"],
+            evidence_urls=seed.get("evidence_urls", []),
+            created_at=now,
+            updated_at=now,
+            why=scoring.why,
             trace=trace,
         )
         hotspots.append(hotspot)
         all_events.extend(events)
 
-        if status == HotspotStatus.finalized and final_rank_score is not None:
-            top_ranked.append(
-                RankedHotspot(
-                    hotspot_id=hotspot.hotspot_id,
-                    priority_rank=0,
-                    hotspot_type=hotspot.hotspot_type,
-                    recommended_action=hotspot.recommended_action or "investigate",
-                    anomaly_score=hotspot.anomaly_score or 0.0,
-                    severity_score=hotspot.severity_score or 0.0,
-                    confidence_score=hotspot.confidence_score or 0.0,
-                    final_rank_score=final_rank_score,
-                    why=hotspot.why,
-                )
-            )
-
-    top_ranked.sort(key=lambda item: item.final_rank_score, reverse=True)
-    for index, item in enumerate(top_ranked, start=1):
-        item.priority_rank = index
+    top_ranked = rank_hotspots(hotspots, top_n=3)
+    top_rank_lookup = {ranked.hotspot_id: ranked.priority_rank for ranked in top_ranked}
+    for hotspot in hotspots:
+        if hotspot.hotspot_id in top_rank_lookup:
+            hotspot.priority_rank = top_rank_lookup[hotspot.hotspot_id]
+            hotspot.is_top_ranked = True
 
     summary = AnalysisSummary(
         candidate_count=len(hotspots),
@@ -326,6 +400,8 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             region_id=region_id,
             center=center,
             radius_m=radius_m,
+            bounds=bounds,
+            area_km2=area_km2,
             available_source_count=len(source_records),
             coverage_score=region_coverage_score,
             maps_fallback_count=int(enrichment_summary["maps_fallback_count"]),
@@ -339,6 +415,8 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             status=AnalysisStatus.running,
             hotspots=hotspots,
             top_hotspots=top_ranked,
+            top_hotspot_id=top_ranked[0].hotspot_id if top_ranked else None,
+            discarded_hotspot_ids=[hotspot.hotspot_id for hotspot in hotspots if hotspot.status == HotspotStatus.discarded],
         ),
     )
     return response, all_events
