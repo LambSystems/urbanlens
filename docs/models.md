@@ -43,16 +43,12 @@ Urban Legend only needs five model or reasoning categories for the winning slice
 
 ### Role
 
-<<<<<<< Updated upstream
-The satellite-to-thermal conversion model is already built and should be treated as stable infrastructure.
-=======
 The thermal generator is already built and should be treated as stable infrastructure.
 In this repo, that generator is the `hybrid_thermal` model integrated under `backend/app/thermal/hybrid_thermal`.
->>>>>>> Stashed changes
 
 ### Use in the Hackathon
 
-- convert satellite imagery to thermal representation
+- convert an RGB map/drone image to thermal representation
 - provide the thermal image for UI overlay display
 - extract thermal data for the analysis pipeline
 - expose hotspot-level thermal evidence when the agent requests it

@@ -39,11 +39,7 @@ Do not wait for real ML or real scoring.
 - `InvestigationResponse` (final answer + hotspots + recommendations)
 - `HotspotCandidate` (hotspot details)
 
-<<<<<<< Updated upstream
-Use the exact field names from [contracts.md](/docs/contracts.md).
-=======
 Use the exact field names from [`docs/contracts.md`](../docs/contracts.md).
->>>>>>> Stashed changes
 
 ## Must Show
 

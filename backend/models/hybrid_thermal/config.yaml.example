@@ -1,26 +1,28 @@
 project_dir: "backend/models/hybrid_thermal"
-dataset_dir: "backend/data/hybrid_thermal/RGB_to_thermal_dataset"
+dataset_dir: "backend/data/hybrid_thermal"
 
 src_dir: "backend/app/thermal/hybrid_thermal"
 
-rgb_dir: "Train/RGB"
-thermal_dir: "Train/Thermal"
-alphaearth_dir: "Google AlphaEarth Embeddings code"
-metadata_file: "Weather_data_and_code/drone_and_weather_metadata.json"
-train_split_file: "train_test_split.json"
+# Current product inference is RGB-only.
+# Inputs are uploaded/provided at runtime; no bundled dataset is required.
+rgb_dir:
+thermal_dir:
+alphaearth_dir:
+metadata_file:
+train_split_file:
 
-test_rgb_dir: "Test/RGB"
-test_target_dir: "Test/Thermal"
+test_rgb_dir: "uploads"
+test_target_dir:
 
 manifest_raw: "backend/data/hybrid_thermal/manifest_with_alphaearth.jsonl"
 manifest_split: "backend/data/hybrid_thermal/manifest_with_alphaearth_split.jsonl"
 manifest_file: "backend/data/hybrid_thermal/manifest_with_alphaearth_centercrop640.jsonl"
 
 aligned_rgb_dir: "backend/data/hybrid_thermal/RGB_centercrop_640x512"
-aligned_thermal_dir: "backend/data/hybrid_thermal/Thermal_640x512"
+aligned_thermal_dir:
 
 test_aligned_rgb_dir: "backend/data/hybrid_thermal/Test_RGB_centercrop_640x512"
-test_aligned_thermal_dir: "backend/data/hybrid_thermal/Test_Thermal_640x512"
+test_aligned_thermal_dir:
 test_predict_dir: "backend/data/hybrid_thermal/Predict_Thermal"
 
 checkpoint_dir: "backend/models/hybrid_thermal/checkpoints"

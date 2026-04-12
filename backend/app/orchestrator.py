@@ -168,8 +168,6 @@ HOTSPOT_LIBRARY: list[dict] = [
 
 STEP_INTERVAL_MS = 1200
 RANKING_FORMULA = "final_rank_score = severity_score * confidence_score after anomaly gate"
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
-DEMO_RGB_DIR = BACKEND_ROOT / "data" / "hybrid_thermal" / "RGB_to_thermal_dataset" / "Test" / "RGB"
 LIVE_THERMAL_ENV = "THERMALGEN_ENABLE_LIVE_THERMAL"
 
 DEMO_REGION_PRESETS: list[dict] = [
@@ -192,22 +190,14 @@ def _live_thermal_enabled() -> bool:
     return os.getenv(LIVE_THERMAL_ENV, "").lower() in {"1", "true", "yes", "on"}
 
 
-def _first_demo_rgb_image() -> Path | None:
-    for pattern in ("*.JPG", "*.jpg", "*.JPEG", "*.jpeg", "*.PNG", "*.png"):
-        candidate = next(DEMO_RGB_DIR.glob(pattern), None)
-        if candidate:
-            return candidate
-    return None
-
-
 def _build_region_thermal_evidence(center: LatLng) -> dict:
     if not _live_thermal_enabled():
         return {}
 
     configured_image = os.getenv("THERMALGEN_DEMO_IMAGE")
-    rgb_image = Path(configured_image) if configured_image else _first_demo_rgb_image()
+    rgb_image = Path(configured_image) if configured_image else None
     if not rgb_image or not rgb_image.exists():
-        return {"source": "missing_local_hybrid_thermal_data"}
+        return {"source": "missing_runtime_rgb_image"}
 
     return generate_thermal(str(rgb_image), center.model_dump())
 

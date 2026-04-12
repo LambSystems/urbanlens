@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+
+
+def _center_from_metadata(metadata: dict[str, Any]) -> tuple[float, float]:
+    center = metadata.get("center")
+    if isinstance(center, dict):
+        return float(center.get("lat", 38.6270)), float(center.get("lng", -90.1994))
+    return float(metadata.get("lat", 38.6270)), float(metadata.get("lng", -90.1994))
 
 
 def _synthetic_thermal(center_lat: float, center_lng: float, error: str | None = None) -> dict:
@@ -34,7 +42,17 @@ def _synthetic_thermal(center_lat: float, center_lng: float, error: str | None =
     if error:
         thermal_data["fallback_reason"] = error
     return {
+        "source_image_path": None,
         "thermal_image_path": "data/demo/stub_thermal_overlay.png",
+        "thermal_image_url": None,
+        "thermal_preview_path": None,
+        "thermal_preview_url": None,
+        "metadata": {},
+        "model_input": {
+            "uses_rgb": False,
+            "uses_alphaearth": False,
+            "uses_metadata": False,
+        },
         "thermal_data": thermal_data,
         "source": "synthetic_fallback",
     }
@@ -54,24 +72,35 @@ def _attach_geo_centroids(result: dict, center_lat: float, center_lng: float) ->
     return result
 
 
-def generate_thermal(satellite_image_path: str, region_bounds: dict) -> dict:
-    """Convert a drone RGB image to thermal evidence.
+def generate_thermal(
+    image_path: str | Path,
+    metadata: dict[str, Any] | None = None,
+    output_path: str | Path | None = None,
+    allow_fallback: bool = True,
+) -> dict:
+    """Convert an RGB image file to thermal evidence.
 
-    Falls back to deterministic demo data when no image/checkpoint is available.
+    The current fast path uses RGB only. Location/context metadata is carried
+    through for downstream agents, but it is not fed into the checkpoint.
     """
-    center_lat = region_bounds.get("lat", 38.6270)
-    center_lng = region_bounds.get("lng", -90.1994)
-    image_path = Path(satellite_image_path) if satellite_image_path else None
+    metadata = metadata or {}
+    center_lat, center_lng = _center_from_metadata(metadata)
+    image_path = Path(image_path) if image_path else None
 
     if image_path and image_path.exists():
         try:
             from .hybrid_thermal.runtime import predict_one
 
-            result = predict_one(image_path)
+            result = predict_one(image_path, output_path=output_path, metadata=metadata)
             result = _attach_geo_centroids(result, center_lat, center_lng)
             result["source"] = "hybrid_thermal"
             return result
         except Exception as exc:
+            if not allow_fallback:
+                raise
             return _synthetic_thermal(center_lat, center_lng, error=str(exc))
+
+    if not allow_fallback:
+        raise FileNotFoundError(f"RGB image not found: {image_path}")
 
     return _synthetic_thermal(center_lat, center_lng)

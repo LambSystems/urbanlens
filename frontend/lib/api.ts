@@ -125,6 +125,20 @@ export interface BackendPlannerResponse {
   planner_mode: string;
 }
 
+export interface ThermalInferenceResponse {
+  source: string;
+  source_image_path?: string | null;
+  aligned_rgb_path?: string | null;
+  thermal_image_path?: string | null;
+  thermal_image_url?: string | null;
+  thermal_preview_path?: string | null;
+  thermal_preview_url?: string | null;
+  checkpoint_path?: string | null;
+  metadata: Record<string, unknown>;
+  model_input: Record<string, unknown>;
+  thermal_data: Record<string, unknown>;
+}
+
 // API functions
 
 export async function createAnalysis(
@@ -156,6 +170,46 @@ export async function askQuestion(
     body: JSON.stringify({ question }),
   });
   if (!res.ok) throw new Error(`POST /analysis/${regionId}/questions failed: ${res.status}`);
+  return res.json();
+}
+
+export async function inferThermalFromPath(payload: {
+  image_path: string;
+  metadata?: Record<string, unknown>;
+  output_name?: string;
+  allow_fallback?: boolean;
+}): Promise<ThermalInferenceResponse> {
+  const res = await fetch(`${API_BASE}/thermal/infer/path`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`POST /thermal/infer/path failed: ${res.status}`);
+  return res.json();
+}
+
+export async function inferThermalFromMapBlob(
+  blob: Blob,
+  params: {
+    lat?: number;
+    lng?: number;
+    radius_m?: number;
+    prompt?: string;
+    filename?: string;
+    allow_fallback?: boolean;
+  } = {},
+): Promise<ThermalInferenceResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) query.set(key, String(value));
+  }
+  const suffix = query.toString();
+  const res = await fetch(`${API_BASE}/thermal/infer/upload${suffix ? `?${suffix}` : ''}`, {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type || 'image/png' },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`POST /thermal/infer/upload failed: ${res.status}`);
   return res.json();
 }
 

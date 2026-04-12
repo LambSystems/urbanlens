@@ -1,6 +1,6 @@
-# hybrid_thermal Asset Bundle
+# hybrid_thermal Checkpoint Bundle
 
-This zip contains the local data and checkpoints needed to run the `hybrid_thermal` inference notebook.
+This zip contains the local checkpoints needed to run the `hybrid_thermal` inference notebook and the ThermalGen API tool.
 
 ## Where To Unzip
 
@@ -9,7 +9,6 @@ Unzip this bundle at the root of the UrbanLens repository.
 After unzipping, these paths should exist:
 
 ```text
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
 backend/models/hybrid_thermal/checkpoints/best_psnr.pth
 backend/models/hybrid_thermal/checkpoints/best_loss.pth
 backend/models/hybrid_thermal/checkpoints/latest.pth
@@ -33,12 +32,13 @@ notebooks/hybrid_thermal_inference.ipynb
 
 Select the `UrbanLens .venv` kernel and run all cells.
 
-## Quick CLI Test
+Set `INPUT_IMAGE` in the notebook to any local RGB image. Frontend/API uploads are stored under:
 
-```powershell
-.\.venv\Scripts\python.exe backend\app\thermal\hybrid_thermal\prealign_test_rgb_thermal.py --limit 1
-.\.venv\Scripts\python.exe backend\app\thermal\hybrid_thermal\inference.py --limit 1
+```text
+backend/data/hybrid_thermal/uploads/
 ```
+
+## Expected Outputs
 
 Expected generated outputs:
 
@@ -51,7 +51,14 @@ The backend returns:
 
 - `thermal_image_path`: grayscale model output
 - `thermal_preview_path`: autocontrasted orange preview for display
+- `thermal_preview_url`: browser-loadable preview served by FastAPI from `/thermal-assets/...`
+
+For app/API usage, see:
+
+```text
+docs/thermalgen_tool.md
+```
 
 ## Notes
 
-These assets are intentionally not committed to Git. Keep dataset licensing and usage restrictions in mind before resharing.
+These checkpoint assets are intentionally not committed to Git.

@@ -152,14 +152,23 @@ def predict_one(
     rgb_image_path: str | Path,
     output_dir: str | Path = PREDICT_DIR,
     aligned_dir: str | Path = ALIGNED_DIR,
+    output_path: str | Path | None = None,
+    preview_output_path: str | Path | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     rgb_image_path = Path(rgb_image_path)
     output_dir = Path(output_dir)
     aligned_dir = Path(aligned_dir)
+    output_path = Path(output_path) if output_path else output_dir / f"{rgb_image_path.stem}.png"
+    preview_output_path = (
+        Path(preview_output_path)
+        if preview_output_path
+        else output_path.with_name(f"{output_path.stem}_thermal_preview.png")
+    )
 
     aligned_img = process_rgb_for_alignment(rgb_image_path)
     aligned_dir.mkdir(parents=True, exist_ok=True)
-    aligned_path = aligned_dir / f"{rgb_image_path.stem}.png"
+    aligned_path = aligned_dir / f"{output_path.stem}.png"
     aligned_img.save(aligned_path)
 
     model, device, checkpoint_path = load_model()
@@ -167,18 +176,24 @@ def predict_one(
     with torch.no_grad():
         pred_thermal = model(tensor, None, None, None)
 
-    output_path = output_dir / f"{rgb_image_path.stem}.png"
     pred_uint8 = _save_pred_tensor(pred_thermal[0], output_path)
-    preview_path = _save_thermal_preview(output_path, output_dir / f"{rgb_image_path.stem}_thermal_preview.png")
+    preview_path = _save_thermal_preview(output_path, preview_output_path)
     pred_norm = pred_uint8.astype(np.float32) / 255.0
 
     return {
+        "source_image_path": str(rgb_image_path),
         "aligned_rgb_path": str(aligned_path),
         "thermal_image_path": str(output_path),
         "thermal_image_url": _thermal_asset_url(output_path),
         "thermal_preview_path": str(preview_path),
         "thermal_preview_url": _thermal_asset_url(preview_path),
         "checkpoint_path": str(checkpoint_path),
+        "metadata": metadata or {},
+        "model_input": {
+            "uses_rgb": True,
+            "uses_alphaearth": False,
+            "uses_metadata": False,
+        },
         "thermal_data": {
             "min_temp_c": round(28.0 + float(pred_norm.min()) * 20.0, 1),
             "max_temp_c": round(28.0 + float(pred_norm.max()) * 20.0, 1),

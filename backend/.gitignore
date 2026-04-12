@@ -1,1 +1,9 @@
-**/__pycache__/ 
+# Python runtime artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Local backend env files
+.env
+.env.*
+!.env.example

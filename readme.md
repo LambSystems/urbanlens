@@ -161,26 +161,21 @@ The RGB-to-thermal model package is centralized at:
 backend/app/thermal/hybrid_thermal/
 ```
 
-Dataset files are expected at:
-
-```text
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
-```
-
 Model config is repo-relative:
 
 ```text
 backend/models/hybrid_thermal/config.yaml
 ```
 
-The dataset and checkpoints are not committed to Git. They should be shared separately as a zip, for example `UrbanLens_hybrid_thermal_assets.zip` through Google Drive, and unzipped so these paths exist:
+Only the model checkpoints are needed for the current app workflow. They are not committed to Git; share them separately as a zip, for example through Google Drive, and unzip so this path exists:
 
 ```text
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
 backend/models/hybrid_thermal/checkpoints/best_psnr.pth
 ```
 
-After cloning and unzipping the shared data/checkpoint bundle, run:
+RGB images come from the frontend map capture upload or from a local image path you pass to the ThermalGen endpoint. Generated uploads and predictions are recreated under `backend/data/hybrid_thermal/` and ignored by Git.
+
+After cloning and unzipping the checkpoint bundle, run:
 
 ```powershell
 python -m venv .venv
@@ -202,6 +197,7 @@ The backend returns both:
 More implementation notes are in:
 
 ```text
+docs/thermalgen_tool.md
 docs/hybrid_thermal.md
 docs/thermalgen_handoff.md
 docs/local_setup.md

@@ -18,12 +18,11 @@ The thermal model is only one evidence tool in that loop. The canonical model pa
 - Shared contracts and engineering instructions exist under `docs/` and `instructions/`.
 - The thermal evidence wrapper is `backend/app/thermal/generator.py`.
 - The RGB-to-thermal model package is centralized at `backend/app/thermal/hybrid_thermal`.
-- Dataset files are expected locally at `backend/data/hybrid_thermal/RGB_to_thermal_dataset`.
+- No local dataset is required for live inference; RGB inputs come from frontend upload or a repo-local file path.
 - Generated runtime outputs are written under `backend/data/hybrid_thermal` and remain ignored.
 - Model artifacts are expected locally at `backend/models/hybrid_thermal`.
-- Dataset and checkpoint files are not pushed to Git. Share them as a zip, for example through Google Drive.
-- One-image inference has been verified using `487.JPG`.
-- Generated thermal output was written to `backend/data/hybrid_thermal/Predict_Thermal/487.png`.
+- Checkpoint files are not pushed to Git. Share them as a small zip, for example through Google Drive.
+- One-image inference has been verified using a repo-local RGB file path.
 - Backend now also writes an autocontrasted orange preview via `thermal_preview_path`.
 - FastAPI serves generated thermal assets from `/thermal-assets/...`.
 - A runnable inference notebook exists at `notebooks/hybrid_thermal_inference.ipynb`.
@@ -44,38 +43,26 @@ backend/app/thermal/hybrid_thermal/
 backend/models/hybrid_thermal/config.yaml.example
 backend/models/hybrid_thermal/config.yaml
 backend/models/hybrid_thermal/checkpoints/
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
+backend/data/hybrid_thermal/uploads/
 backend/data/hybrid_thermal/Test_RGB_centercrop_640x512/
 backend/data/hybrid_thermal/Predict_Thermal/
 notebooks/hybrid_thermal_inference.ipynb
 ```
 
-`config.yaml` is repo-relative and can be pushed. Dataset/checkpoint files are local-only and should come from the shared zip.
+`config.yaml` is repo-relative and can be pushed. Checkpoint files are local-only and should come from the shared zip.
 
 Generated folders are intentionally ignored:
 
 ```text
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
 backend/data/hybrid_thermal/Predict_Thermal/
 backend/data/hybrid_thermal/Test_RGB_centercrop_640x512/
-backend/data/hybrid_thermal/Test_Thermal_640x512/
-backend/data/hybrid_thermal/RGB_centercrop_640x512/
-backend/data/hybrid_thermal/Thermal_640x512/
-backend/data/hybrid_thermal/predictions/
-backend/data/hybrid_thermal/metrics/
-backend/data/hybrid_thermal/logs/
+backend/data/hybrid_thermal/uploads/
 backend/models/hybrid_thermal/checkpoints/
 ```
 
 ## Inference Commands
 
-From the repo root:
-
-```powershell
-.\.venv\Scripts\python.exe backend\app\thermal\hybrid_thermal\prealign_test_rgb_thermal.py --config backend\models\hybrid_thermal\config.yaml --limit 1
-
-.\.venv\Scripts\python.exe backend\app\thermal\hybrid_thermal\inference.py --config backend\models\hybrid_thermal\config.yaml --limit 1
-```
+For current app/tool usage, prefer `generate_thermal` or the API endpoints in `docs/thermalgen_tool.md`. Legacy batch scripts still exist for model development, but the product path does not require a dataset.
 
 The app-facing call is:
 
@@ -83,8 +70,10 @@ The app-facing call is:
 from backend.app.thermal.generator import generate_thermal
 
 result = generate_thermal(
-    "backend/data/hybrid_thermal/RGB_to_thermal_dataset/Test/RGB/487.JPG",
-    {"lat": 38.6270, "lng": -90.1994},
+    "backend/data/hybrid_thermal/uploads/map-capture.png",
+    {"center": {"lat": 38.6270, "lng": -90.1994}},
+    output_path="backend/data/hybrid_thermal/Predict_Thermal/demo_471.png",
+    allow_fallback=False,
 )
 ```
 
@@ -93,9 +82,10 @@ result = generate_thermal(
 - Use the notebook for quick image generation and visual checks.
 - Use `generate_thermal` when integrating with the backend agent flow.
 - Use `predict_one` from `backend.app.thermal.hybrid_thermal.runtime` for direct model inference.
+- Runtime inference still preprocesses one image at a time: RGB open, center-crop/align, resize to 512x640, tensor normalization, checkpoint prediction, grayscale output, orange preview output.
+- Teammates do not need dataset preprocessing for the app flow. Do not run manifest building, train/test splitting, AlphaEarth export, or batch alignment unless doing separate model-development work.
 - Frontend/backend consumers should render `thermal_preview_url` for display and keep `thermal_image_path` as the grayscale model output.
-- Keep `--limit 1` while testing to avoid processing the full dataset.
-- Do not commit dataset zips, unzipped dataset files, generated predictions, cache folders, or `.pth` checkpoints.
+- Do not commit uploaded images, generated predictions, cache folders, or `.pth` checkpoints.
 
 ## Frontend And Backend Connection
 
@@ -119,8 +109,10 @@ Current browser flow:
 
 ```text
 draw/select region in frontend
+-> optionally POST /thermal/infer/upload with map/RGB image bytes
+-> backend stores upload and runs ThermalGen
 -> POST /analysis
--> backend creates region + hotspot trace
+-> backend creates region + hotspot trace and can attach ThermalGen evidence
 -> frontend polls GET /analysis/{region_id}
 -> frontend maps backend hotspots into UI hotspots
 -> trace panel displays generated thermal preview only when the URL starts with /thermal-assets/
@@ -128,18 +120,32 @@ draw/select region in frontend
 
 Known placeholder paths such as `/evidence/hs_01-thermal.jpg` are legacy demo metadata. They are not real files unless someone adds static evidence assets. The UI should not render them as images.
 
+ThermalGen tool calls:
+
+```text
+POST /thermal/infer/upload
+POST /thermal/infer/path
+```
+
+Use upload for frontend map snippets. Use path for internal backend/agent work after an image has already been saved. Avoid base64 image payloads for normal inference because they make requests larger and slower.
+
+Detailed teammate instructions live in:
+
+```text
+docs/thermalgen_tool.md
+```
+
 ## Teammate Setup After Clone
 
-Download the shared data zip from Google Drive and unzip it into the repo so these paths exist.
+Download the shared checkpoint zip from Google Drive and unzip it into the repo so these paths exist.
 
 Current bundle filename:
 
 ```text
-UrbanLens_hybrid_thermal_assets.zip
+UrbanLens_hybrid_thermal_checkpoints.zip
 ```
 
 ```text
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
 backend/models/hybrid_thermal/checkpoints/best_psnr.pth
 ```
 
@@ -179,17 +185,16 @@ Before pushing:
 git status --short
 ```
 
-This command is not required for the app to run. It is a quick safety check before committing so secrets, datasets, checkpoints, generated predictions, and build artifacts do not accidentally get pushed.
+This command is not required for the app to run. It is a quick safety check before committing so secrets, checkpoints, generated predictions, uploaded images, and build artifacts do not accidentally get pushed.
 
 Expected behavior:
 
-- dataset files under `backend/data/hybrid_thermal/RGB_to_thermal_dataset/` should stay ignored
 - checkpoint files under `backend/models/hybrid_thermal/checkpoints/` should stay ignored
 - generated predictions under `backend/data/hybrid_thermal/Predict_Thermal/` should stay ignored
+- uploaded map snippets under `backend/data/hybrid_thermal/uploads/` should stay ignored
 
 ## Next Useful Work
 
 - Connect real thermal output to candidate discovery instead of the static hotspot library.
-- Decide how the frontend should load generated thermal PNGs for map/sidebar preview.
-- Add a small API endpoint or debug route that runs `generate_thermal` for a selected demo image.
+- Use the existing `thermal_preview_url` consistently for map/sidebar preview.
 - Replace remaining cached demo hotspot values gradually, while keeping fallback behavior for reliability.

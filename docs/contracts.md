@@ -114,7 +114,7 @@ Not allowed:
 Fallback order:
 
 1. source record metadata
-2. dataset-level metadata
+2. uploaded-source metadata
 3. Google Maps enrichment
 4. confidence penalty if uncertainty remains
 
@@ -524,6 +524,10 @@ Recommended endpoints:
   development-only inspection of scoring, trace kinds, and adapter outputs
 - `POST /analysis/{region_id}/questions`
   ask structured questions about an already analyzed region
+- `POST /thermal/infer/upload`
+  upload a frontend map/RGB image blob, store it locally, run ThermalGen, and return generated thermal evidence
+- `POST /thermal/infer/path`
+  internal/dev endpoint for running ThermalGen against an existing repo-local image path
 
 Demo helpers:
 

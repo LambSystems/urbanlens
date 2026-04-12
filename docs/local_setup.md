@@ -54,24 +54,54 @@ THERMALGEN_DEMO_IMAGE=
 
 Leave `THERMALGEN_ENABLE_LIVE_THERMAL=0` for fast demos. Set it to `1` when you want `POST /analysis` to run one local hybrid thermal inference and attach the generated thermal preview URL to hotspot evidence.
 
-## Local Data And Models
+## Local Models
 
 The shared Google Drive zip should be extracted at the repo root so these paths exist:
 
 ```text
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
 backend/models/hybrid_thermal/checkpoints/best_psnr.pth
 ```
 
 These are intentionally ignored by Git:
 
 ```text
-backend/data/hybrid_thermal/RGB_to_thermal_dataset/
 backend/models/hybrid_thermal/checkpoints/
 backend/data/hybrid_thermal/Predict_Thermal/
 backend/data/hybrid_thermal/Test_RGB_centercrop_640x512/
+backend/data/hybrid_thermal/uploads/
 *.zip
 ```
+
+## Restore Checklist After Pulls
+
+If a pull, branch switch, or merge seems to remove local thermal assets, restore the checkpoints from the shared backup zip into these exact repo-relative locations.
+
+Required for inference:
+
+```text
+backend/models/hybrid_thermal/checkpoints/best_psnr.pth
+backend/models/hybrid_thermal/checkpoints/best_loss.pth
+backend/models/hybrid_thermal/checkpoints/latest.pth
+```
+
+RGB inputs are supplied at runtime by frontend upload or by setting a local file path in the notebook/API request.
+
+Optional/generated files that can be recreated:
+
+```text
+backend/data/hybrid_thermal/Test_RGB_centercrop_640x512/
+backend/data/hybrid_thermal/Predict_Thermal/
+backend/data/hybrid_thermal/uploads/
+backend/models/.ipynb_checkpoints/
+```
+
+Current inference smoke check:
+
+```powershell
+.\.venv\Scripts\python.exe -B -c "from backend.app.thermal.hybrid_thermal.runtime import choose_checkpoint; print(choose_checkpoint())"
+```
+
+If this raises `No hybrid_thermal checkpoints found`, restore the `.pth` files above before running the notebook or live backend thermal evidence.
 
 ## Frontend Artifacts
 

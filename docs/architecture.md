@@ -118,7 +118,7 @@ GET /analysis/{region_id} polling
 Frontend renders hotspot markers, ranking, trace steps, and recommendations
 ```
 
-Live hybrid thermal inference is intentionally behind a local flag:
+Live hybrid thermal inference inside `/analysis` is intentionally behind a local flag:
 
 ```text
 THERMALGEN_ENABLE_LIVE_THERMAL=1
@@ -126,7 +126,21 @@ THERMALGEN_ENABLE_LIVE_THERMAL=1
 
 With the flag off, the demo remains fast and uses deterministic hotspot evidence. With the flag on, the orchestrator runs one local RGB image through `backend/app/thermal/generator.py`, writes generated thermal outputs under `backend/data/hybrid_thermal/`, serves them from `/thermal-assets/...`, and attaches `thermal_preview_url` to the analysis response.
 
-The generated thermal image is evidence for the investigation. It is not yet the source of candidate discovery; candidate discovery still uses the current static demo hotspot library.
+The generated thermal image is evidence for the investigation. It is not yet the source of candidate discovery in `/analysis`; candidate discovery still uses the current static demo hotspot library.
+
+For direct ThermalGen work, the backend also exposes focused tool endpoints:
+
+```text
+POST /thermal/infer/upload
+  browser sends image bytes from a map capture
+  backend stores the upload under backend/data/hybrid_thermal/uploads/
+  backend writes prediction files under backend/data/hybrid_thermal/Predict_Thermal/
+
+POST /thermal/infer/path
+  internal/dev path for an existing repo-local RGB image
+```
+
+The normal frontend path should upload image bytes, not base64 JSON. The internal agent/tool path should pass file paths once the image is stored.
 
 ---
 

@@ -30,6 +30,11 @@ TOOL_REGISTRY: dict[str, dict] = {
     },
 
     # Thermal tools
+    "generate_thermal_image": {
+        "description": "Run ThermalGen on a stored RGB/map image and return generated thermal image evidence",
+        "module": "thermal.generator",
+        "function": "generate_thermal",
+    },
     "request_thermal_evidence": {
         "description": "Retrieve thermal intensity and heat pattern for a hotspot",
         "module": "thermal.evidence",
