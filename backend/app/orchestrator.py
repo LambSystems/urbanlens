@@ -190,6 +190,14 @@ HOTSPOT_LABELS: dict[HotspotType, str] = {
     HotspotType.other: "Other",
 }
 
+HOTSPOT_STATUS_LABELS: dict[HotspotStatus, str] = {
+    HotspotStatus.candidate: "Candidate",
+    HotspotStatus.investigating: "Investigating",
+    HotspotStatus.evidence_gathered: "Evidence Gathered",
+    HotspotStatus.discarded: "Discarded",
+    HotspotStatus.finalized: "Recommended",
+}
+
 
 def _region_bounds(center: LatLng, radius_m: int) -> dict[str, float]:
     lat_delta = radius_m / 111_000
@@ -208,6 +216,35 @@ def _area_km2(bounds: dict[str, float]) -> float:
     lat_km = lat_diff * 111
     lng_km = lng_diff * 111 * cos(((bounds["north"] + bounds["south"]) / 2) * pi / 180)
     return round(lat_km * lng_km, 3)
+
+
+def _region_display_name(center: LatLng) -> str:
+    return f"Selected Locality ({center.lat:.4f}, {center.lng:.4f})"
+
+
+def _tool_signals_for_seed(seed: dict) -> list[str]:
+    signals: list[str] = []
+    trace_kinds = [kind for kind, _ in seed["trace"]]
+    if TraceKind.generate_thermal_overlay in trace_kinds or TraceKind.request_thermal_evidence in trace_kinds:
+        signals.append("Thermal Evidence")
+    if TraceKind.analyze_heat_risk in trace_kinds:
+        signals.append("Heat Risk Profile")
+    if TraceKind.inspect_object in trace_kinds:
+        signals.append("Object Inspection")
+    if TraceKind.compare_neighbors in trace_kinds:
+        signals.append("Neighbor Comparison")
+    return signals
+
+
+def _sidebar_summary_for_seed(seed: dict, status: HotspotStatus) -> str:
+    label = HOTSPOT_LABELS[seed["hotspot_type"]]
+    if status == HotspotStatus.discarded:
+        reason = seed.get("discard_reason") or "did not pass anomaly or confidence checks"
+        return f"{label} was reviewed and discarded because {reason}."
+    if status == HotspotStatus.finalized:
+        action = seed.get("recommended_action") or "follow-up inspection"
+        return f"{label} was recommended after thermal and environmental investigation. Suggested next step: {action}."
+    return f"{label} is still being investigated with tool-based evidence gathering."
 
 
 def _trace_evidence(seed: dict, kind: TraceKind) -> TraceEvidence:
@@ -388,6 +425,10 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             ),
             hotspot_type=seed["hotspot_type"],
             display_name=HOTSPOT_LABELS[seed["hotspot_type"]],
+            status_label=HOTSPOT_STATUS_LABELS[status],
+            sidebar_summary=_sidebar_summary_for_seed(seed, status),
+            evidence_highlights=seed["why"],
+            tool_signals=_tool_signals_for_seed(seed),
             status=status,
             surface_temperature_c=seed["surface_temperature_c"],
             ambient_delta_c=seed["ambient_delta_c"],
@@ -424,6 +465,7 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
     response = AnalysisResponse(
         region=AnalysisRegion(
             region_id=region_id,
+            display_name=_region_display_name(center),
             center=center,
             radius_m=radius_m,
             bounds=bounds,

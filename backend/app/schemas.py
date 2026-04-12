@@ -99,6 +99,7 @@ class AnalysisSummary(BaseModel):
 
 class AnalysisRegion(BaseModel):
     region_id: str
+    display_name: str | None = None
     center: LatLng
     radius_m: int = Field(default=120, ge=1)
     bounds: SourceBounds | None = None
@@ -147,6 +148,10 @@ class HotspotCandidate(BaseModel):
     centroid: LatLng
     hotspot_type: HotspotType
     display_name: str | None = None
+    status_label: str | None = None
+    sidebar_summary: str | None = None
+    evidence_highlights: list[str] = Field(default_factory=list)
+    tool_signals: list[str] = Field(default_factory=list)
     status: HotspotStatus
     surface_temperature_c: float | None = None
     ambient_delta_c: float | None = None
@@ -296,6 +301,8 @@ class PlannerQuestionResponse(BaseModel):
     region_id: str
     question: str
     answer: str
+    answer_title: str | None = None
+    answer_sections: list[str] = Field(default_factory=list)
     referenced_hotspot_ids: list[str] = Field(default_factory=list)
     planner_mode: str = "analysis_qa"
 
