@@ -4,6 +4,10 @@ from datetime import UTC, datetime
 
 from .providers.google_maps_enrichment import summarize_enrichment_coverage
 from .providers.source_retrieval import estimate_region_coverage_score, retrieve_sources_for_region
+from .scoring.anomaly import ANOMALY_THRESHOLD, compute_anomaly_score, passes_anomaly_gate
+from .scoring.confidence import compute_confidence_score
+from .scoring.ranker import compute_final_rank_score, rank_hotspots
+from .scoring.severity import compute_severity_score
 from .schemas import (
     AnalysisEvent,
     DebugAnalysisView,
@@ -32,12 +36,12 @@ HOTSPOT_LIBRARY: list[dict] = [
     {
         "hotspot_id": "hs_01",
         "hotspot_type": HotspotType.roof,
-        "source_count": 3,
-        "coverage_score": 0.79,
+        "source_count": 4,
+        "coverage_score": 0.86,
         "object_label": "roof",
-        "object_confidence": 0.88,
+        "object_confidence": 0.92,
         "material_type": "dark_roof",
-        "material_confidence": 0.74,
+        "material_confidence": 0.82,
         "bbox": BoundingBox(x=112, y=78, w=64, h=48),
         "centroid_offset": (0.0007, 0.0005),
         "trace": [
@@ -120,11 +124,11 @@ HOTSPOT_LIBRARY: list[dict] = [
         "hotspot_id": "hs_04",
         "hotspot_type": HotspotType.parking_lot,
         "source_count": 4,
-        "coverage_score": 0.83,
+        "coverage_score": 0.68,
         "object_label": "parking_lot",
-        "object_confidence": 0.9,
+        "object_confidence": 0.84,
         "material_type": "asphalt",
-        "material_confidence": 0.82,
+        "material_confidence": 0.76,
         "bbox": BoundingBox(x=354, y=208, w=92, h=58),
         "centroid_offset": (-0.0006, -0.0007),
         "trace": [
@@ -136,7 +140,7 @@ HOTSPOT_LIBRARY: list[dict] = [
             (TraceKind.finalize_hotspot, "Finalized as a mitigation candidate after passing anomaly gate."),
         ],
         "anomaly_score": 0.56,
-        "severity_score": 0.73,
+        "severity_score": 0.66,
         "confidence_score": 0.75,
         "recommended_action": "shade and pavement mitigation",
         "why": [
@@ -146,7 +150,6 @@ HOTSPOT_LIBRARY: list[dict] = [
     },
 ]
 
-ANOMALY_THRESHOLD = 0.25
 STEP_INTERVAL_MS = 1200
 RANKING_FORMULA = "final_rank_score = severity_score * confidence_score after anomaly gate"
 
@@ -198,15 +201,32 @@ def build_perception_evidence(seed: dict) -> PerceptionEvidence:
 
 
 def build_scoring_result(seed: dict) -> ScoringResult:
+    anomaly_score = compute_anomaly_score(
+        thermal_intensity=seed["anomaly_score"],
+        relative_percentile=seed["anomaly_score"],
+        consistency_score=min(seed["coverage_score"] + 0.1, 1.0),
+    )
+    severity_score = compute_severity_score(
+        thermal_intensity=seed["severity_score"],
+        area_px=seed["bbox"].w * seed["bbox"].h,
+        material_type=seed["material_type"],
+    )
+    confidence_score = compute_confidence_score(
+        object_confidence=seed["object_confidence"],
+        material_confidence=seed["material_confidence"],
+        coverage_score=seed["coverage_score"],
+        metadata_quality_score=round(seed["coverage_score"] + 0.15, 2),
+        consistency_score=min(seed["coverage_score"] + 0.1, 1.0),
+    )
     final_rank_score = None
     discard_reason = seed.get("discard_reason")
-    if seed["anomaly_score"] >= ANOMALY_THRESHOLD and "recommended_action" in seed:
-        final_rank_score = round(seed["severity_score"] * seed["confidence_score"], 4)
+    if passes_anomaly_gate(anomaly_score) and "recommended_action" in seed:
+        final_rank_score = compute_final_rank_score(severity_score, confidence_score)
     return ScoringResult(
         hotspot_id=seed["hotspot_id"],
-        anomaly_score=seed["anomaly_score"],
-        severity_score=seed["severity_score"],
-        confidence_score=seed["confidence_score"],
+        anomaly_score=anomaly_score,
+        severity_score=severity_score,
+        confidence_score=confidence_score,
         coverage_score=seed["coverage_score"],
         metadata_quality_score=round((seed["coverage_score"] + 0.15), 2),
         final_rank_score=final_rank_score,
@@ -263,14 +283,14 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
         trace, events = _build_trace(seed)
         for event in events:
             event.region_id = region_id
-        final_rank_score = None
+        scoring = build_scoring_result(seed)
+        final_rank_score = scoring.final_rank_score
         status = HotspotStatus.investigating
 
-        if seed["anomaly_score"] < ANOMALY_THRESHOLD:
+        if not passes_anomaly_gate(scoring.anomaly_score):
             status = HotspotStatus.discarded
         elif trace[-1].kind == TraceKind.finalize_hotspot:
             status = HotspotStatus.finalized
-            final_rank_score = round(seed["severity_score"] * seed["confidence_score"], 4)
 
         hotspot = HotspotCandidate(
             hotspot_id=seed["hotspot_id"],
@@ -284,36 +304,19 @@ def build_analysis(center: LatLng, radius_m: int, region_id: str) -> tuple[Analy
             status=status,
             source_count=seed["source_count"],
             coverage_score=seed["coverage_score"],
-            anomaly_score=seed["anomaly_score"],
-            severity_score=seed["severity_score"],
-            confidence_score=seed["confidence_score"],
+            anomaly_score=scoring.anomaly_score,
+            severity_score=scoring.severity_score,
+            confidence_score=scoring.confidence_score,
             final_rank_score=final_rank_score,
-            discard_reason=seed.get("discard_reason"),
+            discard_reason=scoring.discard_reason,
             recommended_action=seed.get("recommended_action"),
-            why=seed["why"],
+            why=scoring.why,
             trace=trace,
         )
         hotspots.append(hotspot)
         all_events.extend(events)
 
-        if status == HotspotStatus.finalized and final_rank_score is not None:
-            top_ranked.append(
-                RankedHotspot(
-                    hotspot_id=hotspot.hotspot_id,
-                    priority_rank=0,
-                    hotspot_type=hotspot.hotspot_type,
-                    recommended_action=hotspot.recommended_action or "investigate",
-                    anomaly_score=hotspot.anomaly_score or 0.0,
-                    severity_score=hotspot.severity_score or 0.0,
-                    confidence_score=hotspot.confidence_score or 0.0,
-                    final_rank_score=final_rank_score,
-                    why=hotspot.why,
-                )
-            )
-
-    top_ranked.sort(key=lambda item: item.final_rank_score, reverse=True)
-    for index, item in enumerate(top_ranked, start=1):
-        item.priority_rank = index
+    top_ranked = rank_hotspots(hotspots, top_n=3)
 
     summary = AnalysisSummary(
         candidate_count=len(hotspots),
