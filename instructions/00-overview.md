@@ -34,10 +34,12 @@ Known assets:
 
 - thermal image generator already exists
 - datasets already exist, though Saint Louis-specific data is still under research
+- real evidence is expected to come from scattered drone imagery, not a perfectly tiled map source
 
 Non-negotiables:
 
 - analysis is over a region around a click, not a single object
+- Google Maps is the UI layer, not the ground-truth evidence layer
 - trace vocabulary is fixed
 - trace routes are semivariable
 - anomaly gates

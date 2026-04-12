@@ -37,7 +37,7 @@ This framing is stronger than leading with models or thermal generation.
 
 What you say:
 
-> We are looking at a real region with RGB imagery, generated thermal evidence, and geospatial context.
+> We are looking at a real region where the system first gathers available drone evidence, then reasons over thermal and geospatial context.
 
 What you show:
 
@@ -52,6 +52,7 @@ Time:
 Goal:
 
 - establish inputs fast
+- frame Google Maps as the interface, not the only data source
 
 ---
 
@@ -137,6 +138,7 @@ Examples:
 - expected road heat pattern
 - not hotter than nearby comparable roofs
 - low confidence after evidence gathering
+- incomplete source coverage for escalation
 
 ---
 
@@ -224,6 +226,7 @@ Total:
 - material or surface class
 - thermal evidence used or not used
 - context evidence used or not used
+- source count or coverage indicator
 - anomaly
 - severity
 - confidence

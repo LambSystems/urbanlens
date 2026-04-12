@@ -7,6 +7,7 @@ Owner:
 - object typing
 - coarse material/surface inference
 - evidence packaging for backend
+- work from scattered drone imagery or curated region evidence, not from an assumed perfect tile source
 
 ## Immediate Goal
 
@@ -39,6 +40,8 @@ If real inference is slow, ship precomputed fixtures first.
 - use coarse labels
 - optimize for stable and legible evidence
 - do not overinvest in perfect classification
+- expose coverage quality or source-count hints when possible
+- assume some source records may have incomplete geolocation metadata
 
 ## Handoff to Engineer 2
 
