@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+import json
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import ValidationError
 
 from .example_payloads import EXAMPLE_ANALYSIS_REQUEST
 from .agent.planner import answer_region_question
@@ -8,6 +11,8 @@ from .orchestrator import DEMO_REGION_PRESETS
 from .schemas import (
     AnalysisEvent,
     AnalysisResponse,
+    CreateAnalysisFromCaptureMetadataRequest,
+    CreateAnalysisFromCaptureRequest,
     CreateAnalysisRequest,
     DebugAnalysisView,
     HotspotCandidate,
@@ -23,6 +28,28 @@ router = APIRouter()
 @router.post("/analysis", response_model=AnalysisResponse)
 def create_analysis(payload: CreateAnalysisRequest) -> AnalysisResponse:
     return store.create_analysis(payload)
+
+
+@router.post("/analysis/from-capture", response_model=AnalysisResponse)
+def create_analysis_from_capture(payload: CreateAnalysisFromCaptureRequest) -> AnalysisResponse:
+    return store.create_analysis_from_capture(payload)
+
+
+@router.post("/analysis/from-capture-upload", response_model=AnalysisResponse)
+async def create_analysis_from_capture_upload(
+    metadata: str = Form(...),
+    image: UploadFile = File(...),
+) -> AnalysisResponse:
+    try:
+        parsed = CreateAnalysisFromCaptureMetadataRequest.model_validate(json.loads(metadata))
+    except (json.JSONDecodeError, ValidationError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid capture metadata.") from exc
+
+    image_bytes = await image.read()
+    suffix = ".png"
+    if image.filename and "." in image.filename:
+        suffix = f".{image.filename.rsplit('.', 1)[1].lower()}"
+    return store.create_analysis_from_capture_upload(parsed, image_bytes, image_suffix=suffix)
 
 
 @router.get("/analysis/{region_id}", response_model=AnalysisResponse)

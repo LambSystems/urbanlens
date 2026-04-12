@@ -219,6 +219,43 @@ class CreateAnalysisRequest(BaseModel):
     radius_m: int = Field(default=120, ge=1, le=1000)
 
 
+class CaptureRegion(BaseModel):
+    bounds: SourceBounds
+    center: LatLng
+    area_km2: float | None = Field(default=None, alias="areaKm2")
+
+    model_config = {"populate_by_name": True}
+
+
+class CaptureMapState(BaseModel):
+    zoom: int | None = None
+    map_type_id: str | None = Field(default=None, alias="mapTypeId")
+    tilt: int | None = None
+    heading: float | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class CaptureImagePayload(BaseModel):
+    mime_type: str = Field(default="image/png", alias="mimeType")
+    image_base64: str = Field(min_length=1, alias="imageBase64")
+
+    model_config = {"populate_by_name": True}
+
+
+class CreateAnalysisFromCaptureRequest(BaseModel):
+    region: CaptureRegion
+    map: CaptureMapState
+    viewport: SourceBounds
+    capture: CaptureImagePayload
+
+
+class CreateAnalysisFromCaptureMetadataRequest(BaseModel):
+    region: CaptureRegion
+    map: CaptureMapState
+    viewport: SourceBounds
+
+
 class AnalysisEvent(BaseModel):
     region_id: str
     hotspot_id: str
