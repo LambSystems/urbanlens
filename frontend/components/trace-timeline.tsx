@@ -2,19 +2,21 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Eye, 
-  Camera, 
-  Layers, 
-  GitCompare, 
-  CheckCircle2, 
-  XCircle, 
-  BarChart3, 
-  Radar, 
-  Play, 
-  Pause, 
+import {
+  Eye,
+  Camera,
+  Layers,
+  GitCompare,
+  CheckCircle2,
+  XCircle,
+  BarChart3,
+  Radar,
+  Play,
+  Pause,
   RotateCcw,
-  ChevronRight
+  ChevronRight,
+  Thermometer,
+  Activity,
 } from 'lucide-react';
 import { useThermal } from '@/lib/thermal-context';
 import type { TraceAction, TraceStep } from '@/lib/types';
@@ -24,8 +26,10 @@ import { cn } from '@/lib/utils';
 
 const ACTION_CONFIG: Record<TraceAction, { icon: typeof Eye; label: string; color: string }> = {
   candidate_detected: { icon: Radar, label: 'Candidate Detected', color: 'text-blue-400' },
+  generate_thermal_overlay: { icon: Thermometer, label: 'ThermalGen', color: 'text-orange-400' },
   inspect_object: { icon: Eye, label: 'Inspecting Object', color: 'text-cyan-400' },
   request_thermal_evidence: { icon: Camera, label: 'Requesting Evidence', color: 'text-purple-400' },
+  analyze_heat_risk: { icon: Activity, label: 'Heat Risk Profile', color: 'text-red-400' },
   infer_surface: { icon: Layers, label: 'Analyzing Surface', color: 'text-amber-400' },
   compare_neighbors: { icon: GitCompare, label: 'Comparing Neighbors', color: 'text-teal-400' },
   check_consistency: { icon: CheckCircle2, label: 'Checking Consistency', color: 'text-green-400' },

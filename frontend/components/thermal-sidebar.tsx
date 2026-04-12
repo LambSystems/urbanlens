@@ -13,7 +13,8 @@ import {
   X,
   MapPin,
   Thermometer,
-  GripVertical
+  Volume2,
+  Loader2,
 } from 'lucide-react';
 import { useThermal } from '@/lib/thermal-context';
 import { RankingPanel } from './ranking-panel';
@@ -29,14 +30,17 @@ const SIDEBAR_MAX_WIDTH = 640;
 const SIDEBAR_DEFAULT_WIDTH = 380;
 
 function RegionSelector() {
-  const { 
-    selectionMode, 
-    startDrawing, 
-    cancelSelection, 
+  const {
+    selectionMode,
+    startDrawing,
+    cancelSelection,
     selectedRegion,
     analysisProgress,
     startAnalysis,
-    hotspots 
+    hotspots,
+    voiceBriefing,
+    isVoiceBriefingLoading,
+    playVoiceBriefing,
   } = useThermal();
 
   if (selectionMode === 'idle') {
@@ -179,8 +183,8 @@ function RegionSelector() {
 
   if (selectionMode === 'complete') {
     return (
-      <div className="p-4">
-        <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4 mb-4">
+      <div className="p-4 space-y-3">
+        <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
               <Thermometer className="h-5 w-5 text-green-500" />
@@ -191,15 +195,42 @@ function RegionSelector() {
                 {hotspots.length} heat zones detected
               </p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={cancelSelection}
               className="text-xs h-8"
             >
               New Region
             </Button>
           </div>
+        </div>
+
+        {/* Voice Briefing */}
+        <div className="rounded-xl border border-border bg-card p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs font-medium">Voice Briefing</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 text-xs"
+            onClick={playVoiceBriefing}
+            disabled={isVoiceBriefingLoading}
+          >
+            {isVoiceBriefingLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Volume2 className="h-3.5 w-3.5" />
+            )}
+            {isVoiceBriefingLoading ? 'Generating briefing…' : 'Play Briefing'}
+          </Button>
+          {voiceBriefing?.text && (
+            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+              {voiceBriefing.text}
+            </p>
+          )}
         </div>
       </div>
     );

@@ -11,8 +11,16 @@ import type {
   Recommendation,
 } from './types';
 import { MOCK_SESSION } from './mock-data';
-import { createAnalysis, getAnalysis, askQuestion, mapHotspot, mapRecommendation } from './api';
-import type { BackendPlannerResponse } from './api';
+import {
+  createAnalysis,
+  createAnalysisFromCaptureUpload,
+  getAnalysis,
+  askQuestion,
+  requestVoiceBriefing,
+  mapHotspot,
+  mapRecommendation,
+} from './api';
+import type { BackendPlannerResponse, CaptureMapStatePayload } from './api';
 
 const POLL_INTERVAL_MS = 1200; // matches backend STEP_INTERVAL_MS
 
@@ -51,6 +59,18 @@ interface ThermalContextValue {
   plannerAnswer: BackendPlannerResponse | null;
   askPlannerQuestion: (question: string) => Promise<void>;
   isPlannerLoading: boolean;
+
+  // Voice briefing
+  voiceBriefing: { url: string | null; text: string } | null;
+  isVoiceBriefingLoading: boolean;
+  playVoiceBriefing: () => Promise<void>;
+
+  // Capture
+  setCapture: (payload: {
+    imageBase64: string;
+    mapState: CaptureMapStatePayload;
+    viewport: { north: number; south: number; east: number; west: number } | null;
+  } | null) => void;
 
   // UI state
   sidebarOpen: boolean;
@@ -101,6 +121,21 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
 
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const activeHotspotIdRef = useRef<string | null>(null);
+
+  // Capture payload stored when user draws rectangle
+  const captureRef = useRef<{
+    imageBase64: string;
+    mapState: CaptureMapStatePayload;
+    viewport: { north: number; south: number; east: number; west: number } | null;
+  } | null>(null);
+
+  const setCapture = useCallback((payload: typeof captureRef.current) => {
+    captureRef.current = payload;
+  }, []);
+
+  // Voice briefing state
+  const [voiceBriefing, setVoiceBriefing] = useState<{ url: string | null; text: string } | null>(null);
+  const [isVoiceBriefingLoading, setIsVoiceBriefingLoading] = useState(false);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -166,6 +201,8 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setAnalysisProgress(null);
     setRegionId(null);
     setPlannerAnswer(null);
+    setVoiceBriefing(null);
+    captureRef.current = null;
     activeHotspotIdRef.current = null;
   }, [stopPolling]);
 
@@ -179,6 +216,8 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setAnalysisProgress(null);
     setRegionId(null);
     setPlannerAnswer(null);
+    setVoiceBriefing(null);
+    captureRef.current = null;
     activeHotspotIdRef.current = null;
   }, [stopPolling]);
 
@@ -190,12 +229,23 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     setSelectionMode('analyzing');
     setHotspots([]);
     setRecommendations({});
-    setAnalysisProgress({ phase: 'satellite', progress: 0, message: 'Contacting analysis service…' });
+    setVoiceBriefing(null);
+    setAnalysisProgress({ phase: 'satellite', progress: 0, message: 'Capturing satellite image…' });
 
     const center = { lat: selectedRegion.center.lat, lng: selectedRegion.center.lng };
     const radius_m = boundsToRadius(selectedRegion);
+    const cap = captureRef.current;
 
-    createAnalysis(center, radius_m)
+    const doRequest = cap
+      ? createAnalysisFromCaptureUpload(
+          { bounds: selectedRegion.bounds, center, areaKm2: selectedRegion.areaKm2 },
+          cap.mapState,
+          cap.viewport,
+          cap.imageBase64,
+        )
+      : createAnalysis(center, radius_m);
+
+    doRequest
       .then((data) => {
         const rid = data.region.region_id;
         setRegionId(rid);
@@ -212,7 +262,6 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         }, POLL_INTERVAL_MS);
       })
       .catch(() => {
-        // Backend unavailable — fall back to idle
         setSelectionMode('idle');
         setAnalysisProgress(null);
       });
@@ -259,6 +308,23 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
     });
   }, [activeHotspot]);
 
+  // ── Voice briefing ────────────────────────────────────────────────────────
+
+  const playVoiceBriefing = useCallback(async () => {
+    if (!regionId || isVoiceBriefingLoading) return;
+    setIsVoiceBriefingLoading(true);
+    try {
+      const res = await requestVoiceBriefing(regionId);
+      setVoiceBriefing({ url: res.audio_url, text: res.summary_text });
+      if (res.audio_url) {
+        const audio = new Audio(res.audio_url);
+        audio.play().catch(() => {/* autoplay blocked — UI shows text fallback */});
+      }
+    } finally {
+      setIsVoiceBriefingLoading(false);
+    }
+  }, [regionId, isVoiceBriefingLoading]);
+
   // ── Planner Q&A ───────────────────────────────────────────────────────────
 
   const askPlannerQuestion = useCallback(
@@ -301,6 +367,10 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
         plannerAnswer,
         askPlannerQuestion,
         isPlannerLoading,
+        voiceBriefing,
+        isVoiceBriefingLoading,
+        playVoiceBriefing,
+        setCapture,
         sidebarOpen,
         setSidebarOpen,
       }}

@@ -48,6 +48,7 @@ export function ThermalMap() {
     setSelectionMode,
     selectedRegion,
     setSelectedRegion,
+    setCapture,
   } = useThermal();
 
   const [drawingManager, setDrawingManager] = useState<google.maps.drawing.DrawingManager | null>(null);
@@ -134,30 +135,20 @@ export function ThermalMap() {
       const vsw = viewport?.getSouthWest();
       const zoom = map?.getZoom() ?? 17;
 
-      const snapshot = {
-        region: {
-          bounds: selectedBounds,
-          center: region.center,
-          areaKm2: region.areaKm2,
-        },
-        map: {
-          zoom,
-          mapTypeId: map?.getMapTypeId() ?? null,
-          tilt: map?.getTilt() ?? null,
-          heading: map?.getHeading() ?? null,
-        },
-        viewport: vne && vsw ? {
-          north: vne.lat(),
-          south: vsw.lat(),
-          east: vne.lng(),
-          west: vsw.lng(),
-        } : null,
-        imageBase64: null as string | null,
+      const mapState = {
+        zoom,
+        mapTypeId: map?.getMapTypeId() ?? null,
+        tilt: map?.getTilt() ?? null,
+        heading: map?.getHeading() ?? null,
       };
+      const viewportBounds = vne && vsw ? {
+        north: vne.lat(),
+        south: vsw.lat(),
+        east: vne.lng(),
+        west: vsw.lng(),
+      } : null;
 
-      console.log(JSON.stringify(snapshot, null, 2));
-
-      // Fetch satellite image from Static Maps API and log with base64
+      // Fetch satellite image from Static Maps API, store as capture payload
       const staticUrl =
         `https://maps.googleapis.com/maps/api/staticmap` +
         `?center=${region.center.lat},${region.center.lng}` +
@@ -176,9 +167,13 @@ export function ThermalMap() {
         }))
         .then(dataUrl => {
           const imageBase64 = dataUrl.split(',')[1];
-          console.log(JSON.stringify({ ...snapshot, imageBase64 }, null, 2));
+          setCapture({ imageBase64, mapState, viewport: viewportBounds });
+          console.log(JSON.stringify({ region: { bounds: selectedBounds, center: region.center, areaKm2: region.areaKm2 }, map: mapState, viewport: viewportBounds, imageBase64 }, null, 2));
         })
-        .catch(err => console.warn('Static Maps image fetch failed:', err));
+        .catch(err => {
+          console.warn('Static Maps image fetch failed, analysis will use coordinate fallback:', err);
+          setCapture(null);
+        });
 
       // Style the rectangle
       rect.setOptions({

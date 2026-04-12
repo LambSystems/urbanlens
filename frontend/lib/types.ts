@@ -18,8 +18,10 @@ export type HotspotType =
 
 export type TraceAction =
   | 'candidate_detected'
+  | 'generate_thermal_overlay'
   | 'inspect_object'
   | 'request_thermal_evidence'
+  | 'analyze_heat_risk'
   | 'infer_surface'
   | 'compare_neighbors'
   | 'check_consistency'

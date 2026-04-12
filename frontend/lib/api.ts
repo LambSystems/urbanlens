@@ -125,6 +125,26 @@ export interface BackendPlannerResponse {
   planner_mode: string;
 }
 
+export interface BackendVoiceBriefingResponse {
+  region_id: string;
+  audio_url: string | null;
+  summary_text: string;
+  provider: string;
+}
+
+export interface CaptureRegionPayload {
+  bounds: { north: number; south: number; east: number; west: number };
+  center: BackendLatLng;
+  areaKm2: number | null;
+}
+
+export interface CaptureMapStatePayload {
+  zoom: number | null;
+  mapTypeId: string | null;
+  tilt: number | null;
+  heading: number | null;
+}
+
 // API functions
 
 export async function createAnalysis(
@@ -143,6 +163,51 @@ export async function createAnalysis(
 export async function getAnalysis(regionId: string): Promise<BackendAnalysisResponse> {
   const res = await fetch(`${API_BASE}/analysis/${regionId}`);
   if (!res.ok) throw new Error(`GET /analysis/${regionId} failed: ${res.status}`);
+  return res.json();
+}
+
+/** POST /analysis/from-capture-upload — multipart: metadata JSON string + image file */
+export async function createAnalysisFromCaptureUpload(
+  region: CaptureRegionPayload,
+  mapState: CaptureMapStatePayload,
+  viewport: { north: number; south: number; east: number; west: number } | null,
+  imageBase64: string,
+): Promise<BackendAnalysisResponse> {
+  const metadataObj = {
+    region: { bounds: region.bounds, center: region.center, areaKm2: region.areaKm2 },
+    map: { zoom: mapState.zoom, mapTypeId: mapState.mapTypeId, tilt: mapState.tilt, heading: mapState.heading },
+    viewport: viewport ?? { north: 0, south: 0, east: 0, west: 0 },
+  };
+
+  // base64 → Blob
+  const byteChars = atob(imageBase64);
+  const byteArr = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+  const blob = new Blob([byteArr], { type: 'image/png' });
+
+  const formData = new FormData();
+  formData.append('metadata', JSON.stringify(metadataObj));
+  formData.append('image', blob, 'capture.png');
+
+  const res = await fetch(`${API_BASE}/analysis/from-capture-upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`POST /analysis/from-capture-upload failed: ${res.status}`);
+  return res.json();
+}
+
+/** POST /analysis/{region_id}/voice-briefing */
+export async function requestVoiceBriefing(
+  regionId: string,
+  question?: string,
+): Promise<BackendVoiceBriefingResponse> {
+  const res = await fetch(`${API_BASE}/analysis/${regionId}/voice-briefing`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: question ?? null }),
+  });
+  if (!res.ok) throw new Error(`POST /analysis/${regionId}/voice-briefing failed: ${res.status}`);
   return res.json();
 }
 
