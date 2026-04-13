@@ -1,0 +1,50 @@
+project_dir: "backend/models/hybrid_thermal"
+dataset_dir: "backend/data/hybrid_thermal"
+
+src_dir: "backend/app/thermal/hybrid_thermal"
+
+# Current product inference is RGB-only.
+# Inputs are uploaded/provided at runtime; no bundled dataset is required.
+rgb_dir:
+thermal_dir:
+alphaearth_dir:
+metadata_file:
+train_split_file:
+
+test_rgb_dir: "uploads"
+test_target_dir:
+
+manifest_raw: "backend/data/hybrid_thermal/manifest_with_alphaearth.jsonl"
+manifest_split: "backend/data/hybrid_thermal/manifest_with_alphaearth_split.jsonl"
+manifest_file: "backend/data/hybrid_thermal/manifest_with_alphaearth_centercrop640.jsonl"
+
+aligned_rgb_dir: "backend/data/hybrid_thermal/RGB_centercrop_640x512"
+aligned_thermal_dir:
+
+test_aligned_rgb_dir: "backend/data/hybrid_thermal/Test_RGB_centercrop_640x512"
+test_aligned_thermal_dir:
+test_predict_dir: "backend/data/hybrid_thermal/Predict_Thermal"
+
+checkpoint_dir: "backend/models/hybrid_thermal/checkpoints"
+prediction_dir: "backend/data/hybrid_thermal/predictions"
+metrics_dir: "backend/data/hybrid_thermal/metrics"
+log_dir: "backend/data/hybrid_thermal/logs"
+
+batch_size: 2
+eval_batch_size: 2
+num_epochs: 40
+learning_rate: 0.00001
+device: "cuda"
+
+alphaearth_encoder_channels: 64
+alphaearth_latent_dim: 512
+fusion_type: "gated"
+use_metadata: false
+metadata_features: ["lat", "lon", "month", "day_of_year", "hour"]
+base_channels: 64
+hybrid_bottleneck_size: [16, 16]
+
+augmentations:
+  resize: [640, 512]
+  horizontal_flip: true
+  paired_crop_scale: 0.92

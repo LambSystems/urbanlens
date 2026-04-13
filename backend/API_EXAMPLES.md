@@ -1,0 +1,492 @@
+# ThermalGen API Examples
+
+Use these examples to connect the frontend and inspect backend behavior quickly.
+
+Base URL examples assume local development:
+
+```text
+http://localhost:8000
+```
+
+## 1. Healthcheck
+
+```http
+GET /health
+```
+
+Example response:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+## 2. Create Coordinate-Only Analysis
+
+Use this only when you do not have a captured map image yet. This route creates an
+analysis shell from coordinates, but it does not run HybridThermalGen because there
+is no RGB input image.
+
+```http
+POST /analysis
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "center": {
+    "lat": 38.627,
+    "lng": -90.1994
+  },
+  "radius_m": 120
+}
+```
+
+Example response shape:
+
+```json
+{
+  "region": {
+    "region_id": "region_ab12cd34",
+    "display_name": "Selected Locality (38.6270, -90.1994)",
+    "center": {
+      "lat": 38.627,
+      "lng": -90.1994
+    },
+    "radius_m": 120,
+    "bounds": {
+      "north": 38.628081,
+      "south": 38.625919,
+      "east": -90.198016,
+      "west": -90.200784
+    },
+    "area_km2": 0.058,
+    "available_source_count": 0,
+    "coverage_score": 0,
+    "maps_fallback_count": 0,
+    "enrichment_confidence_avg": 0,
+    "source_records": [],
+    "status": "running",
+    "summary": {
+      "candidate_count": 0,
+      "discarded_count": 0,
+      "finalized_count": 0
+    }
+  },
+  "result": {
+    "region_id": "region_ab12cd34",
+    "status": "running",
+    "hotspots": [],
+    "top_hotspots": [],
+    "top_hotspot_id": null,
+    "discarded_hotspot_ids": []
+  }
+}
+```
+
+Important:
+
+- The first response may still be `running`
+- The frontend should poll after receiving `region_id`
+
+## 3. Create Analysis From Frontend Capture
+
+Use this when the frontend sends a Google Maps selection plus a processed screenshot.
+
+```http
+POST /analysis/from-capture
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "region": {
+    "bounds": {
+      "north": 42.28145703795954,
+      "south": 42.28057862649839,
+      "east": -83.74731891703615,
+      "west": -83.74839984726916
+    },
+    "center": {
+      "lat": 42.28101783222897,
+      "lng": -83.74785938215265
+    },
+    "areaKm2": 0.008655410213870432
+  },
+  "map": {
+    "zoom": 19,
+    "mapTypeId": "hybrid",
+    "tilt": 45,
+    "heading": null
+  },
+  "viewport": {
+    "north": 42.282105314602525,
+    "south": 42.28025027146603,
+    "east": -83.74623262238511,
+    "west": -83.75036322426804
+  },
+  "capture": {
+    "mimeType": "image/png",
+    "imageBase64": "ZmFrZQ=="
+  }
+}
+```
+
+Important:
+
+- This route converges to the same `AnalysisResponse` shape as `POST /analysis`
+- It is the preferred path for the new satellite-capture workflow
+
+## 4c. Create Analysis From Frontend Capture Upload
+
+Preferred for real frontend usage.
+
+```http
+POST /analysis/from-capture-upload
+Content-Type: multipart/form-data
+```
+
+Form fields:
+
+- `metadata`: JSON string with `region`, `map`, and `viewport`
+- `image`: screenshot file (`png` or `jpg`)
+
+Example metadata string:
+
+```json
+{
+  "region": {
+    "bounds": {
+      "north": 42.28238190039619,
+      "south": 42.281495082613915,
+      "east": -83.74734466385841,
+      "west": -83.74833976340294
+    },
+    "center": {
+      "lat": 42.28193849150505,
+      "lng": -83.74784221363068
+    },
+    "areaKm2": 0.00804426877037446
+  },
+  "map": {
+    "zoom": 19,
+    "mapTypeId": "hybrid",
+    "tilt": 45,
+    "heading": null
+  },
+  "viewport": {
+    "north": 42.28357178819045,
+    "south": 42.2805324782991,
+    "east": -83.74550735068321,
+    "west": -83.74963795256615
+  }
+}
+```
+
+This route saves files under:
+
+```text
+backend/data/captures/{region_id}/
+```
+
+Files written:
+
+- `source.png` or `source.jpg`
+- `metadata.json`
+
+## 5. Poll Analysis State
+
+```http
+GET /analysis/{region_id}
+```
+
+Use this to fetch the main product state:
+
+- region summary
+- hotspot list
+- trace step states
+- ranked hotspots
+- source and coverage context for the selected region
+
+Example:
+
+```http
+GET /analysis/region_ab12cd34
+```
+
+## 6. Get Hotspot Detail
+
+```http
+GET /analysis/{region_id}/hotspots/{hotspot_id}
+```
+
+Example:
+
+```http
+GET /analysis/region_ab12cd34/hotspots/hs_01
+```
+
+Use this for:
+
+- sidebar detail view
+- selected hotspot inspection
+- recommendation detail
+
+Example hotspot detail shape:
+
+```json
+{
+  "hotspot_id": "hs_01",
+  "region_id": "region_ab12cd34",
+  "bbox": {"x": 112, "y": 78, "w": 64, "h": 48},
+  "centroid": {"lat": 38.6277, "lng": -90.1989},
+  "hotspot_type": "roof",
+  "display_name": "Building Roof",
+  "status_label": "Recommended",
+  "sidebar_summary": "Building Roof was recommended after thermal and environmental investigation. Suggested next step: cool-roof retrofit.",
+  "evidence_highlights": [
+    "high relative anomaly vs nearby roofs",
+    "large exposed dark surface",
+    "high-confidence thermal evidence"
+  ],
+  "tool_signals": [
+    "Thermal Evidence",
+    "Heat Risk Profile",
+    "Object Inspection",
+    "Neighbor Comparison"
+  ],
+  "status": "investigating",
+  "surface_temperature_c": 54.0,
+  "ambient_delta_c": 16.0,
+  "source_count": 3,
+  "coverage_score": 0.79,
+  "anomaly_score": 0.82,
+  "severity_score": 0.76,
+  "confidence_score": 0.71,
+  "final_rank_score": 0.5396,
+  "discard_reason": null,
+  "recommended_action": "cool-roof retrofit",
+  "evidence_urls": ["/evidence/hs_01-thermal.jpg", "/evidence/hs_01-visual.jpg"],
+  "priority_rank": 1,
+  "is_top_ranked": true,
+  "created_at": "2026-04-11T13:10:00Z",
+  "updated_at": "2026-04-11T13:10:05Z",
+  "why": [
+    "high relative anomaly vs nearby roofs",
+    "large exposed dark surface",
+    "high-confidence thermal evidence"
+  ],
+  "trace": []
+}
+```
+
+## 7. Poll Trace Events
+
+```http
+GET /analysis/{region_id}/events
+```
+
+Example response shape:
+
+```json
+[
+  {
+    "region_id": "region_ab12cd34",
+    "hotspot_id": "hs_01",
+    "step_id": "hs_01_step_01",
+    "kind": "candidate_detected",
+    "status": "completed",
+    "timestamp_ms": 0,
+    "summary": "Candidate hotspot detected in analysis region.",
+    "details": {},
+    "scheduled_offset_ms": 0
+  },
+  {
+    "region_id": "region_ab12cd34",
+    "hotspot_id": "hs_01",
+    "step_id": "hs_01_step_02",
+    "kind": "inspect_object",
+    "status": "running",
+    "timestamp_ms": 1200,
+    "summary": "Object inspection suggests a roof structure.",
+    "details": {
+      "object_confidence": 0.66,
+      "object_label": "roof",
+      "source_count": 4,
+      "coverage_score": 0.86
+    },
+    "scheduled_offset_ms": 1200
+  }
+]
+```
+
+Use this for:
+
+- timeline playback
+- step-by-step animation
+- loading progress
+
+## 8. Debug View
+
+```http
+GET /analysis/{region_id}/debug
+```
+
+Use this only for development. It exposes:
+
+- trace kinds by hotspot
+- scoring and discard details
+- perception/scoring adapters
+- ranking formula and anomaly threshold
+- source-aware confidence context
+
+## 9. Planner Mode Question
+
+Use this after an analysis already exists.
+
+```http
+POST /analysis/{region_id}/questions
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "question": "What should we fix first here?"
+}
+```
+
+Example response:
+
+```json
+{
+  "region_id": "region_ab12cd34",
+  "question": "What should we fix first here?",
+  "answer": "You should prioritize hs_01 first. It is a roof hotspot with anomaly 0.83, severity 0.78, confidence 0.90, and the recommended action is cool-roof retrofit.",
+  "referenced_hotspot_ids": ["hs_01"],
+  "planner_mode": "analysis_qa"
+}
+```
+
+## 10. Voice Briefing
+
+Optional demo endpoint for ElevenLabs-style spoken summary integration.
+
+```http
+POST /analysis/{region_id}/voice-briefing
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "question": "What should we inspect first here?"
+}
+```
+
+Example response:
+
+```json
+{
+  "region_id": "region_ab12cd34",
+  "audio_url": null,
+  "summary_text": "For the question 'What should we inspect first here?', the top finding is hs_01, a roof. It ranked first with anomaly 0.83, severity 0.78, and confidence 0.90. The recommended next step is cool-roof retrofit.",
+  "provider": "elevenlabs_stub"
+}
+```
+
+Notes:
+
+- `audio_url` may be null until real TTS generation is wired
+- `summary_text` is already grounded and safe for frontend playback or future TTS requests
+
+## 11. LLM Provider Env
+
+Recommended options:
+
+```text
+LLM_PROVIDER=anthropic
+LLM_PROVIDER=featherless
+LLM_PROVIDER=gemini
+LLM_PROVIDER=mock
+```
+
+Relevant provider env:
+
+```text
+FEATHERLESS_API_KEY=...
+FEATHERLESS_MODEL=Qwen/Qwen2.5-7B-Instruct
+FEATHERLESS_HTTP_REFERER=https://urbanlens.local
+FEATHERLESS_X_TITLE=UrbanLens
+```
+
+Voice briefing env:
+
+```text
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+```
+
+## 12. Suggested Frontend Flow
+
+1. Let the user choose a 640 x 512 map capture on the frontend.
+2. Send the image and map metadata to `POST /analysis/from-capture-upload`.
+3. Store `region_id` from the response.
+4. Display `region.thermal_preview_url` as the overlay using `region.bounds`.
+5. Poll `GET /analysis/{region_id}` every 800 to 1200 ms.
+6. Poll `GET /analysis/{region_id}/events` if a separate trace feed is useful.
+7. Fetch `GET /analysis/{region_id}/hotspots/{hotspot_id}` when the user clicks a hotspot.
+8. Once analysis exists, optionally call `POST /analysis/{region_id}/questions` for Planner Mode.
+9. Optionally call `POST /analysis/{region_id}/voice-briefing` for a spoken summary.
+
+## 13. Minimal cURL Examples
+
+Create analysis:
+
+```bash
+curl -X POST "http://localhost:8000/analysis" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"center\":{\"lat\":38.627,\"lng\":-90.1994},\"radius_m\":120}"
+```
+
+Get analysis:
+
+```bash
+curl "http://localhost:8000/analysis/region_ab12cd34"
+```
+
+Get events:
+
+```bash
+curl "http://localhost:8000/analysis/region_ab12cd34/events"
+```
+
+Get debug view:
+
+```bash
+curl "http://localhost:8000/analysis/region_ab12cd34/debug"
+```
+
+Ask planner question:
+
+```bash
+curl -X POST "http://localhost:8000/analysis/region_ab12cd34/questions" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\":\"What should we fix first here?\"}"
+```
+
+Create voice briefing:
+
+```bash
+curl -X POST "http://localhost:8000/analysis/region_ab12cd34/voice-briefing" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\":\"What should we inspect first here?\"}"
+```
