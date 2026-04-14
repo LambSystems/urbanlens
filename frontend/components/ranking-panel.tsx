@@ -17,7 +17,6 @@ import { useThermal } from '@/lib/thermal-context';
 import { getHotspotTypeLabel } from '@/lib/hotspot-labels';
 import type { Hotspot, HotspotType } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 const TYPE_ICONS: Record<HotspotType, typeof Building2> = {
@@ -121,34 +120,31 @@ function HotspotCard({
               )}
             </div>
 
-            {/* Temperature info */}
+            {/* Temperature chips — compact inline */}
             {(hotspot.surfaceTemperature > 0 || hotspot.ambientDelta > 0) && (
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
-                <span className="flex items-center gap-1">
-                  <Thermometer className="h-3 w-3" />
-                  {hotspot.surfaceTemperature}°C
-                </span>
-                <span className={cn(
-                  "flex items-center gap-1",
-                  hotspot.ambientDelta > 15 ? "text-red-400" : "text-amber-400"
-                )}>
-                  +{hotspot.ambientDelta}° above ambient
-                </span>
-              </div>
-            )}
-
-            {/* Score bars */}
-            {hotspot.scoring && !isDiscarded && (
-              <div className="space-y-1.5">
-                <ScoreBar label="Anomaly" value={hotspot.scoring.anomalyScore} icon={TrendingUp} />
-                <ScoreBar label="Severity" value={hotspot.scoring.severityScore} icon={Thermometer} />
-                <ScoreBar label="Confidence" value={hotspot.scoring.confidenceScore} icon={ShieldCheck} />
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {hotspot.surfaceTemperature > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono bg-muted/60 rounded px-1.5 py-0.5 text-muted-foreground">
+                    <Thermometer className="h-2.5 w-2.5" />
+                    {hotspot.surfaceTemperature}°C
+                  </span>
+                )}
+                {hotspot.ambientDelta > 0 && (
+                  <span className={cn(
+                    "inline-flex text-[10px] font-mono rounded px-1.5 py-0.5",
+                    hotspot.ambientDelta > 15
+                      ? "bg-red-500/10 text-red-400"
+                      : "bg-amber-500/10 text-amber-400"
+                  )}>
+                    +{hotspot.ambientDelta}°
+                  </span>
+                )}
               </div>
             )}
 
             {isDiscarded && (
-              <p className="text-xs text-muted-foreground italic">
-                {hotspot.discardReason ?? 'Discarded: Expected heat source'}
+              <p className="text-[10px] text-muted-foreground italic mt-1">
+                {hotspot.discardReason ?? 'Expected heat source'}
               </p>
             )}
           </div>
@@ -164,6 +160,15 @@ function HotspotCard({
           transition={{ duration: 0.2 }}
           className="border-t border-border/60 px-3 pb-3 pt-2 space-y-2"
         >
+          {/* Score bars — only visible when expanded */}
+          {hotspot.scoring && !isDiscarded && (
+            <div className="space-y-1.5 mb-2">
+              <ScoreBar label="Anomaly" value={hotspot.scoring.anomalyScore} icon={TrendingUp} />
+              <ScoreBar label="Severity" value={hotspot.scoring.severityScore} icon={Thermometer} />
+              <ScoreBar label="Confidence" value={hotspot.scoring.confidenceScore} icon={ShieldCheck} />
+            </div>
+          )}
+
           {/* tool_signals */}
           {hotspot.toolSignals && hotspot.toolSignals.length > 0 && (
             <div className="flex flex-wrap gap-1">

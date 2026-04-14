@@ -22,7 +22,6 @@ import {
 import { useThermal } from '@/lib/thermal-context';
 import { RankingPanel } from './ranking-panel';
 import { TraceTimeline } from './trace-timeline';
-import { RecommendationCard } from './recommendation-card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
@@ -84,45 +83,23 @@ function ThermalOverlayCard() {
 
       {/* Preview image */}
       {previewUrl && (
-        <div className="relative mx-3 mb-2 rounded-lg overflow-hidden bg-black/20">
+        <div className="relative mx-3 mb-3 rounded-lg overflow-hidden bg-black/20">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewUrl}
             alt="Thermal heatmap"
             className="w-full object-cover"
-            style={{ maxHeight: '120px' }}
+            style={{ maxHeight: '72px' }}
           />
-          {/* Temperature legend overlay */}
           <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 bg-black/60 text-[9px] text-white/80">
             <span className="inline-block h-1.5 w-8 rounded-sm bg-gradient-to-r from-[#130704] via-[#d85a00] to-[#fff1a8]" />
             cool → hot
           </div>
-        </div>
-      )}
-
-      {/* Stats row */}
-      {td.min_temp_c !== undefined && (
-        <div className="grid grid-cols-3 gap-1.5 px-3 pb-3">
-          <div className="rounded-lg bg-muted/40 p-2 text-center">
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Min</p>
-            <p className="text-xs font-mono font-semibold">{td.min_temp_c.toFixed(1)}°</p>
-          </div>
-          <div className="rounded-lg bg-orange-500/12 border border-orange-500/20 p-2 text-center">
-            <p className="text-[9px] text-orange-400 uppercase tracking-wider mb-0.5">Mean</p>
-            <p className="text-xs font-mono font-semibold text-orange-300">{td.mean_temp_c?.toFixed(1)}°</p>
-          </div>
-          <div className="rounded-lg bg-red-500/10 border border-red-500/15 p-2 text-center">
-            <p className="text-[9px] text-red-400 uppercase tracking-wider mb-0.5">Peak</p>
-            <p className="text-xs font-mono font-semibold text-red-300">{td.max_temp_c?.toFixed(1)}°</p>
-          </div>
-        </div>
-      )}
-
-      {regionCount > 0 && (
-        <div className="border-t border-orange-500/10 px-3 py-2">
-          <p className="text-[10px] text-muted-foreground">
-            <span className="font-medium text-orange-400">{regionCount}</span> heat region{regionCount !== 1 ? 's' : ''} detected
-          </p>
+          {regionCount > 0 && (
+            <div className="absolute bottom-1.5 left-1.5 rounded px-1.5 py-0.5 bg-black/60 text-[9px] text-orange-300">
+              {regionCount} zone{regionCount !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -138,7 +115,6 @@ function RegionSelector() {
     analysisProgress,
     startAnalysis,
     hotspots,
-    voiceBriefing,
     isVoiceBriefingLoading,
     playVoiceBriefing,
   } = useThermal();
@@ -283,58 +259,36 @@ function RegionSelector() {
 
   if (selectionMode === 'complete') {
     return (
-      <div className="p-4 space-y-3">
-        <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-              <Thermometer className="h-5 w-5 text-green-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm text-green-500">Analysis Complete</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {hotspots.length} heat zones detected
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={cancelSelection}
-              className="text-xs h-8"
-            >
-              New Region
-            </Button>
-          </div>
-        </div>
-
-        {/* Thermal model overlay */}
-        <ThermalOverlayCard />
-
-        {/* Voice Briefing */}
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Volume2 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs font-medium">Voice Briefing</span>
-          </div>
+      <div className="px-3 pt-3 pb-2 space-y-2">
+        {/* Status bar — compact single row */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/8 border border-green-500/20">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
+          <span className="text-xs font-medium text-green-500 flex-1">Analysis Complete</span>
+          <span className="text-[10px] text-muted-foreground">{hotspots.length} heat zones</span>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="w-full gap-2 text-xs"
             onClick={playVoiceBriefing}
             disabled={isVoiceBriefingLoading}
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+            title="Play voice briefing"
           >
             {isVoiceBriefingLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Volume2 className="h-3.5 w-3.5" />
             )}
-            {isVoiceBriefingLoading ? 'Generating briefing…' : 'Play Briefing'}
           </Button>
-          {voiceBriefing?.text && (
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-              {voiceBriefing.text}
-            </p>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={cancelSelection}
+            className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            New Region
+          </Button>
         </div>
+
       </div>
     );
   }
@@ -374,7 +328,7 @@ function LiveChainOfThought({ steps }: { steps: import('@/lib/types').ChainOfTho
       )}
 
       <div className="space-y-2">
-        {steps.map((step, i) => (
+        {steps.map((step) => (
           <motion.div
             key={step.step_id}
             initial={{ opacity: 0, y: 6 }}
@@ -801,11 +755,6 @@ export function ThermalSidebar() {
                   <TraceTimeline />
                 </div>
 
-                {activeHotspot && (
-                  <div className="shrink-0 border-t border-sidebar-border overflow-y-auto max-h-64 p-3">
-                    <RecommendationCard />
-                  </div>
-                )}
               </TabsContent>
 
               {/* Planner tab — Q&A over existing analysis */}
