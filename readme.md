@@ -3,7 +3,7 @@
 
 UrbanLens is an **Agentic Urban Explorer** built for the Google Build with AI Hackathon (`Best in Agentic AI` track).
 
-Slect any Location. Ask a question. The agent goes out, pulls live environmental data, analyzes thermal imagery, and comes back with grounded findings you can act on.
+Select any Location. Ask a question. The agent goes out, pulls live environmental data, analyzes thermal imagery, and comes back with grounded findings you can act on.
 
 ---
 
