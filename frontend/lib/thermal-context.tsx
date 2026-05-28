@@ -59,7 +59,7 @@ interface ThermalContextValue {
   resetPlayback: () => void;
   advanceStep: () => void;
 
-  // Agent chat (session-based, multi-turn, real chain of thought)
+  // Agent chat (session-based, multi-turn, visible investigation trace)
   sessionId: string | null;
   chatMessages: ChatMessage[];
   isAgentLoading: boolean;
@@ -431,7 +431,7 @@ export function ThermalProvider({ children }: { children: ReactNode }) {
           setSessionId(sid);
         }
 
-        // Stream chain of thought steps in real time
+        // Stream investigation trace steps in real time
         const result = await sendSessionPromptStream(sid, question, (step) => {
           setLiveChainSteps(prev => [...prev, step]);
         });

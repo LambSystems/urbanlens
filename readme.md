@@ -1,210 +1,241 @@
 # UrbanLens
-## Agentic Urban Explorer — Investigate Any Locality With AI
 
-UrbanLens is an **Agentic Urban Explorer** built for the Google Build with AI Hackathon (`Best in Agentic AI` track).
+UrbanLens is a hackathon-origin urban heat investigation system built at the WashU Google Build with AI hackathon.
 
-Select any Location. Ask a question. The agent goes out, pulls live environmental data, analyzes thermal imagery, and comes back with grounded findings you can act on.
+It lets a user select a region from Google Maps satellite imagery, captures that region, runs RGB-to-thermal generation through ThermalGen, proposes hotspot candidates, classifies visible surface types from RGB crops, ranks findings with deterministic scoring, and supports grounded follow-up questions over the stored analysis artifacts.
 
----
+This repository is kept honest as a hackathon project: it is not production environmental measurement software, and ThermalGen outputs should be interpreted as relative thermal evidence rather than calibrated physical temperatures. The portfolio value is in the orchestration, typed contracts, artifact flow, scoring boundaries, and applied-AI system design.
 
-## How It Works
+- Demo video: [YouTube](https://www.youtube.com/watch?v=78SCFwdAIuk)
+- Hackathon submission: [Devpost](https://devpost.com/software/urbanlens-uxwd48)
 
+![UrbanLens analysis view](./assets/main.png)
+
+## What It Does
+
+UrbanLens turns a selected satellite region into an investigation pipeline:
+
+```text
+Select map region
+  -> capture satellite image and map metadata
+  -> generate relative thermal evidence with ThermalGen
+  -> propose candidate heat hotspots
+  -> classify visible surface types from RGB crops
+  -> compute anomaly, severity, confidence, and rank scores
+  -> return prioritized findings and grounded follow-up answers
 ```
-User selects a locality on the map
-        ↓
-"How walkable is this area in summer heat?"
-        ↓
-Agent decides what to investigate:
-  🔧 get_weather_current → 92°F, UV index 8, humidity 65%
-  🔧 get_air_quality → AQI 42 (Good), PM2.5 at 8 µg/m³
-  🔧 get_walkability_score → Score 62, 4 parks, 12 transit stops
-  🔧 estimate_surface_temperature → sidewalks at 135°F, shade areas at 85°F
-  🔧 get_land_use → 78% impervious, 18% tree canopy
-        ↓
-Agent synthesizes findings into an actionable answer
-with full chain of thought visible in the UI
-```
 
-Every tool call, every reasoning step, every piece of evidence — visible in real time.
+The system is designed around a clear boundary:
 
----
+- Deterministic: capture handling, artifact storage, hotspot proposal, scoring, ranking, and API response contracts.
+- AI-assisted: surface explanation, optional crop classification, investigation trace wording, and follow-up planning over stored results.
+- Bounded: the LLM does not own ranking math or replace the analysis pipeline.
 
-## What it does
+## Workflow
 
-- **Explores** — pulls live data from real APIs (weather, air quality, land use, elevation)
-- **Decides** — chooses which tools to call based on what the user actually asked
-- **Investigates** — gathers evidence step by step with visible chain of thought
-- **Reasons** — cross-references multiple data sources to build a complete picture
-- **Answers** — returns specific, grounded findings with real numbers
-- **Remembers** — follow-up questions build on prior investigation
-
-Different questions trigger different tool combinations. The agent adapts its investigation to match what you need to know.
-
----
-
-## Agent Tools (12 Live Instruments)
-
-### Environmental Sensors (Live APIs, no keys needed)
-| Tool | What it does | Source |
+| Select locality | Rank heat findings | Ask grounded follow-up |
 |---|---|---|
-| `get_weather_current` | Temperature, humidity, wind, UV, cloud cover | Open-Meteo |
-| `get_air_quality` | AQI, PM2.5, PM10, ozone, NO2 levels | Open-Meteo |
-| `get_ndvi_estimate` | Vegetation health and green cover % | Open-Meteo + OSM |
-| `get_historical_temperature_comparison` | Is today hotter than the 5-year average? | Open-Meteo Archive |
+| ![Region selection](./assets/1.png) | ![Priority ranking](./assets/3.png) | ![Planner response](./assets/4.png) |
 
-### Terrain Mapping (Live from OpenStreetMap)
-| Tool | What it does | Source |
-|---|---|---|
-| `get_land_use` | Buildings, roads, green spaces, impervious surface % | OSM Overpass |
-| `get_walkability_score` | Amenities, transit, parks, pedestrian paths, comfort | OSM Overpass |
-| `get_elevation_profile` | Elevation, drainage risk, heat trapping assessment | Open-Meteo |
-| `get_flood_risk` | Composite risk from elevation + surfaces + water + rain | Open-Meteo + OSM |
+## System Components
 
-### Analysis Instruments
-| Tool | What it does | Source |
-|---|---|---|
-| `get_solar_potential` | Rooftop solar estimate — generation, cost, payback, CO2 | Calculated from live solar data |
-| `estimate_surface_temperature` | How hot do different materials get (asphalt, roof, grass) | EPA/DOE research data |
-| `estimate_intervention_impact` | Cost, savings, CO2 reduction for cool roofs, trees, etc. | EPA/DOE/GSA data |
-| `lookup_image_metadata` | Drone imagery dataset info (671 DJI thermal+visual pairs) | Local dataset |
+### Frontend
 
-### Custom Tools (Internal)
-| Tool | What it does |
-|---|---|
-| `generate_thermal_overlay` | Run ThermalGen on captured satellite imagery |
-| `propose_capture_hotspots` | Identify heat hotspot candidates from thermal evidence |
-| `analyze_heat_risk` | Estimate structural heat-risk drivers for a location |
+- Next.js, React, TypeScript, Tailwind, and Google Maps.
+- Region selection over satellite imagery.
+- Static map capture sent to the backend with bounds, center, zoom, viewport, and image metadata.
+- Thermal overlay, hotspot markers, ranking panel, recommendation details, trace timeline, and follow-up UI.
 
----
+### Backend
 
-## Chain of Thought — Fully Visible
+- FastAPI service with Pydantic schemas.
+- Analysis-first API resources rather than a chat-first shape.
+- Capture ingestion and local artifact storage under `backend/data/captures/{region_id}/`.
+- ThermalGen inference wrapper exposed as a callable backend tool.
+- Hotspot proposal, perception helpers, deterministic scoring, ranking, debug views, and follow-up endpoints.
 
-Every investigation streams its reasoning to the UI in real time:
+### ThermalGen
 
-```
-💭 User wants to know about heat resilience. I'll check current conditions and land cover.
-🔧 get_weather_current → 92°F, feels like 97°F, UV index 8
-🔧 get_land_use → 23 buildings, 78% impervious, 3 green spaces
-🔧 get_air_quality → AQI 42 (Good), ozone slightly elevated
-💭 High temperature with low green cover. Let me check what interventions would help.
-🔧 estimate_intervention_impact("cool roof", 15000) → $52,500, saves 15% energy
-🔧 estimate_intervention_impact("tree planting", 10000) → $15,000, 50yr lifespan
-✅ Final answer with ranked recommendations grounded in live data
-```
+- PyTorch RGB-to-thermal model adapted for urban imagery.
+- Produces relative thermal predictions from satellite captures.
+- Supports hotspot discovery and overlay generation.
+- Uses local checkpoints, which are intentionally treated as large external artifacts.
 
-Not a canned animation — these are the agent's actual reasoning steps as they happen.
+### Agent / Planner Layer
 
----
+- Provider-neutral LLM layer with mock, Anthropic, Gemini, and Featherless paths.
+- Uses stored analysis results as context for follow-up answers.
+- Intended role: explain, plan, and summarize from existing evidence.
+- Non-goal: invent new measurements or override deterministic ranking.
 
-## Thermal Vision
+## API Shape
 
-UrbanLens has a unique capability most agents don't: **ThermalGen**.
+Canonical analysis flow:
 
-When aerial RGB and thermal infrared images are available, the agent can visually compare them to identify which structures generate the most heat. The thermal evidence grounds sustainability recommendations in what the data actually shows.
-
-- RGB aerial photo → what's there (buildings, roads, vegetation)
-- Thermal infrared map → what's hot (bright = high heat, dark = cool)
-- Agent decides when to reference thermal imagery based on the question
-
-Thermal is evidence the agent uses when relevant — not a forced analysis on every prompt.
-
----
-
-## Example Interactions
-
-**"What should we fix first here?"**
-→ Agent checks weather, scans land use, estimates surface temps, costs out interventions, ranks by impact
-
-**"Is this area walkable in summer?"**
-→ Agent checks walkability score, current temperature, shade availability, air quality, comfort features
-
-**"Should we put solar on these rooftops?"**
-→ Agent checks solar radiation, estimates system size and generation, calculates payback and CO2 offset
-
-**"What's the flood risk here?"**
-→ Agent checks elevation, impervious surfaces, nearby water, recent precipitation, computes composite risk
-
-**"How does today compare to historical temps?"**
-→ Agent pulls current temperature and compares to 5-year average for this exact date
-
----
-
-## Architecture
-
-```
-Frontend (Next.js + Google Maps)
-  → User selects region, types question
-  → Streams chain of thought in real time
-  → Displays answer with tool evidence
-
-Backend (FastAPI + Google ADK / Anthropic)
-  → Session management + conversation history
-  → Agent orchestrator dispatches to tools
-  → Tools call live APIs (Open-Meteo, OpenStreetMap)
-  → ThermalGen produces thermal evidence from imagery
-  → Returns structured response with chain of thought
-
-LLM Providers (swappable):
-  → Anthropic Claude (primary — reliable tool use)
-  → Google Gemini via ADK (secondary)
-  → Featherless AI (open-model path — Qwen 7B)
+```http
+POST /analysis/from-capture-upload
+GET  /analysis/{region_id}
+GET  /analysis/{region_id}/events
+GET  /analysis/{region_id}/debug
+POST /analysis/{region_id}/questions
 ```
 
----
+The main output converges to a stable `AnalysisResponse` containing:
 
-## Stack
+- selected region metadata
+- source and thermal artifact URLs
+- hotspot candidates
+- trace steps
+- anomaly, severity, confidence, and final rank scores
+- discarded and finalized candidates
+- ranked top hotspots
 
-| Layer | Tech |
-|---|---|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind, Radix UI, Framer Motion |
-| Map | Google Maps API with region capture |
-| Backend | Python, FastAPI, Pydantic |
-| Agent | Google ADK / Anthropic Claude with tool use |
-| LLM Providers | Anthropic, Gemini, Featherless (provider-neutral) |
-| Live Data | Open-Meteo (weather, AQI, solar), OpenStreetMap Overpass (land use, amenities) |
-| Thermal | ThermalGen — custom satellite-to-thermal inference |
-| Voice | ElevenLabs (optional demo layer) |
-| UI Polish | v0 for selected surfaces |
+Ranking is intentionally inspectable:
 
----
+```text
+if anomaly_score < anomaly_threshold:
+    discard
 
-## Running Locally
+final_rank_score = severity_score * confidence_score
+```
 
-```bash
-# Backend
+See [backend/API_EXAMPLES.md](./backend/API_EXAMPLES.md) and [docs/contracts.md](./docs/contracts.md) for request and response examples.
+
+For a no-key deterministic backend fixture, see [docs/demo_walkthrough.md](./docs/demo_walkthrough.md).
+
+Quick backend checks:
+
+```powershell
 cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-# Add your API key to backend/.env
-uvicorn app.main:app --reload
+python -m unittest discover tests
+python scripts\demo_analysis.py
+```
 
-# Frontend
+## Local Setup
+
+### Backend
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+copy .env.example .env
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Use `LLM_PROVIDER=mock` for a local demo without external LLM keys.
+
+```text
+LLM_PROVIDER=mock
+```
+
+Thermal inference requires local model checkpoints under:
+
+```text
+backend/models/hybrid_thermal/checkpoints/
+```
+
+See [docs/local_setup.md](./docs/local_setup.md) for checkpoint and artifact details.
+
+### Frontend
+
+```powershell
 cd frontend
-npm install
-npm run dev
+corepack pnpm install
+copy .env.example .env
+corepack pnpm dev
 ```
 
-Configure `backend/.env`:
-```
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-...
+Required frontend environment variables:
+
+```text
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=replace_with_google_maps_browser_key
 ```
 
----
+## Environment Variables
+
+Backend:
+
+```text
+LLM_PROVIDER=mock
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=
+GEMINI_API_KEY=
+GEMINI_MODEL=
+FEATHERLESS_API_KEY=
+FEATHERLESS_MODEL=
+ELEVENLABS_API_KEY=
+ELEVENLABS_VOICE_ID=
+ELEVENLABS_MODEL_ID=
+```
+
+Frontend:
+
+```text
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+```
 
 ## Team
 
-4-engineer team with AI-assisted development (Claude Code + Codex).
+UrbanLens was built by a four-person team for the WashU Google Build with AI hackathon.
 
-- Engineer 1: Frontend, map capture, chain of thought UI
-- Engineer 2: Backend, agent orchestrator, session management
-- Engineer 3: ThermalGen, perception, evidence pipeline
-- Engineer 4: Tools, scoring, live API integrations
+- [@postigodev](https://github.com/postigodev): Built the backend analysis backbone connecting capture ingestion, ThermalGen result handling, hotspot scoring, ranked intervention outputs, and stored analysis artifacts. Defined deterministic API and scoring boundaries so results stayed consistent, inspectable, and usable by the follow-up reasoning layer.
 
----
+- [@tioluwani-enoch](https://github.com/tioluwani-enoch): Designed the frontend web app, UI/UX flow, map interaction model, and analysis presentation layer. Proposed using live Google Maps satellite imagery as the primary input, replacing the need for bulky static image datasets and making locality selection faster and more accessible.
 
-## The Pitch
+- [@shuja-waraich-03](https://github.com/shuja-waraich-03): Built the agent investigation loop that turns user questions into multi-step tool-using analysis. The loop selects tools, executes them, feeds results back into the model, and continues until enough grounded evidence is available to answer.
 
-> Point at a place. Ask a question. Watch the agent investigate with real data. Get an answer you can act on.
+- [@GALGALLOR](https://github.com/GALGALLOR): Adapted the ThermalGen model for urban heat analysis and built the preprocessing path for RGB-to-thermal inputs. Exposed model inference methods to the backend so ThermalGen could operate as a callable analysis tool inside the broader investigation pipeline.
 
-That's UrbanLens.
+## Hackathon Tradeoffs
+
+- Local file storage is used for captures and generated artifacts. A production version would use object storage, retention policies, and access control.
+- ThermalGen predictions are relative thermal evidence, not calibrated thermal camera measurements.
+- Some model assets are large and are expected to be restored locally instead of committed directly.
+- The analysis pipeline prioritizes a small, understandable tool set over broad autonomous agent behavior.
+- The LLM layer is bounded to explanation and planning over stored evidence; ranking and discard decisions are deterministic.
+
+## Production Improvements
+
+Given more time, the next improvements would be:
+
+- deterministic sample/demo mode with a small fixture and expected output
+- tests for scoring, capture ingestion, and API response contracts
+- durable persistence for analyses and artifacts
+- stricter auth and API key management
+- calibrated thermal validation against measured thermal imagery
+- larger-region batching and queue-backed inference
+- clearer surface classification evaluation metrics
+
+## Repository Map
+
+```text
+backend/
+  app/
+    routes.py              FastAPI analysis endpoints
+    schemas.py             Pydantic API contracts
+    store.py               in-memory analysis store and artifact wiring
+    capture_pipeline.py    capture storage and ThermalGen bridge
+    thermal/               RGB-to-thermal inference integration
+    scoring/               deterministic anomaly/severity/confidence/ranking logic
+    perception/            surface and candidate helpers
+    agent/                 tool/planner paths for follow-up reasoning
+
+frontend/
+  app/                     Next.js app shell
+  components/              map, sidebar, ranking, recommendation, trace UI
+  lib/api.ts               typed frontend API client
+  lib/thermal-context.tsx  frontend analysis/session state
+
+docs/
+  architecture.md
+  contracts.md
+  demo.md
+  local_setup.md
+```
+
+## Scope and Limitations
+
+UrbanLens should be read as a systems and applied-AI prototype: a working demo that shows how satellite capture, custom thermal generation, deterministic ranking, and grounded AI follow-up can fit together. It should not be used as a substitute for calibrated thermal surveys, safety inspections, or environmental engineering analysis.

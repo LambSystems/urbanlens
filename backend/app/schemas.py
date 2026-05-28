@@ -268,11 +268,6 @@ class AnalysisResponse(BaseModel):
     result: AnalysisResult
 
 
-class CreateAnalysisRequest(BaseModel):
-    center: LatLng
-    radius_m: int = Field(default=120, ge=1, le=1000)
-
-
 class CaptureRegion(BaseModel):
     bounds: SourceBounds
     center: LatLng
@@ -321,22 +316,6 @@ class CreateAnalysisFromCaptureMetadataRequest(BaseModel):
     image_bounds: SourceBounds | None = Field(default=None, alias="imageBounds")
 
     model_config = {"populate_by_name": True}
-
-
-class PlannerQuestionRequest(BaseModel):
-    question: str = Field(min_length=1, max_length=2000)
-
-
-class PlannerQuestionResponse(BaseModel):
-    region_id: str
-    hotspot_id: str
-    step_id: str
-    kind: TraceKind
-    status: TraceStepStatus
-    timestamp_ms: int | None = None
-    summary: str
-    details: dict[str, Any] = Field(default_factory=dict)
-    scheduled_offset_ms: int
 
 
 class DebugHotspotView(BaseModel):

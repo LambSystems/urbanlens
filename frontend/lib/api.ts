@@ -1,5 +1,5 @@
 /**
- * Backend API client for ThermalGen / Urban Legend.
+ * Backend API client for ThermalGen / UrbanLens.
  *
  * Typed against backend/app/schemas.py - all field names match the Python schema.
  * Use `mapHotspot()` to convert a BackendHotspot into the frontend Hotspot type.
@@ -358,7 +358,7 @@ export async function createSession(
   return res.json();
 }
 
-/** POST /session/{id}/prompt — send a prompt and get back answer + chain of thought */
+/** POST /session/{id}/prompt — send a prompt and get back answer + visible investigation trace */
 export async function sendSessionPrompt(
   sessionId: string,
   prompt: string,
@@ -374,7 +374,7 @@ export async function sendSessionPrompt(
 
 /**
  * POST /session/{id}/prompt/stream — SSE streaming.
- * Calls onStep for each chain-of-thought step as it arrives,
+ * Calls onStep for each investigation trace step as it arrives,
  * then returns the final answer when done.
  */
 export async function sendSessionPromptStream(

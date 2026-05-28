@@ -1,4 +1,4 @@
-"""Urban Legend — Agent loop using Google ADK."""
+"""UrbanLens agent loop using Google ADK."""
 
 from datetime import datetime
 from pathlib import Path
@@ -56,7 +56,7 @@ def _make_step(
 
 def _build_agent() -> Agent:
     return Agent(
-        name="urban_legend",
+        name="urbanlens",
         model=GEMINI_MODEL,
         instruction=SYSTEM_INSTRUCTION,
         tools=ALL_TOOLS,
@@ -107,7 +107,7 @@ async def investigate(
     agent = _build_agent()
     runner = Runner(
         agent=agent,
-        app_name="urban_legend",
+        app_name="urbanlens",
         session_service=_session_service,
     )
 
@@ -116,7 +116,7 @@ async def investigate(
 
     if session_id is None:
         session = _session_service.create_session(
-            app_name="urban_legend",
+            app_name="urbanlens",
             user_id=user_id,
         )
         session_id = session.id
@@ -156,7 +156,7 @@ async def investigate(
 
             if event.content and event.content.parts:
                 for part in event.content.parts:
-                    if part.text and event.author == "urban_legend":
+                    if part.text and event.author == "urbanlens":
                         if event.is_final_response():
                             step = _make_step(ChainOfThoughtStepType.answer, part.text)
                         else:
