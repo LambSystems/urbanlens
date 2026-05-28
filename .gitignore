@@ -29,6 +29,7 @@ frontend/out/
 frontend/tsconfig.tsbuildinfo
 
 # Local imported project scratch/caches
+.worktrees/
 *.arrow
 *.zip
 .hf_cache/
