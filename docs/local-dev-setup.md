@@ -102,6 +102,23 @@ python scripts\demo_analysis.py
 
 The smoke path does not require Google Maps, ThermalGen checkpoints, or real LLM keys.
 
+## Dependency Audit
+
+Frontend dependencies can be audited with either package manager:
+
+```powershell
+cd frontend
+corepack pnpm audit
+npm.cmd audit
+```
+
+Backend dependency auditing is intentionally not part of runtime requirements. Use `pip-audit` as a local tool when Python is available:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pip-audit
+.\.venv\Scripts\python.exe -m pip_audit -r backend\requirements.txt
+```
+
 ## ThermalGen Checkpoints
 
 The full thermal inference path requires local model checkpoints:

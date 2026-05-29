@@ -235,6 +235,10 @@ docs/
   local_setup.md
 ```
 
+## License
+
+UrbanLens is available under the [MIT License](./LICENSE).
+
 ## Scope and Limitations
 
 UrbanLens should be read as a systems and applied-AI prototype: a working demo that shows how satellite capture, custom thermal generation, deterministic ranking, and grounded AI follow-up can fit together. It should not be used as a substitute for calibrated thermal surveys, safety inspections, or environmental engineering analysis.
