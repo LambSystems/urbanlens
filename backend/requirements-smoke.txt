@@ -1,0 +1,3 @@
+# Minimal dependencies for CI smoke tests that exercise typed contracts,
+# deterministic scoring, and demo fixture output without ThermalGen model deps.
+pydantic>=2.7,<3.0

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  backend-smoke:
+    name: Backend smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install smoke dependencies
+        working-directory: backend
+        run: python -m pip install -r requirements-smoke.txt
+
+      - name: Run scoring tests
+        working-directory: backend
+        run: python -m unittest discover tests
+
+      - name: Run deterministic demo fixture
+        working-directory: backend
+        run: python scripts/demo_analysis.py
+
+  frontend:
+    name: Frontend build and audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        working-directory: frontend
+        run: pnpm audit --audit-level moderate
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm build

@@ -9,6 +9,8 @@ This repository is kept honest as a hackathon project: it is not production envi
 - Demo video: [YouTube](https://www.youtube.com/watch?v=78SCFwdAIuk)
 - Hackathon submission: [Devpost](https://devpost.com/software/urbanlens-uxwd48)
 
+![CI](https://github.com/LambSystems/urbanlens/actions/workflows/ci.yml/badge.svg)
+
 ![UrbanLens analysis view](./assets/main.png)
 
 ## What It Does

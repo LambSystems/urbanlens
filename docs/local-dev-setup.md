@@ -102,6 +102,8 @@ python scripts\demo_analysis.py
 
 The smoke path does not require Google Maps, ThermalGen checkpoints, or real LLM keys.
 
+CI runs the same backend smoke path using `backend/requirements-smoke.txt` so GitHub Actions does not need to install PyTorch, rasterio, or model checkpoints.
+
 ## Dependency Audit
 
 Frontend dependencies can be audited with either package manager:
