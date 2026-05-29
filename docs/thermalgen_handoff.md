@@ -17,7 +17,7 @@ The thermal model is only one evidence tool in that loop. The canonical model pa
 ## What Has Been Done
 
 - Backend scaffold exists under `backend/app`.
-- Shared contracts and engineering instructions exist under `docs/` and `instructions/`.
+- Shared contracts exist under `docs/`. Historical hackathon engineering instructions are archived under `docs/archive/hackathon-planning/instructions/`.
 - The thermal evidence wrapper is `backend/app/thermal/generator.py`.
 - The RGB-to-thermal model package is centralized at `backend/app/thermal/hybrid_thermal`.
 - No local dataset is required for live inference; RGB inputs come from frontend upload or a repo-local file path.

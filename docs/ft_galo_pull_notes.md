@@ -52,7 +52,7 @@ backend/app/thermal/hybrid_thermal/runtime.py
 backend/app/perception/candidate_discovery.py
 docs/thermalgen_tool.md
 docs/thermalgen_handoff.md
-instructions/backend-handoff-codex-frontend-align.md
+docs/archive/hackathon-planning/instructions/backend-handoff-codex-frontend-align.md
 ```
 
 ## Local Assets Needed

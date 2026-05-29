@@ -235,6 +235,7 @@ docs/
   contracts.md
   demo.md
   local_setup.md
+  archive/hackathon-planning/  historical hackathon planning notes
 ```
 
 ## License
