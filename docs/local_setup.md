@@ -1,5 +1,7 @@
 # Local Setup And Hidden Files
 
+For the current one-command PowerShell workflow, start with [local-dev-setup.md](./local-dev-setup.md). This file keeps the lower-level notes about local artifacts, checkpoints, and ignored files.
+
 This repo keeps code, docs, schemas, and example configs in Git. Large data, model artifacts, secrets, generated outputs, and local environments stay out of Git.
 
 ## Local Environments
@@ -20,6 +22,12 @@ For notebooks:
 ```
 
 ## Environment Files
+
+The repository-root `.env` is the source of truth for local development. Service env files are generated from it:
+
+```powershell
+.\scripts\sync-env.ps1
+```
 
 Real env files are local-only:
 
