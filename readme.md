@@ -1,22 +1,29 @@
 # UrbanLens
 
-UrbanLens is a hackathon-origin urban heat investigation system built at the WashU Google Build with AI hackathon.
+UrbanLens is a hackathon-origin urban heat investigation system built by a four-person team at the WashU Google Build with AI hackathon.
 
-It lets a user select a region from Google Maps satellite imagery, captures that region, runs RGB-to-thermal generation through ThermalGen, proposes hotspot candidates, classifies visible surface types from RGB crops, ranks findings with deterministic scoring, and supports grounded follow-up questions over the stored analysis artifacts.
+Users select a satellite region in Google Maps. UrbanLens captures the map image and metadata, runs RGB-to-thermal generation through ThermalGen, proposes heat hotspot candidates, classifies visible surface types, ranks findings with deterministic scoring, and supports grounded follow-up questions over stored analysis artifacts.
 
-This repository is kept honest as a hackathon project: it is not production environmental measurement software, and ThermalGen outputs should be interpreted as relative thermal evidence rather than calibrated physical temperatures. The portfolio value is in the orchestration, typed contracts, artifact flow, scoring boundaries, and applied-AI system design.
+UrbanLens is not production environmental measurement software. ThermalGen outputs are relative thermal evidence, not calibrated thermal camera readings. The portfolio signal is the system design: typed contracts, artifact flow, deterministic ranking, model integration, and bounded AI behavior.
+
+![CI](https://github.com/LambSystems/urbanlens/actions/workflows/ci.yml/badge.svg)
 
 - Demo video: [YouTube](https://www.youtube.com/watch?v=78SCFwdAIuk)
 - Hackathon submission: [Devpost](https://devpost.com/software/urbanlens-uxwd48)
 - Docs index: [docs/README.md](./docs/README.md)
 
-![CI](https://github.com/LambSystems/urbanlens/actions/workflows/ci.yml/badge.svg)
-
 ![UrbanLens analysis view](./assets/main.png)
 
-## What It Does
+## Review Paths
 
-UrbanLens turns a selected satellite region into an investigation pipeline:
+| If you are... | Start here |
+|---|---|
+| A recruiter or portfolio reviewer | [Portfolio architecture](./docs/portfolio-architecture.md), [team contributions](./docs/team-and-contributions.md), and the demo video |
+| An engineer reviewing the system | [Contracts](./docs/contracts.md), [example output](./docs/examples/demo-analysis-summary.json), and [local dev setup](./docs/local-dev-setup.md) |
+| Trying to run it locally | `.\scripts\dev.ps1` after copying `.env.example` to `.env` |
+| Looking for hackathon history | [Hackathon planning archive](./docs/archive/hackathon-planning/README.md) |
+
+## Pipeline
 
 ```text
 Select map region
@@ -28,72 +35,18 @@ Select map region
   -> return prioritized findings and grounded follow-up answers
 ```
 
-The system is designed around a clear boundary:
-
-- Deterministic: capture handling, artifact storage, hotspot proposal, scoring, ranking, and API response contracts.
-- AI-assisted: surface explanation, optional crop classification, investigation trace wording, and follow-up planning over stored results.
-- Bounded: the LLM does not own ranking math or replace the analysis pipeline.
-
 ## Workflow
 
 | Select locality | Rank heat findings | Ask grounded follow-up |
 |---|---|---|
 | ![Region selection](./assets/1.png) | ![Priority ranking](./assets/3.png) | ![Planner response](./assets/4.png) |
 
-## System Components
+## Deterministic vs AI-Assisted
 
-### Frontend
-
-- Next.js, React, TypeScript, Tailwind, and Google Maps.
-- Region selection over satellite imagery.
-- Static map capture sent to the backend with bounds, center, zoom, viewport, and image metadata.
-- Thermal overlay, hotspot markers, ranking panel, recommendation details, trace timeline, and follow-up UI.
-
-### Backend
-
-- FastAPI service with Pydantic schemas.
-- Analysis-first API resources rather than a chat-first shape.
-- Capture ingestion and local artifact storage under `backend/data/captures/{region_id}/`.
-- ThermalGen inference wrapper exposed as a callable backend tool.
-- Hotspot proposal, perception helpers, deterministic scoring, ranking, debug views, and follow-up endpoints.
-
-### ThermalGen
-
-- PyTorch RGB-to-thermal model adapted for urban imagery.
-- Produces relative thermal predictions from satellite captures.
-- Supports hotspot discovery and overlay generation.
-- Uses local checkpoints, which are intentionally treated as large external artifacts.
-
-### Agent / Planner Layer
-
-- Provider-neutral LLM layer with mock, Anthropic, Gemini, and Featherless paths.
-- Uses stored analysis results as context for follow-up answers.
-- Intended role: explain, plan, and summarize from existing evidence.
-- Non-goal: invent new measurements or override deterministic ranking.
-
-For a deeper system view, see [Portfolio Architecture](./docs/portfolio-architecture.md).
-
-## API Shape
-
-Canonical analysis flow:
-
-```http
-POST /analysis/from-capture-upload
-GET  /analysis/{region_id}
-GET  /analysis/{region_id}/events
-GET  /analysis/{region_id}/debug
-POST /analysis/{region_id}/questions
-```
-
-The main output converges to a stable `AnalysisResponse` containing:
-
-- selected region metadata
-- source and thermal artifact URLs
-- hotspot candidates
-- trace steps
-- anomaly, severity, confidence, and final rank scores
-- discarded and finalized candidates
-- ranked top hotspots
+- Deterministic: capture handling, artifact storage, hotspot proposal, scoring, ranking, debug views, and API response contracts.
+- Model-based: ThermalGen generates relative thermal evidence from RGB satellite captures.
+- AI-assisted: optional crop classification, explanation wording, and follow-up planning over stored analysis results.
+- Bounded: the LLM does not own ranking math, anomaly gates, or final prioritization.
 
 Ranking is intentionally inspectable:
 
@@ -104,20 +57,16 @@ if anomaly_score < anomaly_threshold:
 final_rank_score = severity_score * confidence_score
 ```
 
-See [backend/API_EXAMPLES.md](./backend/API_EXAMPLES.md) and [docs/contracts.md](./docs/contracts.md) for request and response examples.
+## Architecture At A Glance
 
-For a no-key deterministic backend fixture, see [docs/demo_walkthrough.md](./docs/demo_walkthrough.md).
-An example summary artifact is available at [docs/examples/demo-analysis-summary.json](./docs/examples/demo-analysis-summary.json).
+- Frontend: Next.js, React, TypeScript, Tailwind, and Google Maps region selection.
+- Backend: FastAPI, Pydantic contracts, local artifact persistence, ThermalGen integration, scoring/ranking, and planner endpoints.
+- ThermalGen: PyTorch RGB-to-thermal generation adapted for urban imagery.
+- Planner layer: provider-neutral LLM adapters for grounded follow-up answers over existing analysis results.
 
-Quick backend checks:
+See [docs/portfolio-architecture.md](./docs/portfolio-architecture.md) for the full system diagram and tradeoff discussion.
 
-```powershell
-cd backend
-python -m unittest discover tests
-python scripts\demo_analysis.py
-```
-
-## Local Setup
+## Run Locally
 
 Fast Windows setup:
 
@@ -127,131 +76,50 @@ notepad .env
 .\scripts\dev.ps1
 ```
 
-For the full local workflow and troubleshooting, see [docs/local-dev-setup.md](./docs/local-dev-setup.md).
+The dev script syncs service env files and launches:
 
-The dev script reads the root `.env`, syncs service env files, then launches both servers. Use `LLM_PROVIDER=mock` for a local demo without external LLM keys.
+- Backend: `http://localhost:8000`
+- Frontend: `http://localhost:3000`
 
-Thermal inference still requires local model checkpoints under:
+Use `LLM_PROVIDER=mock` for a no-key local demo. The live Google Maps UI still needs `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`. Full ThermalGen inference needs local checkpoints under:
 
 ```text
 backend/models/hybrid_thermal/checkpoints/
 ```
 
-See [docs/local_setup.md](./docs/local_setup.md) for checkpoint and artifact details.
+For setup details and troubleshooting, see [docs/local-dev-setup.md](./docs/local-dev-setup.md).
 
-Manual fallback:
+## Smoke Checks
 
 ```powershell
-.\scripts\sync-env.ps1
-
-# Terminal 1
-cd backend
-python -m uvicorn app.main:app --reload
-
-# Terminal 2
-cd frontend
-corepack pnpm dev
+.\scripts\smoke.ps1
 ```
 
-## Environment Variables
+The smoke path runs deterministic backend tests and the demo fixture without Google Maps, ThermalGen checkpoints, or real LLM keys.
 
-Edit the root `.env`. The service `.env` files are generated by `scripts/sync-env.ps1`.
+Example output artifact:
 
-Frontend:
-
-```text
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=replace_with_google_maps_browser_key
-```
-
-Backend:
-
-```text
-LLM_PROVIDER=mock
-ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=
-ANTHROPIC_VISION_MODEL=
-GEMINI_API_KEY=
-GEMINI_MODEL=
-FEATHERLESS_API_KEY=
-FEATHERLESS_MODEL=
-FEATHERLESS_HTTP_REFERER=
-FEATHERLESS_X_TITLE=
-ELEVENLABS_API_KEY=
-ELEVENLABS_VOICE_ID=
-ELEVENLABS_MODEL_ID=
-```
+- [docs/examples/demo-analysis-summary.json](./docs/examples/demo-analysis-summary.json)
 
 ## Team
 
-UrbanLens was built by a four-person team for the WashU Google Build with AI hackathon.
+UrbanLens was built by:
+
+- [@tioluwani-enoch](https://github.com/tioluwani-enoch): frontend UI/UX, Google Maps interaction, side panels, and analysis presentation.
+- [@GALGALLOR](https://github.com/GALGALLOR): ThermalGen adaptation, RGB/thermal preprocessing, inference integration, and thermal overlay work.
+- [@shuja-waraich-03](https://github.com/shuja-waraich-03): backend setup, agent loop, tool-calling behavior, prompts, and investigation flow.
+- [@postigodev](https://github.com/postigodev): analysis contracts, capture/API alignment, deterministic scoring/ranking, provider paths, setup docs, CI, and repo hardening.
 
 For a fuller team-oriented writeup, see [docs/team-and-contributions.md](./docs/team-and-contributions.md).
 
-- [@postigodev](https://github.com/postigodev): Built the backend analysis backbone connecting capture ingestion, ThermalGen result handling, hotspot scoring, ranked intervention outputs, and stored analysis artifacts. Defined deterministic API and scoring boundaries so results stayed consistent, inspectable, and usable by the follow-up reasoning layer.
-
-- [@tioluwani-enoch](https://github.com/tioluwani-enoch): Designed the frontend web app, UI/UX flow, map interaction model, and analysis presentation layer. Proposed using live Google Maps satellite imagery as the primary input, replacing the need for bulky static image datasets and making locality selection faster and more accessible.
-
-- [@shuja-waraich-03](https://github.com/shuja-waraich-03): Built the agent investigation loop that turns user questions into multi-step tool-using analysis. The loop selects tools, executes them, feeds results back into the model, and continues until enough grounded evidence is available to answer.
-
-- [@GALGALLOR](https://github.com/GALGALLOR): Adapted the ThermalGen model for urban heat analysis and built the preprocessing path for RGB-to-thermal inputs. Exposed model inference methods to the backend so ThermalGen could operate as a callable analysis tool inside the broader investigation pipeline.
-
 ## Hackathon Tradeoffs
 
-- Local file storage is used for captures and generated artifacts. A production version would use object storage, retention policies, and access control.
-- ThermalGen predictions are relative thermal evidence, not calibrated thermal camera measurements.
-- Some model assets are large and are expected to be restored locally instead of committed directly.
-- The analysis pipeline prioritizes a small, understandable tool set over broad autonomous agent behavior.
-- The LLM layer is bounded to explanation and planning over stored evidence; ranking and discard decisions are deterministic.
-
-## Production Improvements
-
-Given more time, the next improvements would be:
-
-- deterministic sample/demo mode with a small fixture and expected output
-- tests for scoring, capture ingestion, and API response contracts
-- durable persistence for analyses and artifacts
-- stricter auth and API key management
-- calibrated thermal validation against measured thermal imagery
-- larger-region batching and queue-backed inference
-- clearer surface classification evaluation metrics
-
-## Repository Map
-
-```text
-backend/
-  app/
-    routes.py              FastAPI analysis endpoints
-    schemas.py             Pydantic API contracts
-    store.py               in-memory analysis store and artifact wiring
-    capture_pipeline.py    capture storage and ThermalGen bridge
-    thermal/               RGB-to-thermal inference integration
-    scoring/               deterministic anomaly/severity/confidence/ranking logic
-    perception/            surface and candidate helpers
-    agent/                 tool/planner paths for follow-up reasoning
-
-frontend/
-  app/                     Next.js app shell
-  components/              map, sidebar, ranking, recommendation, trace UI
-  lib/api.ts               typed frontend API client
-  lib/thermal-context.tsx  frontend analysis/session state
-
-docs/
-  README.md
-  architecture.md
-  portfolio-architecture.md
-  contracts.md
-  demo.md
-  team-and-contributions.md
-  examples/demo-analysis-summary.json
-  local_setup.md
-  archive/hackathon-planning/  historical hackathon planning notes
-```
+- Local file storage is used for captures and generated artifacts; production would use object storage and retention/access policies.
+- ThermalGen predictions are relative evidence, not calibrated measurements.
+- Model checkpoints are large local artifacts and are not committed.
+- The system favors a small, explainable pipeline over broad autonomous-agent behavior.
+- LLM behavior is bounded to explanation and planning over stored evidence.
 
 ## License
 
 UrbanLens is available under the [MIT License](./LICENSE).
-
-## Scope and Limitations
-
-UrbanLens should be read as a systems and applied-AI prototype: a working demo that shows how satellite capture, custom thermal generation, deterministic ranking, and grounded AI follow-up can fit together. It should not be used as a substitute for calibrated thermal surveys, safety inspections, or environmental engineering analysis.
