@@ -122,11 +122,11 @@ corepack pnpm install
 corepack pnpm dev
 ```
 
-If PowerShell blocks npm shims, use `npm.cmd` as the fallback:
+If Corepack is not enabled yet:
 
 ```powershell
-npm.cmd install
-npm.cmd run dev
+corepack enable
+corepack pnpm install
 ```
 
 ## ThermalGen Connection State

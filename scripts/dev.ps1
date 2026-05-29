@@ -30,12 +30,7 @@ function Resolve-FrontendCommand {
     return "corepack pnpm"
   }
 
-  $npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
-  if ($npmCmd) {
-    return "npm.cmd"
-  }
-
-  throw "Neither corepack nor npm.cmd was found. Install Node.js first."
+  throw "Corepack was not found. Install Node.js with Corepack support, then run corepack enable."
 }
 
 $python = Resolve-Python
@@ -47,16 +42,12 @@ if ($Install) {
 
   Write-Host "Installing frontend dependencies..." -ForegroundColor Cyan
   Push-Location frontend
-  if ($frontendCommand -eq "corepack pnpm") {
-    corepack pnpm install
-  } else {
-    npm.cmd install
-  }
+  corepack pnpm install
   Pop-Location
 }
 
 $backendCommand = "Set-Location '$repoRoot\backend'; & '$python' -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
-$frontendRun = if ($frontendCommand -eq "corepack pnpm") { "corepack pnpm dev" } else { "npm.cmd run dev" }
+$frontendRun = "corepack pnpm dev"
 $frontendCommandText = "Set-Location '$repoRoot\frontend'; $frontendRun"
 
 Start-Process powershell.exe -ArgumentList "-NoExit", "-Command", $backendCommand -WorkingDirectory (Join-Path $repoRoot "backend")

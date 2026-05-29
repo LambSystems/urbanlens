@@ -109,7 +109,6 @@ Frontend dependencies can be audited with either package manager:
 ```powershell
 cd frontend
 corepack pnpm audit
-npm.cmd audit
 ```
 
 Backend dependency auditing is intentionally not part of runtime requirements. Use `pip-audit` as a local tool when Python is available:
@@ -143,13 +142,13 @@ To check checkpoint discovery:
 
 Install Python and ensure it is on PATH, or create `.venv` at the repository root.
 
-### PowerShell blocks npm
+### Corepack is not available
 
-Use `corepack pnpm` or `npm.cmd` instead of `npm`:
+Install a current Node.js release, then enable Corepack:
 
 ```powershell
-npm.cmd install
-npm.cmd run dev
+corepack enable
+corepack pnpm install
 ```
 
 ### Google Maps fails to load
