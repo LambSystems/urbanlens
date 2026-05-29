@@ -8,6 +8,7 @@ This repository is kept honest as a hackathon project: it is not production envi
 
 - Demo video: [YouTube](https://www.youtube.com/watch?v=78SCFwdAIuk)
 - Hackathon submission: [Devpost](https://devpost.com/software/urbanlens-uxwd48)
+- Docs index: [docs/README.md](./docs/README.md)
 
 ![CI](https://github.com/LambSystems/urbanlens/actions/workflows/ci.yml/badge.svg)
 
@@ -70,6 +71,8 @@ The system is designed around a clear boundary:
 - Intended role: explain, plan, and summarize from existing evidence.
 - Non-goal: invent new measurements or override deterministic ranking.
 
+For a deeper system view, see [Portfolio Architecture](./docs/portfolio-architecture.md).
+
 ## API Shape
 
 Canonical analysis flow:
@@ -104,6 +107,7 @@ final_rank_score = severity_score * confidence_score
 See [backend/API_EXAMPLES.md](./backend/API_EXAMPLES.md) and [docs/contracts.md](./docs/contracts.md) for request and response examples.
 
 For a no-key deterministic backend fixture, see [docs/demo_walkthrough.md](./docs/demo_walkthrough.md).
+An example summary artifact is available at [docs/examples/demo-analysis-summary.json](./docs/examples/demo-analysis-summary.json).
 
 Quick backend checks:
 
@@ -182,6 +186,8 @@ ELEVENLABS_MODEL_ID=
 
 UrbanLens was built by a four-person team for the WashU Google Build with AI hackathon.
 
+For a fuller team-oriented writeup, see [docs/team-and-contributions.md](./docs/team-and-contributions.md).
+
 - [@postigodev](https://github.com/postigodev): Built the backend analysis backbone connecting capture ingestion, ThermalGen result handling, hotspot scoring, ranked intervention outputs, and stored analysis artifacts. Defined deterministic API and scoring boundaries so results stayed consistent, inspectable, and usable by the follow-up reasoning layer.
 
 - [@tioluwani-enoch](https://github.com/tioluwani-enoch): Designed the frontend web app, UI/UX flow, map interaction model, and analysis presentation layer. Proposed using live Google Maps satellite imagery as the primary input, replacing the need for bulky static image datasets and making locality selection faster and more accessible.
@@ -231,9 +237,13 @@ frontend/
   lib/thermal-context.tsx  frontend analysis/session state
 
 docs/
+  README.md
   architecture.md
+  portfolio-architecture.md
   contracts.md
   demo.md
+  team-and-contributions.md
+  examples/demo-analysis-summary.json
   local_setup.md
   archive/hackathon-planning/  historical hackathon planning notes
 ```
