@@ -64,6 +64,8 @@ backend/.env.example
 frontend/.env.example
 ```
 
+The service-level examples are intentionally kept because Railway and Vercel may use `backend/` or `frontend/` as project roots. For normal local development, edit only the repository-root `.env`.
+
 Local generated files:
 
 ```text
@@ -183,3 +185,7 @@ Confirm checkpoints exist under `backend/models/hybrid_thermal/checkpoints/`. Wi
 ## Docker
 
 Docker is intentionally not required for the current local workflow. It is a good future step, but PyTorch model artifacts and local Google Maps credentials make the PowerShell workflow the lower-friction portfolio path right now.
+
+## Local Experiments
+
+`notebooks/` is ignored because it is used for local model experiments and scratch inference checks. Keep reusable findings in docs, scripts, or tests instead of committing exploratory notebook state.

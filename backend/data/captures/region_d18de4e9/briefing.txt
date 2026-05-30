@@ -1,1 +1,0 @@
-For the question 'What should we inspect first here?', the top finding is hs_01, a roof. It ranked first with anomaly 0.83, severity 0.78, and confidence 0.90. The recommended next step is cool-roof retrofit.

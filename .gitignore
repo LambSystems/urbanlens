@@ -10,6 +10,7 @@ __pycache__/
 venv/
 env/
 .ipynb_checkpoints/
+notebooks/
 
 # Local environment files and secrets
 .env
@@ -36,19 +37,14 @@ frontend/tsconfig.tsbuildinfo
 .tmp/
 .tmp copy/
 
-# hybrid_thermal local uploads, generated outputs, and model artifacts
+# Local captures, generated outputs, and model artifacts
+backend/data/captures/
 backend/data/hybrid_thermal/
 backend/models/.ipynb_checkpoints/
 backend/models/hybrid_thermal/checkpoints/*
 !backend/models/hybrid_thermal/checkpoints/.gitkeep
+backend/package-lock.json
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
-.env
-*.pyc
-__pycache__/
-venv/
-.venv/
-node_modules/
-.DS_Store
