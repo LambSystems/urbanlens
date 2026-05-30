@@ -9,6 +9,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from pydantic import ValidationError
 
 from .agent.planner import answer_region_question
+from .config import DEMO_MODE
+from .demo_data import build_demo_planner_response, build_demo_thermal_inference
 from .schemas import (
     AnalysisEvent,
     AnalysisResponse,
@@ -121,6 +123,9 @@ async def infer_thermal_from_upload(
     filename: str | None = Query(default=None, max_length=120),
     allow_fallback: bool = Query(default=True),
 ) -> ThermalInferenceResponse:
+    if DEMO_MODE:
+        return build_demo_thermal_inference()
+
     body = await request.body()
     if not body:
         raise HTTPException(status_code=400, detail="Upload body is empty.")
@@ -157,7 +162,11 @@ def ask_region_question(region_id: str, payload: PlannerQuestionRequest) -> Plan
         analysis = store.get_analysis(region_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Analysis region not found.") from exc
+    if DEMO_MODE:
+        return build_demo_planner_response(analysis, payload.question)
     return answer_region_question(analysis, payload.question)
+
+
 @router.get("/health")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}

@@ -21,6 +21,7 @@ UrbanLens is not production environmental measurement software. ThermalGen outpu
 | A recruiter or portfolio reviewer | [Portfolio architecture](./docs/portfolio-architecture.md), [team contributions](./docs/team-and-contributions.md), and the demo video |
 | An engineer reviewing the system | [Contracts](./docs/contracts.md), [example output](./docs/examples/demo-analysis-summary.json), and [local dev setup](./docs/local-dev-setup.md) |
 | Trying to run it locally | `.\scripts\dev.ps1` after copying `.env.example` to `.env` |
+| Deploying the portfolio demo | [Deployment notes](./docs/deployment.md) |
 | Looking for hackathon history | [Hackathon planning archive](./docs/archive/hackathon-planning/README.md) |
 
 ## Pipeline
@@ -81,7 +82,9 @@ The dev script syncs service env files and launches:
 - Backend: `http://localhost:8000`
 - Frontend: `http://localhost:3000`
 
-Use `LLM_PROVIDER=mock` for a no-key local demo. The live Google Maps UI still needs `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`. Full ThermalGen inference needs local checkpoints under:
+Use `LLM_PROVIDER=mock` for a no-key local demo. For hosted portfolio deployments where AI keys and model checkpoints should not be required, set `DEMO_MODE=true`; the backend will keep the same API contracts but return deterministic fixture analysis instead of calling live LLMs or ThermalGen.
+
+The live Google Maps UI still needs `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`. Full ThermalGen inference needs local checkpoints under:
 
 ```text
 backend/models/hybrid_thermal/checkpoints/

@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
 from .agent import investigate
+from .config import DEMO_MODE
+from .demo_data import build_demo_investigation_response
 from .schemas import (
     CreateSessionRequest,
     InvestigationResponse,
@@ -62,6 +64,19 @@ async def send_prompt(session_id: str, payload: UserPromptRequest) -> Investigat
     # Run investigation
     session_store.set_status(session_id, SessionStatus.investigating)
 
+    if DEMO_MODE:
+        response = build_demo_investigation_response(session_id, payload.prompt)
+        for step in response.chain_of_thought:
+            session_store.append_chain_step(session_id, step)
+        session_store.finalize_message(
+            session_id,
+            "assistant",
+            response.answer,
+            chain_of_thought=response.chain_of_thought,
+        )
+        session_store.set_status(session_id, SessionStatus.answered)
+        return response
+
     try:
         result = await investigate(
             prompt=payload.prompt,
@@ -108,6 +123,31 @@ async def send_prompt_stream(session_id: str, payload: UserPromptRequest):
         history = [{"role": m.role, "content": m.content} for m in messages[:-1]]
 
     session_store.set_status(session_id, SessionStatus.investigating)
+
+    if DEMO_MODE:
+        response = build_demo_investigation_response(session_id, payload.prompt)
+
+        async def demo_event_generator():
+            for step in response.chain_of_thought:
+                session_store.append_chain_step(session_id, step)
+                yield {"event": "step", "data": step.model_dump_json()}
+            session_store.finalize_message(
+                session_id,
+                "assistant",
+                response.answer,
+                chain_of_thought=response.chain_of_thought,
+            )
+            session_store.set_status(session_id, SessionStatus.answered)
+            yield {
+                "event": "done",
+                "data": json.dumps({
+                    "session_id": session_id,
+                    "prompt": payload.prompt,
+                    "answer": response.answer,
+                }),
+            }
+
+        return EventSourceResponse(demo_event_generator())
 
     queue: asyncio.Queue = asyncio.Queue()
 

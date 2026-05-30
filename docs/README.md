@@ -13,6 +13,7 @@ Start here if you are reviewing the project.
 
 - [Contracts](./contracts.md): request/response shape and ranking contract.
 - [Local dev setup](./local-dev-setup.md): one-command PowerShell workflow, env sync, smoke checks, and troubleshooting.
+- [Deployment notes](./deployment.md): Railway and Vercel settings for the no-key hosted demo.
 - [Architecture](./architecture.md): original architecture notes from the hackathon pivot.
 - [ThermalGen tool](./thermalgen_tool.md): thermal inference details.
 - [Models](./models.md): model/tool stack notes.

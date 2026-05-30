@@ -5,6 +5,10 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+# Deploy-safe mode for hosted portfolio demos. It keeps the API contracts
+# stable while bypassing live LLM calls and heavy ThermalGen inference.
+DEMO_MODE = os.environ.get("DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+
 # Provider: "anthropic", "gemini", "featherless", or "mock"
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
 

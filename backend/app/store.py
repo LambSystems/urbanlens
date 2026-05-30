@@ -31,6 +31,8 @@ from .schemas import (
     HotspotStatus,
     TraceStepStatus,
 )
+from .config import DEMO_MODE
+from .demo_data import DEMO_REGION_ID, build_demo_analysis
 
 
 class InMemoryAnalysisStore:
@@ -41,6 +43,9 @@ class InMemoryAnalysisStore:
         self._created_at: dict[str, datetime] = {}
 
     def create_analysis(self, payload: CreateAnalysisRequest) -> AnalysisResponse:
+        if DEMO_MODE:
+            return self._create_demo_analysis()
+
         region_id = f"region_{uuid4().hex[:8]}"
         analysis, events = build_analysis_from_candidates([], {}, payload.center, payload.radius_m, region_id)
 
@@ -52,6 +57,9 @@ class InMemoryAnalysisStore:
         return self.get_analysis(region_id)
 
     def create_analysis_from_capture(self, payload: CreateAnalysisFromCaptureRequest) -> AnalysisResponse:
+        if DEMO_MODE:
+            return self._create_demo_analysis()
+
         region_id = f"region_{uuid4().hex[:8]}"
         image_bytes = base64.b64decode(payload.capture.image_base64)
         image_path = save_capture_image(region_id, image_bytes, suffix=".png")
@@ -82,6 +90,9 @@ class InMemoryAnalysisStore:
         image_bytes: bytes,
         image_suffix: str = ".png",
     ) -> AnalysisResponse:
+        if DEMO_MODE:
+            return self._create_demo_analysis()
+
         region_id = f"region_{uuid4().hex[:8]}"
         image_path = save_capture_image(region_id, image_bytes, suffix=image_suffix)
         image_info = inspect_image_file(image_path)
@@ -160,6 +171,14 @@ class InMemoryAnalysisStore:
             self._created_at[region_id] = datetime.now(UTC)
 
         return self.get_analysis(region_id)
+
+    def _create_demo_analysis(self) -> AnalysisResponse:
+        analysis, events = build_demo_analysis(DEMO_REGION_ID)
+        with self._lock:
+            self._analyses[DEMO_REGION_ID] = analysis
+            self._events[DEMO_REGION_ID] = events
+            self._created_at[DEMO_REGION_ID] = datetime.now(UTC)
+        return self.get_analysis(DEMO_REGION_ID)
 
     @staticmethod
     def _write_capture_metadata(

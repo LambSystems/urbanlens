@@ -32,6 +32,7 @@ foreach ($line in Get-Content -LiteralPath $rootEnv) {
 
 $backendKeys = @(
   "LLM_PROVIDER",
+  "DEMO_MODE",
   "ANTHROPIC_API_KEY",
   "ANTHROPIC_MODEL",
   "ANTHROPIC_VISION_MODEL",

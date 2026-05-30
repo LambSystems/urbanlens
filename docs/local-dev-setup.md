@@ -26,6 +26,15 @@ http://localhost:8000
 
 Use `LLM_PROVIDER=mock` for a no-key local demo. A Google Maps browser key is still needed for the live map UI.
 
+For a hosted portfolio demo where cloud costs and expired AI keys should never break the walkthrough, set:
+
+```text
+DEMO_MODE=true
+LLM_PROVIDER=mock
+```
+
+`DEMO_MODE=true` keeps the same backend contracts but returns deterministic fixture data instead of calling live LLMs or heavy ThermalGen inference.
+
 ## First-Time Dependency Install
 
 If dependencies are not installed yet:
@@ -101,6 +110,12 @@ python scripts\demo_analysis.py
 ```
 
 The smoke path does not require Google Maps, ThermalGen checkpoints, or real LLM keys.
+
+The hosted demo path is intentionally different from production mode:
+
+- `POST /analysis` and capture endpoints return a fixed `demo_washu` analysis.
+- `POST /thermal/infer/upload` returns deterministic thermal metadata without running the model.
+- `/analysis/{region_id}/questions` and `/session/*/prompt` return grounded fixture answers without external AI calls.
 
 CI runs the same backend smoke path using `backend/requirements-smoke.txt` so GitHub Actions does not need to install PyTorch, rasterio, or model checkpoints.
 
