@@ -19,7 +19,9 @@ Create a Railway service from this repository and set the service root to:
 backend
 ```
 
-Use this start command:
+The backend includes `backend/nixpacks.toml`, which installs `requirements-deploy.txt` instead of the full ThermalGen stack. This keeps the hosted demo small by excluding PyTorch, rasterio, and local model dependencies.
+
+Use this start command if Railway asks for one manually:
 
 ```text
 uvicorn app.main:app --host 0.0.0.0 --port $PORT

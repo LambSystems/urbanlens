@@ -121,6 +121,8 @@ The hosted demo path is intentionally different from production mode:
 
 CI runs the same backend smoke path using `backend/requirements-smoke.txt` so GitHub Actions does not need to install PyTorch, rasterio, or model checkpoints.
 
+Railway demo deploys use `backend/requirements-deploy.txt`, which is intentionally smaller than `backend/requirements.txt` because `DEMO_MODE=true` bypasses ThermalGen and live AI providers.
+
 ## Dependency Audit
 
 Frontend dependencies can be audited with either package manager:
