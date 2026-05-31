@@ -38,7 +38,7 @@ $frontendCommand = Resolve-FrontendCommand
 
 if ($Install) {
   Write-Host "Installing backend dependencies..." -ForegroundColor Cyan
-  & $python -m pip install -r backend\requirements.txt
+  & $python -m pip install -r backend\requirements-full.txt
 
   Write-Host "Installing frontend dependencies..." -ForegroundColor Cyan
   Push-Location frontend

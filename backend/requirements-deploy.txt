@@ -1,9 +1,4 @@
-# Lightweight backend dependencies for hosted portfolio demo mode.
-# This intentionally excludes ThermalGen/PyTorch/geospatial model dependencies.
-#
-# Use with:
-#   DEMO_MODE=true
-#   LLM_PROVIDER=mock
+# Alias for Railway/demo deploys. Keep this aligned with requirements.txt.
 
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30,<1.0

@@ -92,7 +92,7 @@ backend/models/hybrid_thermal/checkpoints/
 
 For setup details and troubleshooting, see [docs/local-dev-setup.md](./docs/local-dev-setup.md).
 
-Hosted portfolio deploys should use `DEMO_MODE=true`; Railway uses `backend/railway.toml` and `backend/railpack.json` to install the lightweight `backend/requirements-deploy.txt` so the public demo does not pull the full ThermalGen/PyTorch stack.
+Hosted portfolio deploys should use `DEMO_MODE=true`; Railway auto-installs the lightweight `backend/requirements.txt`. Full local ThermalGen/PyTorch dependencies live in `backend/requirements-full.txt`.
 
 ## Smoke Checks
 

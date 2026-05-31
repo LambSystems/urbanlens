@@ -4,6 +4,18 @@ FastAPI backend scaffold for the hackathon MVP.
 
 ## Run
 
+For the lightweight hosted-demo dependency set:
+
+```bash
+pip install -r requirements.txt
+```
+
+For local ThermalGen inference and notebooks:
+
+```bash
+pip install -r requirements-full.txt
+```
+
 ```bash
 uvicorn app.main:app --reload
 ```

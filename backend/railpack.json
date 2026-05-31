@@ -1,19 +1,5 @@
 {
   "$schema": "https://schema.railpack.com",
-  "steps": {
-    "build": {
-      "commands": [
-        {
-          "cmd": "pip install --upgrade pip",
-          "customName": "Upgrade pip"
-        },
-        {
-          "cmd": "pip install -r requirements-deploy.txt",
-          "customName": "Install demo backend dependencies"
-        }
-      ]
-    }
-  },
   "deploy": {
     "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
   }

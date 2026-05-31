@@ -10,7 +10,7 @@ Use one Python virtual environment at the repo root:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-full.txt
 ```
 
 Do not create or commit nested virtual environments inside `backend/`, `frontend/`, or the thermal model folders.

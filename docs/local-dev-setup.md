@@ -41,7 +41,7 @@ If dependencies are not installed yet:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-full.txt
 corepack pnpm --dir frontend install
 .\scripts\dev.ps1
 ```
@@ -121,7 +121,7 @@ The hosted demo path is intentionally different from production mode:
 
 CI runs the same backend smoke path using `backend/requirements-smoke.txt` so GitHub Actions does not need to install PyTorch, rasterio, or model checkpoints.
 
-Railway demo deploys use `backend/requirements-deploy.txt`, which is intentionally smaller than `backend/requirements.txt` because `DEMO_MODE=true` bypasses ThermalGen and live AI providers. Railway reads `backend/railway.toml`, and Railpack reads `backend/railpack.json` from the backend service root.
+Railway demo deploys use the lightweight `backend/requirements.txt` because Railpack auto-installs that filename from the backend service root. Full local ThermalGen inference dependencies live in `backend/requirements-full.txt`.
 
 ## Dependency Audit
 
@@ -136,7 +136,7 @@ Backend dependency auditing is intentionally not part of runtime requirements. U
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install pip-audit
-.\.venv\Scripts\python.exe -m pip_audit -r backend\requirements.txt
+.\.venv\Scripts\python.exe -m pip_audit -r backend\requirements-full.txt
 ```
 
 ## ThermalGen Checkpoints
