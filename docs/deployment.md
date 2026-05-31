@@ -27,7 +27,7 @@ Set the Railway config file path to:
 
 The backend also includes `backend/railpack.json`, which overrides Railpack's install step so the hosted demo installs `requirements-deploy.txt` instead of the full ThermalGen stack. This keeps the hosted demo small by excluding PyTorch, rasterio, and local model dependencies.
 
-The expected Railpack install commands are split because Railpack executes each command directly, not through a shell:
+The expected Railpack build-step commands are split because Railpack executes each command directly, not through a shell. They live under `steps.build` because source files are not available during `steps.install`:
 
 ```text
 pip install --upgrade pip
